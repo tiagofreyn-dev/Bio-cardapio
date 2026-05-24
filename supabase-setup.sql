@@ -133,3 +133,115 @@ CREATE TRIGGER trg_gerar_loja_slug
 
 -- Habilitar a extensão "unaccent" caso não esteja ativada (usada para tirar acentos no slug)
 CREATE EXTENSION IF NOT EXISTS unaccent;
+
+
+-- ==========================================================
+-- TABELAS E POLÍTICAS ADICIONAIS DO CARDÁPIO DIGITAL
+-- ==========================================================
+
+-- 4. CRIAR TABELA DE TAXAS DE ENTREGA POR REGIÃO
+CREATE TABLE IF NOT EXISTS public.delivery_locations (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  name TEXT NOT NULL,
+  fee NUMERIC(10, 2) NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now() NOT NULL
+);
+
+-- Habilitar RLS na tabela delivery_locations
+ALTER TABLE public.delivery_locations ENABLE ROW LEVEL SECURITY;
+
+-- Políticas RLS para delivery_locations
+CREATE POLICY "Permitir leitura pública de taxas" ON public.delivery_locations
+  FOR SELECT USING (true);
+
+CREATE POLICY "Permitir gerenciamento completo por qualquer um no admin" ON public.delivery_locations
+  FOR ALL USING (true);
+
+
+-- 5. CRIAR TABELA DE HISTÓRICO DE PEDIDOS (Faturamento)
+CREATE TABLE IF NOT EXISTS public.orders_history (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  client_name TEXT NOT NULL,
+  payment_method TEXT NOT NULL, -- 'Pix', 'Cartão', 'Dinheiro'
+  delivery_type TEXT NOT NULL, -- 'Entrega', 'Retirada'
+  subtotal NUMERIC(10, 2) NOT NULL,
+  delivery_fee NUMERIC(10, 2) NOT NULL,
+  total_price NUMERIC(10, 2) NOT NULL,
+  is_fidelidade_resgate BOOLEAN DEFAULT false NOT NULL,
+  items_summary TEXT,
+  created_at TIMESTAMPTZ DEFAULT now() NOT NULL
+);
+
+-- Habilitar RLS na tabela orders_history
+ALTER TABLE public.orders_history ENABLE ROW LEVEL SECURITY;
+
+-- Políticas RLS para orders_history
+CREATE POLICY "Permitir inserção de pedidos por qualquer um" ON public.orders_history
+  FOR INSERT WITH CHECK (true);
+
+CREATE POLICY "Permitir leitura de faturamento por qualquer um" ON public.orders_history
+  FOR SELECT USING (true);
+
+
+-- 6. CRIAR TABELA DE CAMPANHAS/SORTEIOS
+CREATE TABLE IF NOT EXISTS public.campaigns (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  title TEXT NOT NULL,
+  min_value NUMERIC(10, 2) NOT NULL,
+  is_active BOOLEAN DEFAULT true NOT NULL,
+  ends_at TIMESTAMPTZ,
+  image TEXT,
+  created_at TIMESTAMPTZ DEFAULT now() NOT NULL
+);
+
+-- Habilitar RLS na tabela campaigns
+ALTER TABLE public.campaigns ENABLE ROW LEVEL SECURITY;
+
+-- Políticas RLS para campaigns
+CREATE POLICY "Permitir leitura pública de sorteios" ON public.campaigns
+  FOR SELECT USING (true);
+
+CREATE POLICY "Permitir gerenciamento completo de sorteios" ON public.campaigns
+  FOR ALL USING (true);
+
+
+-- 7. CRIAR TABELA DE PARTICIPANTES DE SORTEIOS
+CREATE TABLE IF NOT EXISTS public.participants (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  campaign_id UUID REFERENCES public.campaigns(id) ON DELETE CASCADE NOT NULL,
+  client_name TEXT NOT NULL,
+  client_phone TEXT NOT NULL,
+  order_total NUMERIC(10, 2) NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now() NOT NULL
+);
+
+-- Habilitar RLS na tabela participants
+ALTER TABLE public.participants ENABLE ROW LEVEL SECURITY;
+
+-- Políticas RLS para participants
+CREATE POLICY "Permitir inserção de participantes por qualquer um" ON public.participants
+  FOR INSERT WITH CHECK (true);
+
+CREATE POLICY "Permitir leitura de participantes por qualquer um" ON public.participants
+  FOR SELECT USING (true);
+
+
+-- 8. CRIAR TABELA DE GANHADORES DE SORTEIOS
+CREATE TABLE IF NOT EXISTS public.campaign_winners (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  campaign_title TEXT NOT NULL,
+  winner_name TEXT NOT NULL,
+  winner_phone TEXT NOT NULL,
+  winner_order_total NUMERIC(10, 2) NOT NULL,
+  drawn_at TIMESTAMPTZ DEFAULT now() NOT NULL
+);
+
+-- Habilitar RLS na tabela campaign_winners
+ALTER TABLE public.campaign_winners ENABLE ROW LEVEL SECURITY;
+
+-- Políticas RLS para campaign_winners
+CREATE POLICY "Permitir leitura pública de ganhadores" ON public.campaign_winners
+  FOR SELECT USING (true);
+
+CREATE POLICY "Permitir gerenciamento completo de ganhadores" ON public.campaign_winners
+  FOR ALL USING (true);

@@ -1349,12 +1349,30 @@ function CampaignsTab() {
   }
 
   if (supabaseError) {
+    const isMissingTable = supabaseError.includes("relation") || supabaseError.includes("not find");
     return (
-      <div className="p-6 rounded-2xl bg-destructive/10 border border-destructive/20 text-center space-y-4">
+      <div className="p-6 rounded-2xl bg-destructive/10 border border-destructive/20 text-center space-y-4 max-w-md mx-auto">
         <div className="text-4xl text-destructive">⚠️</div>
         <h3 className="font-extrabold text-lg text-white">Erro de Configuração</h3>
-        <p className="text-sm text-muted-foreground max-w-sm mx-auto">{supabaseError}</p>
-        <button onClick={fetchData} className={btnSecondary}>Tentar novamente</button>
+        <p className="text-sm text-muted-foreground">{supabaseError}</p>
+        {isMissingTable && (
+          <div className="p-4 bg-zinc-950 rounded-xl border border-yellow-500/20 text-left text-xs space-y-2 mt-2">
+            <span className="font-bold text-yellow-400 block">💡 Dica de Suporte:</span>
+            <p className="text-zinc-400 leading-relaxed font-semibold">
+              O banco de dados do seu Supabase não possui as tabelas adicionais necessárias criadas.
+            </p>
+            <p className="text-zinc-400 leading-relaxed font-bold">
+              Como corrigir isso rapidamente:
+            </p>
+            <ol className="list-decimal pl-4 space-y-1 text-zinc-400 leading-relaxed">
+              <li>Acesse o painel do seu <strong>Supabase</strong>.</li>
+              <li>Vá na aba <strong>SQL Editor</strong> e clique em <strong>New Query</strong>.</li>
+              <li>Copie e cole o código SQL completo do arquivo <strong>[supabase-setup.sql](file:///C:/Users/tiago/OneDrive/Área%20de%20Trabalho/Cardapio/supabase-setup.sql)</strong>.</li>
+              <li>Clique no botão <strong>Run</strong> (ou aperte Ctrl+Enter) para criar as tabelas automaticamente!</li>
+            </ol>
+          </div>
+        )}
+        <button onClick={fetchData} className={`${btnSecondary} w-full mt-3`}>Tentar novamente</button>
       </div>
     );
   }
