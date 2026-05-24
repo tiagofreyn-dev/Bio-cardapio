@@ -8,74 +8,121 @@ import { ArrowLeft, Plus, Pencil, Trash2, Search, Gift, Trophy, Download, Dollar
 import { supabase } from "@/lib/supabase";
 import { useTenant } from "@/lib/tenant";
 
-export const Route = createFileRoute("/admin")({
-  head: () => ({ meta: [{ title: "Painel — Insano Lanches" }] }),
+export const Route = createFileRoute("/$loja/admin")({
+  head: ({ params }) => ({ meta: [{ title: `Painel Administrativo — ${params.loja}` }] }),
   component: AdminPage,
 });
 
 type Tab = "geral" | "fidelidade" | "produtos" | "sorteios" | "faturamento";
 
 function AdminPage() {
+  const { loja } = Route.useParams();
   const [tab, setTab] = useState<Tab>("geral");
   const settings = useStorageSync(() => storage.getSettings());
   const { tenant, refreshTenant, logoutTenant } = useTenant();
 
+  // Estados de segurança e validação
+  const [loadingStore, setLoadingStore] = useState(true);
+  const [storeData, setStoreData] = useState<any>(null);
+  const [storeError, setStoreError] = useState<string | null>(null);
+
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [error, setError] = useState("");
   const [loadingAuth, setLoadingAuth] = useState(true);
+  const [user, setUser] = useState<any>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [submittingLogin, setSubmittingLogin] = useState(false);
 
-  useEffect(() => {
-    async function checkAuth() {
-      let authenticated = false;
-      try {
-        if (typeof window !== "undefined") {
-          const pinAuth = sessionStorage.getItem("insano.admin.auth");
-          if (pinAuth === "true") {
-            authenticated = true;
-          }
-        }
-
-        if (!authenticated && supabase) {
-          // Timeout de 2.5 segundos para evitar travamento de rede
-          const authPromise = supabase.auth.getUser();
-          const timeoutPromise = new Promise<any>((_, reject) =>
-            setTimeout(() => reject(new Error("Timeout de rede")), 2500)
-          );
-
-          const res = await Promise.race([authPromise, timeoutPromise]);
-          const user = res?.data?.user;
-          const error = res?.error;
-
-          if (!error && user) {
-            authenticated = true;
-          }
-        }
-      } catch (err) {
-        console.warn("Erro ao verificar autenticação no Supabase:", err);
+  // 1. Carrega e valida a loja correspondente ao slug da URL
+  async function loadStore() {
+    setLoadingStore(true);
+    setStoreError(null);
+    try {
+      if (!supabase) {
+        throw new Error("Conexão com banco de dados não configurada.");
       }
+      const { data, error } = await supabase
+        .from("lojas")
+        .select("*")
+        .eq("slug", loja.toLowerCase().trim())
+        .maybeSingle();
 
-      if (authenticated) {
-        setIsAuthenticated(true);
+      if (error) throw error;
+      if (!data) {
+        throw new Error(`O comércio '${loja}' não está cadastrado em nosso sistema.`);
       }
-      setLoadingAuth(false);
-    }
-    checkAuth();
-  }, []);
-
-  function handleLogin(e: React.FormEvent) {
-    e.preventDefault();
-    const correctPassword = settings.adminPassword || "1234";
-    if (password === correctPassword) {
-      setIsAuthenticated(true);
-      sessionStorage.setItem("insano.admin.auth", "true");
-      setError("");
-    } else {
-      setError("Senha incorreta! Tente novamente.");
+      setStoreData(data);
+    } catch (err: any) {
+      console.error(err);
+      setStoreError(err.message || "Erro ao carregar dados do comércio.");
+    } finally {
+      setLoadingStore(false);
     }
   }
 
-  if (loadingAuth) {
+  // 2. Verifica a autenticação do usuário logado com timeout de 2.5s
+  async function checkAuth() {
+    setLoadingAuth(true);
+    setAuthError(null);
+    try {
+      if (!supabase) return;
+      
+      const authPromise = supabase.auth.getUser();
+      const timeoutPromise = new Promise<any>((_, reject) =>
+        setTimeout(() => reject(new Error("Timeout de rede")), 2500)
+      );
+
+      const res = await Promise.race([authPromise, timeoutPromise]);
+      const activeUser = res?.data?.user;
+      setUser(activeUser || null);
+    } catch (err: any) {
+      console.warn("Erro ao verificar autenticação no Supabase:", err);
+    } finally {
+      setLoadingAuth(false);
+    }
+  }
+
+  useEffect(() => {
+    loadStore();
+    checkAuth();
+  }, [loja]);
+
+  // Função para efetuar o login de email/senha
+  async function handleStoreLogin(e: React.FormEvent) {
+    e.preventDefault();
+    if (!supabase) return;
+    setSubmittingLogin(true);
+    setAuthError(null);
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: password,
+      });
+
+      if (error) throw error;
+      if (data.user) {
+        setUser(data.user);
+        // Recarrega o tenant global para sincronizar o layout
+        await refreshTenant();
+      }
+    } catch (err: any) {
+      setAuthError(err.message || "Erro ao realizar o login. Verifique as credenciais.");
+    } finally {
+      setSubmittingLogin(false);
+    }
+  }
+
+  // Deslogar da conta ativa
+  async function handleLogout() {
+    if (supabase) {
+      await supabase.auth.signOut();
+    }
+    setUser(null);
+    await refreshTenant().catch(() => {});
+  }
+
+  // 3. Renderização Condicional com base no Carregamento e Validação
+  if (loadingStore || loadingAuth) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-zinc-950 text-white font-sans">
         <div className="w-8 h-8 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
@@ -83,32 +130,116 @@ function AdminPage() {
     );
   }
 
-  if (!isAuthenticated) {
+  // Se a loja não for encontrada no banco
+  if (storeError || !storeData) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-zinc-950 text-white font-sans">
-        <form onSubmit={handleLogin} className="w-full max-w-sm p-6 rounded-3xl bg-zinc-900 ring-2 ring-red-500/30 shadow-[0_15px_40px_rgba(239,68,68,0.15)] space-y-5">
-          <div className="text-center space-y-1">
-            <span className="text-[10px] tracking-[0.2em] font-black uppercase text-red-500">Área Exclusiva</span>
-            <h2 className="text-2xl font-black tracking-tight">Insano Admin</h2>
-            <p className="text-xs text-zinc-400">Digite o PIN de acesso para entrar nas configurações da lanchonete.</p>
+      <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-zinc-950 text-white font-sans text-center">
+        <div className="w-full max-w-md p-8 rounded-3xl bg-zinc-900 ring-2 ring-red-500/30 shadow-[0_15px_40px_rgba(239,68,68,0.15)] space-y-6">
+          <div className="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center mx-auto">
+            <span className="text-4xl text-red-500">⚠️</span>
           </div>
-
           <div className="space-y-2">
-            <input
-              type="password"
-              placeholder="••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full h-12 text-center tracking-[0.3em] text-xl font-bold rounded-2xl bg-zinc-950 text-white placeholder:text-zinc-700 ring-1 ring-zinc-800 focus:ring-red-500 outline-none transition-all"
-              autoFocus
-            />
-            {error && <p className="text-xs text-red-500 text-center font-bold animate-pulse">{error}</p>}
+            <span className="text-[10px] tracking-[0.2em] font-black uppercase text-red-500">Comércio Inválido</span>
+            <h2 className="text-2xl font-black tracking-tight text-white">Loja Não Encontrada</h2>
+            <p className="text-sm text-zinc-400">
+              {storeError || `O endereço '/${loja}/admin' não pertence a nenhum comércio cadastrado.`}
+            </p>
+          </div>
+          <Link to="/" className="inline-flex w-full items-center justify-center h-12 rounded-2xl bg-zinc-800 hover:bg-zinc-700 text-white font-extrabold text-sm transition active:scale-[0.98]">
+            Ir para o Cardápio
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const hasOwnership = user && user.id === storeData.user_id;
+
+  // Obter cores estáticas do lojista dinâmico para aplicar no estilo do login antes mesmo do dono autenticar!
+  const storeAesthetics = storeData.cor_principal || "#EF4444";
+
+  // Se o usuário não estiver logado, exibe a tela de login customizada com a marca do cliente!
+  if (!user) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-zinc-950 text-white font-sans" style={{ "--primary": storeAesthetics } as any}>
+        <form onSubmit={handleStoreLogin} className="w-full max-w-sm p-6 rounded-3xl bg-zinc-900 ring-2 ring-primary/30 shadow-[0_15px_40px_rgba(239,68,68,0.15)] space-y-5">
+          <div className="text-center space-y-1">
+            <span className="text-[10px] tracking-[0.2em] font-black uppercase" style={{ color: storeAesthetics }}>Painel Administrativo</span>
+            <h2 className="text-2xl font-black tracking-tight text-white">Acesso Restrito</h2>
+            <p className="text-xs text-zinc-400">Entre com sua conta para gerenciar o cardápio do **{storeData.nome_da_loja}**.</p>
           </div>
 
-          <button type="submit" className="w-full h-12 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-extrabold text-sm shadow-[0_5px_20px_rgba(220,38,38,0.3)] transition active:scale-[0.98]">
-            Liberar Acesso
+          <div className="space-y-4">
+            <div className="relative">
+              <input
+                type="email"
+                placeholder="Seu e-mail"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full h-12 pl-4 pr-4 rounded-2xl bg-zinc-950 text-white placeholder:text-zinc-700 ring-1 ring-zinc-800 focus:ring-primary outline-none transition-all text-sm"
+                required
+              />
+            </div>
+            <div className="relative">
+              <input
+                type="password"
+                placeholder="Sua senha"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full h-12 pl-4 pr-4 rounded-2xl bg-zinc-950 text-white placeholder:text-zinc-700 ring-1 ring-zinc-800 focus:ring-primary outline-none transition-all text-sm"
+                required
+              />
+            </div>
+            {authError && <p className="text-xs text-red-500 text-center font-bold animate-pulse">{authError}</p>}
+          </div>
+
+          <button 
+            type="submit" 
+            disabled={submittingLogin} 
+            className="w-full h-12 rounded-2xl text-white font-extrabold text-sm transition active:scale-[0.98] flex items-center justify-center gap-2"
+            style={{ backgroundColor: storeAesthetics }}
+          >
+            {submittingLogin ? (
+              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            ) : "Entrar no Painel 🚀"}
           </button>
+
+          <div className="text-center pt-2">
+            <Link to="/" className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">Voltar ao cardápio público</Link>
+          </div>
         </form>
+      </div>
+    );
+  }
+
+  // Se o usuário está logado mas NÃO é o proprietário desta loja específica (Segurança Cross-Tenant)
+  if (!hasOwnership) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-zinc-950 text-white font-sans text-center">
+        <div className="w-full max-w-md p-8 rounded-3xl bg-zinc-900 ring-2 ring-red-500/30 shadow-[0_15px_40px_rgba(239,68,68,0.15)] space-y-6">
+          <div className="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center mx-auto">
+            <span className="text-4xl text-red-500">🚫</span>
+          </div>
+          <div className="space-y-2">
+            <span className="text-[10px] tracking-[0.2em] font-black uppercase text-red-500">Acesso Negado</span>
+            <h2 className="text-2xl font-black tracking-tight text-white">Proprietário Incorreto</h2>
+            <p className="text-sm text-zinc-400">
+              Você está conectado como **{user.email}**, mas esta conta não possui permissão para gerenciar a loja **{storeData.nome_da_loja}**.
+            </p>
+          </div>
+          
+          <div className="space-y-2">
+            <button 
+              onClick={handleLogout} 
+              className="w-full h-12 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-extrabold text-sm transition active:scale-[0.98]"
+            >
+              Sair e Entrar com outra conta 🔄
+            </button>
+            <Link to="/" className="inline-flex w-full items-center justify-center h-12 rounded-2xl bg-zinc-800 hover:bg-zinc-700 text-white font-extrabold text-sm transition active:scale-[0.98]">
+              Voltar ao Início
+            </Link>
+          </div>
+        </div>
       </div>
     );
   }
@@ -156,21 +287,15 @@ function AdminPage() {
             <Link to="/" className="p-2 text-muted-foreground"><ArrowLeft className="w-5 h-5" /></Link>
             <div>
               <p className="text-[11px] uppercase tracking-widest text-primary font-bold">Painel do Dono</p>
-              <h1 className="font-extrabold">{tenant ? tenant.nome_da_loja : "Insano Admin"}</h1>
+              <h1 className="font-extrabold">{tenant ? tenant.nome_da_loja : storeData.nome_da_loja}</h1>
             </div>
           </div>
-          {isAuthenticated && (
-            <button
-              onClick={async () => {
-                await logoutTenant();
-                sessionStorage.removeItem("insano.admin.auth");
-                window.location.href = "/";
-              }}
-              className="px-3 py-1.5 rounded-xl bg-red-950/20 text-red-400 hover:bg-red-950/40 border border-red-500/20 text-xs font-bold transition active:scale-95 duration-200"
-            >
-              Sair da Conta
-            </button>
-          )}
+          <button
+            onClick={handleLogout}
+            className="px-3 py-1.5 rounded-xl bg-red-950/20 text-red-400 hover:bg-red-950/40 border border-red-500/20 text-xs font-bold transition active:scale-95 duration-200"
+          >
+            Sair da Conta
+          </button>
         </div>
         <div className="flex gap-2 px-4 pb-3 overflow-x-auto no-scrollbar">
           {([["geral", "⚙️ Geral"], ["fidelidade", "🎁 Fidelidade"], ["produtos", "🍔 Produtos"], ["sorteios", "🏆 Sorteios"], ["faturamento", "📊 Faturamento"]] as [Tab, string][]).map(([id, label]) => (
@@ -792,7 +917,7 @@ function ProductModal({ product, isNew, onClose, onSave }: { product: Product; i
       const { data: { publicUrl } } = supabase.storage.from('products-images').getPublicUrl(data.path);
       setP({ ...p, image: publicUrl });
     } catch (err) {
-      alert("Erro ao enviar imagem. Verifique se o bucket 'products-images' existe no Supabase e as credenciais do .env.");
+      alert("Erro ao enviar imagem. Verifique se o bucket 'products-images' existe no Supabase.");
       console.error(err);
     } finally {
       setUploading(false);
@@ -942,6 +1067,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     </label>
   );
 }
+
 function CampaignsTab() {
   const products = useStorageSync(() => storage.getProducts());
   const campaignWinners = useStorageSync(() => storage.getCampaignWinners());
@@ -977,7 +1103,7 @@ function CampaignsTab() {
     setSupabaseError(null);
     try {
       if (!supabase) {
-        setSupabaseError("Supabase não está configurado. Configure as variáveis VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY no seu arquivo .env.");
+        setSupabaseError("Supabase não está configurado.");
         setLoading(false);
         return;
       }
@@ -1152,7 +1278,7 @@ function CampaignsTab() {
   function handleExportCSV() {
     if (participants.length === 0) return alert("Nenhum participante para exportar.");
     
-    // Create CSV content (Portuguese Excel safe with UTF-8 BOM)
+    // Create CSV content
     const headers = "Nome,Telefone,Total do Pedido,Data de Inscrição\n";
     const rows = participants.map(p => {
       const dateStr = p.created_at ? new Date(p.created_at).toLocaleString("pt-BR") : "";
@@ -1194,7 +1320,6 @@ function CampaignsTab() {
   return (
     <section className="space-y-4">
       {activeCampaign ? (
-        // Active Campaign Section
         <div className="space-y-4">
           <div className="p-6 rounded-2xl bg-zinc-900 border-2 border-red-500/30 shadow-[0_10px_30px_rgba(239,68,68,0.1)] space-y-4">
             <div className="flex justify-between items-start">
@@ -1232,7 +1357,6 @@ function CampaignsTab() {
             </div>
           </div>
 
-          {/* Participants Table */}
           <Card title={`Participantes da Campanha (${participants.length})`}>
             <div className="flex justify-end pb-2">
               <button
@@ -1267,7 +1391,7 @@ function CampaignsTab() {
                         <button
                           type="button"
                           onClick={() => handleDeleteParticipant(p.id)}
-                          className="p-1 rounded-lg text-zinc-500 hover:text-red-500 hover:bg-red-500/10 active:scale-95 transition-all animate-fade-in"
+                          className="p-1 rounded-lg text-zinc-500 hover:text-red-500 hover:bg-red-500/10 active:scale-95 transition-all"
                           title="Remover participante"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -1287,7 +1411,6 @@ function CampaignsTab() {
           </Card>
         </div>
       ) : (
-        // Create Campaign Section AND Last Closed Campaign Panel
         <div className="space-y-6">
           <form onSubmit={handleCreateCampaign} className="space-y-4">
             <div className="p-6 rounded-2xl bg-zinc-900 ring-1 ring-border space-y-4">
@@ -1374,7 +1497,6 @@ function CampaignsTab() {
             </div>
           </form>
 
-          {/* Last Closed Campaign Panel with Sortear Button */}
           {latestCampaign && (() => {
             const existingWinner = campaignWinners.find(w => w.id === latestCampaign.id);
             return (
@@ -1424,7 +1546,7 @@ function CampaignsTab() {
                         </div>
                         <a 
                           href={`https://wa.me/55${existingWinner.winner_phone.replace(/\D/g, "")}?text=${encodeURIComponent(
-                            `Olá ${existingWinner.winner_name}! Você participou do nosso sorteio no Insano Lanches e foi o GANHADOR! 🎉🏆`
+                            `Olá ${existingWinner.winner_name}! Você participou do nosso sorteio e foi o GANHADOR! 🎉🏆`
                           )}`}
                           target="_blank"
                           rel="noopener noreferrer"
@@ -1447,66 +1569,64 @@ function CampaignsTab() {
                   )}
                 </div>
 
-              {/* Participants Table for Closed Campaign */}
-              <Card title={`Participantes do Sorteio Encerrado (${participants.length})`}>
-                <div className="flex justify-end pb-2">
-                  <button
-                    onClick={handleExportCSV}
-                    className="inline-flex items-center gap-2 h-10 px-4 rounded-xl bg-surface-elevated ring-1 ring-border text-foreground hover:bg-surface-elevated/80 font-bold text-xs transition"
-                  >
-                    <Download className="w-3.5 h-3.5" /> Exportar Planilha (CSV)
-                  </button>
-                </div>
+                <Card title={`Participantes do Sorteio Encerrado (${participants.length})`}>
+                  <div className="flex justify-end pb-2">
+                    <button
+                      onClick={handleExportCSV}
+                      className="inline-flex items-center gap-2 h-10 px-4 rounded-xl bg-surface-elevated ring-1 ring-border text-foreground hover:bg-surface-elevated/80 font-bold text-xs transition"
+                    >
+                      <Download className="w-3.5 h-3.5" /> Exportar Planilha (CSV)
+                    </button>
+                  </div>
 
-                <div className="overflow-x-auto ring-1 ring-border rounded-xl">
-                  <table className="w-full text-left text-sm">
-                    <thead className="bg-surface-elevated text-muted-foreground">
-                      <tr>
-                        <th className="px-4 py-3 font-semibold">Data/Hora</th>
-                        <th className="px-4 py-3 font-semibold">Nome</th>
-                        <th className="px-4 py-3 font-semibold">Telefone</th>
-                        <th className="px-4 py-3 font-semibold text-right">Total</th>
-                        <th className="px-4 py-3 w-10"></th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {participants.map((p) => (
-                        <tr key={p.id} className="hover:bg-surface-elevated/50 transition-colors">
-                          <td className="px-4 py-3 whitespace-nowrap text-xs text-muted-foreground">
-                            {p.created_at ? new Date(p.created_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "-"}
-                          </td>
-                          <td className="px-4 py-3 font-bold text-white whitespace-nowrap">{p.client_name}</td>
-                          <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{p.client_phone}</td>
-                          <td className="px-4 py-3 text-right font-extrabold text-primary whitespace-nowrap">{brl(p.order_total)}</td>
-                          <td className="px-4 py-3 text-center whitespace-nowrap">
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteParticipant(p.id)}
-                              className="p-1 rounded-lg text-zinc-500 hover:text-red-500 hover:bg-red-500/10 active:scale-95 transition-all"
-                              title="Remover participante"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </td>
+                  <div className="overflow-x-auto ring-1 ring-border rounded-xl">
+                    <table className="w-full text-left text-sm">
+                      <thead className="bg-surface-elevated text-muted-foreground">
+                        <tr>
+                          <th className="px-4 py-3 font-semibold">Data/Hora</th>
+                          <th className="px-4 py-3 font-semibold">Nome</th>
+                          <th className="px-4 py-3 font-semibold">Telefone</th>
+                          <th className="px-4 py-3 font-semibold text-right">Total</th>
+                          <th className="px-4 py-3 w-10"></th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {participants.length === 0 && (
-                    <div className="text-center text-muted-foreground py-8 space-y-2">
-                      <div className="text-3xl">🎟️</div>
-                      <p className="text-xs">Nenhum participante qualificado registrado para este sorteio.</p>
-                    </div>
-                  )}
-                </div>
-              </Card>
-            </div>
-          );
-        })()}
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {participants.map((p) => (
+                          <tr key={p.id} className="hover:bg-surface-elevated/50 transition-colors">
+                            <td className="px-4 py-3 whitespace-nowrap text-xs text-muted-foreground">
+                              {p.created_at ? new Date(p.created_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "-"}
+                            </td>
+                            <td className="px-4 py-3 font-bold text-white whitespace-nowrap">{p.client_name}</td>
+                            <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{p.client_phone}</td>
+                            <td className="px-4 py-3 text-right font-extrabold text-primary whitespace-nowrap">{brl(p.order_total)}</td>
+                            <td className="px-4 py-3 text-center whitespace-nowrap">
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteParticipant(p.id)}
+                                className="p-1 rounded-lg text-zinc-500 hover:text-red-500 hover:bg-red-500/10 active:scale-95 transition-all"
+                                title="Remover participante"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {participants.length === 0 && (
+                      <div className="text-center text-muted-foreground py-8 space-y-2">
+                        <div className="text-3xl">🎟️</div>
+                        <p className="text-xs">Nenhum participante qualificado registrado para este sorteio.</p>
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              </div>
+            );
+          })()}
         </div>
       )}
 
-      {/* Historical Draws Section */}
       <Card title="🏆 Histórico de Sorteios Realizados">
         <div className="space-y-4">
           {campaignWinners.length === 0 ? (
@@ -1522,7 +1642,7 @@ function CampaignsTab() {
                   className="p-4 rounded-xl bg-zinc-900 border border-zinc-800/80 space-y-3 shadow-[0_4px_12px_rgba(0,0,0,0.1)] hover:border-emerald-500/20 transition-all duration-200"
                 >
                   <div className="flex justify-between items-start gap-2">
-                    <div className="space-y-0.5 animate-fade-in">
+                    <div className="space-y-0.5">
                       <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider block">Sorteio</span>
                       <h4 className="font-extrabold text-white text-sm line-clamp-1">{w.campaign_title}</h4>
                     </div>
@@ -1550,7 +1670,7 @@ function CampaignsTab() {
 
                   <a 
                     href={`https://wa.me/55${w.winner_phone.replace(/\D/g, "")}?text=${encodeURIComponent(
-                      `Olá ${w.winner_name}! Você participou do nosso sorteio no Insano Lanches e foi o GANHADOR! 🎉🏆`
+                      `Olá ${w.winner_name}! Você participou do nosso sorteio e foi o GANHADOR! 🎉🏆`
                     )}`}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -1565,7 +1685,6 @@ function CampaignsTab() {
         </div>
       </Card>
 
-      {/* Drawing Ticker Modal */}
       {isDrawing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm">
           <div className="w-full max-w-sm p-6 rounded-3xl bg-zinc-950 border border-primary/30 text-center space-y-4 animate-pulse">
@@ -1581,7 +1700,6 @@ function CampaignsTab() {
         </div>
       )}
 
-      {/* Winner Celebration Modal */}
       {winner && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm">
           <div className="w-full max-w-md p-6 rounded-3xl bg-zinc-950 border-2 border-emerald-500 shadow-[0_0_50px_rgba(16,185,129,0.3)] text-center space-y-6 relative overflow-hidden">
@@ -1625,7 +1743,7 @@ function CampaignsTab() {
               </button>
               <a 
                 href={`https://wa.me/55${winner.client_phone.replace(/\D/g, "")}?text=${encodeURIComponent(
-                  `Olá ${winner.client_name}! Você participou do nosso sorteio promocional no Insano Lanches e acaba de ser o GANHADOR! 🎉🏆`
+                  `Olá ${winner.client_name}! Você participou do nosso sorteio promocional e acaba de ser o GANHADOR! 🎉🏆`
                 )}`}
                 target="_blank"
                 rel="noopener noreferrer"
