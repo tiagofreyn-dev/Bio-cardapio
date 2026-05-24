@@ -37,13 +37,13 @@ const STORE_AESTHETICS_MAP: Record<string, StoreAesthetics> = {
     cor_principal: "#5c246b", // Roxo Açaí Premium
     logo_url: "https://images.unsplash.com/photo-1590080875515-8a3a8dc5735e?w=300&h=300&fit=crop", // Foto Premium de Açaí
     banner_url: "https://images.unsplash.com/photo-1590080875515-8a3a8dc5735e?w=1000&h=500&fit=crop", // Banner lindo de açaí
-    efeito_ativo: "queda-neve", // Queda de partículas
+    efeito_ativo: "nenhum", // Efeito desativado
   },
   "acai-tropical": {
     cor_principal: "#5c246b", // Roxo Açaí Premium
     logo_url: "https://images.unsplash.com/photo-1590080875515-8a3a8dc5735e?w=300&h=300&fit=crop", // Foto Premium de Açaí
     banner_url: "https://images.unsplash.com/photo-1590080875515-8a3a8dc5735e?w=1000&h=500&fit=crop", // Banner lindo de açaí
-    efeito_ativo: "queda-neve", // Queda de partículas
+    efeito_ativo: "nenhum", // Efeito desativado
   },
   "lanches-baiano": {
     cor_principal: "#F59E0B", // Amarelo/Dourado Laranja
