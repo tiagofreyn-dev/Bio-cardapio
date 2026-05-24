@@ -34,7 +34,13 @@ interface StoreAesthetics {
 
 const STORE_AESTHETICS_MAP: Record<string, StoreAesthetics> = {
   "acai-do-carlos": {
-    cor_principal: "#6B21A8", // Roxo Premium
+    cor_principal: "#5c246b", // Roxo Açaí Premium
+    logo_url: "https://images.unsplash.com/photo-1590080875515-8a3a8dc5735e?w=300&h=300&fit=crop", // Foto Premium de Açaí
+    banner_url: "https://images.unsplash.com/photo-1590080875515-8a3a8dc5735e?w=1000&h=500&fit=crop", // Banner lindo de açaí
+    efeito_ativo: "queda-neve", // Queda de partículas
+  },
+  "acai-tropical": {
+    cor_principal: "#5c246b", // Roxo Açaí Premium
     logo_url: "https://images.unsplash.com/photo-1590080875515-8a3a8dc5735e?w=300&h=300&fit=crop", // Foto Premium de Açaí
     banner_url: "https://images.unsplash.com/photo-1590080875515-8a3a8dc5735e?w=1000&h=500&fit=crop", // Banner lindo de açaí
     efeito_ativo: "queda-neve", // Queda de partículas
@@ -166,11 +172,30 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   function applyTheme(profile: LojaProfile) {
     if (typeof document === "undefined") return;
 
+    const isAcai = profile.slug.includes("acai");
+
     // Aplica a cor principal dinamicamente no CSS do elemento raiz (:root)
     const color = profile.cor_principal || "#EF4444";
     document.documentElement.style.setProperty("--primary", color);
-    document.documentElement.style.setProperty("--accent", color);
-    document.documentElement.style.setProperty("--ring", color);
+
+    if (isAcai) {
+      // Verde Limão Tropical para detalhes, anéis, focos
+      document.documentElement.style.setProperty("--accent", "#8CD867");
+      document.documentElement.style.setProperty("--ring", "#8CD867");
+      // Amarelo para os preços
+      document.documentElement.style.setProperty("--price-color", "#F59E0B");
+
+      // Menu limpo com degradê suave imersivo que destaca roxo e verde
+      document.body.style.background = "radial-gradient(circle at top right, #3c0c4a 0%, #0d0114 65%, #071a07 100%)";
+      document.body.style.backgroundAttachment = "fixed";
+      document.body.style.minHeight = "100vh";
+    } else {
+      document.documentElement.style.setProperty("--accent", color);
+      document.documentElement.style.setProperty("--ring", color);
+      document.documentElement.style.setProperty("--price-color", color);
+      document.body.style.background = "";
+      document.body.style.backgroundAttachment = "";
+    }
 
     // Altera o título da página no navegador de forma bonita
     document.title = `${profile.nome_da_loja} — Cardápio Digital`;

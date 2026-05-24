@@ -17,7 +17,7 @@ export function ProductCard({ product, onAdd, disabled }: { product: Product; on
         <h4 className="font-bold text-sm leading-tight">{product.name}</h4>
         <p className="text-[11px] text-muted-foreground mt-1 line-clamp-2">{product.description}</p>
         <div className="flex items-center justify-between mt-2">
-          <span className="text-primary font-extrabold">{brl(product.price)}</span>
+          <span className="font-extrabold" style={{ color: "var(--price-color, var(--primary))" }}>{brl(product.price)}</span>
           <button
             disabled={out || disabled}
             onClick={onAdd}

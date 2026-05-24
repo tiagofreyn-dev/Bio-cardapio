@@ -1,4 +1,13 @@
-export type Category = "hamburgueres" | "porcoes" | "bebidas";
+export type Category = 
+  | "hamburgueres" 
+  | "porcoes" 
+  | "bebidas" 
+  | "acai" 
+  | "milkshake" 
+  | "sorvetes" 
+  | "gelinho" 
+  | "salgados" 
+  | "doces";
 
 export interface Product {
   id: string;
@@ -24,6 +33,7 @@ export interface CartItem {
   lettuce?: "Alface Tradicional" | "Alface Americana";
   ketchup?: number;
   mayo?: number;
+  toppings?: string[];
 }
 
 export interface Settings {

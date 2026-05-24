@@ -32,7 +32,10 @@ export function VisualEffects() {
     window.addEventListener("resize", handleResize);
 
     // Configuração de Partículas
-    const particleCount = efeito === "queda-neve" ? 60 : 50;
+    const isAcai = tenant?.slug.includes("acai") ?? false;
+    const emojisAcai = ["🍇", "🍌", "🍓", "🟣", "🥝", "🍍"];
+
+    const particleCount = efeito === "queda-neve" ? (isAcai ? 45 : 60) : 50;
     const particles: Array<{
       x: number;
       y: number;
@@ -42,21 +45,27 @@ export function VisualEffects() {
       color: string;
       rotation?: number;
       rotationSpeed?: number;
+      emoji?: string;
     }> = [];
 
     // Cores de Açaí/Neve para a queda
     const coresNeve = ["#ffffff", "#f0e6ff", "#4c0519", "#3b0764"]; // Tons brancos e roxos de açaí!
     const coresConfete = ["#FF2E93", "#FF8E53", "#FFD000", "#00FF87", "#00F0FF", "#8500FF"];
+    const coresAcaiParticulas = ["#5c246b", "#a855f7", "#8CD867", "#ffffff", "#e9d5ff"];
 
     for (let i = 0; i < particleCount; i++) {
       if (efeito === "queda-neve") {
+        const isEmoji = isAcai && Math.random() < 0.20; // 20% chance of a fruit/açaí emoji
         particles.push({
           x: Math.random() * width,
           y: Math.random() * height - height,
-          size: Math.random() * 4 + 1.5,
+          size: isEmoji ? Math.random() * 8 + 14 : Math.random() * 4 + 1.5,
           speedX: Math.random() * 1 - 0.5,
-          speedY: Math.random() * 1.5 + 0.8,
-          color: coresNeve[Math.floor(Math.random() * coresNeve.length)],
+          speedY: isEmoji ? Math.random() * 0.8 + 0.8 : Math.random() * 1.5 + 0.8,
+          color: isAcai 
+            ? coresAcaiParticulas[Math.floor(Math.random() * coresAcaiParticulas.length)] 
+            : coresNeve[Math.floor(Math.random() * coresNeve.length)],
+          emoji: isEmoji ? emojisAcai[Math.floor(Math.random() * emojisAcai.length)] : undefined,
         });
       } else if (efeito === "confete") {
         particles.push({
@@ -83,7 +92,7 @@ export function VisualEffects() {
 
         // Se passar da tela, reinicia no topo
         if (p.y > height) {
-          p.y = -10;
+          p.y = -20;
           p.x = Math.random() * width;
         }
         if (p.x > width) p.x = 0;
@@ -93,9 +102,14 @@ export function VisualEffects() {
         ctx.fillStyle = p.color;
 
         if (efeito === "queda-neve") {
-          ctx.beginPath();
-          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-          ctx.fill();
+          if (p.emoji) {
+            ctx.font = `${p.size}px Arial`;
+            ctx.fillText(p.emoji, p.x, p.y);
+          } else {
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            ctx.fill();
+          }
         } else if (efeito === "confete") {
           ctx.save();
           ctx.translate(p.x, p.y);

@@ -40,6 +40,16 @@ function Index() {
   const [activeCampaign, setActiveCampaign] = useState<Campaign | null>(null);
 
   useEffect(() => {
+    if (tenant) {
+      if (tenant.slug.includes("acai")) {
+        setCategory("acai");
+      } else {
+        setCategory("hamburgueres");
+      }
+    }
+  }, [tenant]);
+
+  useEffect(() => {
     async function loadTenantProducts() {
       if (!tenant || tenant.id === "default-loja") {
         setDbProducts([]);
@@ -77,12 +87,75 @@ function Index() {
           setDbProducts(mappedProds);
         } else if (data && data.length === 0) {
           // Criar produtos iniciais automáticos
-          const defaultProducts = [
-            { name: "Açaí Tradicional Especial", description: "Açaí puro batido na hora, acompanha granola, banana e leite condensado.", price: 18.9, image: "🍦", category: "hamburgueres" as any, available: true, customizable: true, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false },
-            { name: "Batata Frita Tradicional", description: "Porção crocante e sequinha.", price: 22.0, image: "🍟", category: "porcoes" as any, available: true, customizable: false, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false },
-            { name: "Coca-Cola Lata", description: "Gelada e refrescante.", price: 7.0, image: "🥤", category: "bebidas" as any, available: true, customizable: false, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false }
-          ];
-          const insertData = defaultProducts.map((p) => ({ ...p, loja_id: tenant.id }));
+          const isAcai = tenant.slug.includes("acai");
+          let seedProducts = [];
+
+          if (isAcai) {
+            seedProducts = [
+              // Açaí (Copos)
+              { name: "Copo 300ml", description: "Monte o seu copo de 300ml com seus adicionais prediletos.", price: 11.50, image: "🟣", category: "acai" as any, available: true, customizable: true, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false },
+              { name: "Copo 400ml", description: "Monte o seu copo de 400ml com seus adicionais prediletos.", price: 12.50, image: "🟣", category: "acai" as any, available: true, customizable: true, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false },
+              { name: "Copo 500ml", description: "Monte o seu copo de 500ml com seus adicionais prediletos.", price: 14.00, image: "🟣", category: "acai" as any, available: true, customizable: true, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false },
+              { name: "Copo 700ml", description: "Monte o seu copo de 700ml com seus adicionais prediletos.", price: 19.50, image: "🟣", category: "acai" as any, available: true, customizable: true, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false },
+              { name: "Copo 1 Litro", description: "Monte o seu copo gigante de 1 Litro com seus adicionais prediletos.", price: 25.50, image: "🟣", category: "acai" as any, available: true, customizable: true, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false },
+              { name: "Roleta de Açaí", description: "Linda barca/roleta de açaí premium para compartilhar.", price: 45.00, image: "🎡", category: "acai" as any, available: true, customizable: true, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false },
+
+              // Milk-Shakes
+              { name: "Milk-Shake Copo 400ml", description: "Saboroso milkshake batido na hora. Escolha o sabor na tela de customização.", price: 10.00, image: "🥤", category: "milkshake" as any, available: true, customizable: true, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false },
+              { name: "Milk-Shake Copo 500ml", description: "Saboroso milkshake batido na hora. Escolha o sabor na tela de customização.", price: 12.00, image: "🥤", category: "milkshake" as any, available: true, customizable: true, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false },
+              { name: "Milk-Shake Copo 700ml", description: "Saboroso milkshake batido na hora. Escolha o sabor na tela de customização.", price: 16.00, image: "🥤", category: "milkshake" as any, available: true, customizable: true, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false },
+
+              // Sorvetes
+              { name: "Sorvete no Quilo", description: "Sorvete cremoso no quilo (1kg). Monte do seu jeito.", price: 49.90, image: "🍨", category: "sorvetes" as any, available: true, customizable: false, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false },
+
+              // Gelinho & Picolé
+              { name: "Gelinho Pequeno", description: "Gelinho super refrescante saboroso pequeno.", price: 0.90, image: "🧊", category: "gelinho" as any, available: true, customizable: false, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false },
+              { name: "Gelinho Grande", description: "Gelinho super refrescante saboroso grande.", price: 1.40, image: "🧊", category: "gelinho" as any, available: true, customizable: false, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false },
+
+              // Salgados
+              { name: "Coxinha", description: "Coxinha crocante, recheio caprichado.", price: 8.90, image: "🥟", category: "salgados" as any, available: true, customizable: false, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false },
+              { name: "Quibe", description: "Quibe tradicional frito na hora.", price: 8.90, image: "🥟", category: "salgados" as any, available: true, customizable: false, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false },
+              { name: "Enroladinho de Queijo", description: "Enroladinho de queijo derretido saboroso.", price: 8.90, image: "🥟", category: "salgados" as any, available: true, customizable: false, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false },
+              { name: "Bolinho de Mandioca", description: "Bolinho de mandioca crocante.", price: 8.90, image: "🥟", category: "salgados" as any, available: true, customizable: false, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false },
+              { name: "Esfirra de Frango", description: "Esfirra assada recheada com frango desfiado.", price: 8.90, image: "🥟", category: "salgados" as any, available: true, customizable: false, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false },
+              { name: "Esfirra de Carne", description: "Esfirra assada recheada com carne moída temperada.", price: 8.90, image: "🥟", category: "salgados" as any, available: true, customizable: false, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false },
+              { name: "Empada", description: "Empada com massa podre que derrete na boca.", price: 8.90, image: "🥟", category: "salgados" as any, available: true, customizable: false, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false },
+              { name: "Hamburgão", description: "Salgado assado recheado com hambúrguer, queijo e presunto.", price: 8.90, image: "🥟", category: "salgados" as any, available: true, customizable: false, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false },
+              { name: "Espetinho de Frango", description: "Espetinho de frango grelhado e suculento.", price: 9.90, image: "🍗", category: "salgados" as any, available: true, customizable: false, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false },
+              { name: "Espetinho/Tortinha de Frango", description: "Mini torta assada recheada com frango.", price: 9.90, image: "🥧", category: "salgados" as any, available: true, customizable: false, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false },
+              { name: "Lanche Natural", description: "Lanche natural com pão de forma, maionese, muçarela, alface e tomate.", price: 8.90, image: "🥪", category: "salgados" as any, available: true, customizable: false, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false },
+
+              // Doces & Sobremesas
+              { name: "Bombom de Morango", description: "Bombom de morango fresco com cobertura de chocolate premium.", price: 15.00, image: "🍰", category: "doces" as any, available: true, customizable: false, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false },
+              { name: "Bombom de Abacaxi", description: "Bombom de abacaxi saboroso.", price: 5.50, image: "🧁", category: "doces" as any, available: true, customizable: false, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false },
+              { name: "Bombom de Brigadeiro", description: "Bombom recheado com brigadeiro artesanal.", price: 5.50, image: "🧁", category: "doces" as any, available: true, customizable: false, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false },
+              { name: "Bombom de Côco", description: "Bombom de coco (prestígio).", price: 5.50, image: "🧁", category: "doces" as any, available: true, customizable: false, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false },
+              { name: "Torta de Abacaxi", description: "Fatia de torta de abacaxi gelada.", price: 14.50, image: "🍰", category: "doces" as any, available: true, customizable: false, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false },
+              { name: "Torta de Prestígio", description: "Fatia de torta de prestígio com cobertura cremosa.", price: 14.50, image: "🍰", category: "doces" as any, available: true, customizable: false, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false },
+              { name: "Bolo Gelado", description: "Bolo gelado embrulhado no alumínio, super molhadinho.", price: 8.90, image: "🍰", category: "doces" as any, available: true, customizable: false, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false },
+              { name: "Pudim", description: "Fatia de pudim de leite condensado com calda de caramelo.", price: 8.90, image: "🍮", category: "doces" as any, available: true, customizable: false, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false },
+
+              // Bebidas
+              { name: "Refri 200ml", description: "Refrigerante caçulinha gelado.", price: 2.50, image: "🥤", category: "bebidas" as any, available: true, customizable: false, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false },
+              { name: "Refri Lata", description: "Refrigerante lata gelado.", price: 6.00, image: "🥫", category: "bebidas" as any, available: true, customizable: false, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false },
+              { name: "Tampico 250ml", description: "Suco Tampico refrescante garrafinha.", price: 3.80, image: "🧃", category: "bebidas" as any, available: true, customizable: false, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false },
+              { name: "Tampico 450ml", description: "Suco Tampico refrescante garrafa média.", price: 5.80, image: "🧃", category: "bebidas" as any, available: true, customizable: false, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false },
+              { name: "Cristal 2L", description: "Água mineral Cristal 2 Litros.", price: 8.00, image: "💧", category: "bebidas" as any, available: true, customizable: false, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false },
+              { name: "Dell Vale Lata", description: "Suco Dell Vale lata gelado.", price: 6.50, image: "🥫", category: "bebidas" as any, available: true, customizable: false, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false },
+              { name: "Energético Monster", description: "Energético Monster lata gelado.", price: 11.50, image: "⚡", category: "bebidas" as any, available: true, customizable: false, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false },
+              { name: "Coca Cola 2L", description: "Refrigerante Coca-Cola 2 Litros bem gelado.", price: 14.50, image: "🥤", category: "bebidas" as any, available: true, customizable: false, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false },
+              { name: "Água sem Gás", description: "Água mineral sem gás.", price: 2.30, image: "💧", category: "bebidas" as any, available: true, customizable: false, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false },
+              { name: "Água com Gás", description: "Água mineral com gás.", price: 3.80, image: "🫧", category: "bebidas" as any, available: true, customizable: false, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false }
+            ];
+          } else {
+            seedProducts = [
+              { name: "Açaí Tradicional Especial", description: "Açaí puro batido na hora, acompanha granola, banana e leite condensado.", price: 18.9, image: "🍦", category: "hamburgueres" as any, available: true, customizable: true, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false },
+              { name: "Batata Frita Tradicional", description: "Porção crocante e sequinha.", price: 22.0, image: "🍟", category: "porcoes" as any, available: true, customizable: false, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false },
+              { name: "Coca-Cola Lata", description: "Gelada e refrescante.", price: 7.0, image: "🥤", category: "bebidas" as any, available: true, customizable: false, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false }
+            ];
+          }
+
+          const insertData = seedProducts.map((p) => ({ ...p, loja_id: tenant.id }));
           
           const insertPromise = supabase.from("produtos").insert(insertData);
           const insertTimeout = new Promise<any>((_, reject) =>
@@ -241,11 +314,19 @@ function Index() {
         </div>
       )}
 
-      <div className="px-4 pt-4">
-        <div className="bg-zinc-900 border border-red-500/50 rounded-xl p-3 text-center shadow-lg">
-          <p className="text-sm font-bold text-white">🍟 Todos os lanches acompanham mini porção de batata e maionese caseira!</p>
+      {tenant?.slug.includes("acai") ? (
+        <div className="px-4 pt-4">
+          <div className="bg-zinc-900/60 backdrop-blur border border-[var(--accent)] rounded-xl p-3 text-center shadow-lg">
+            <p className="text-sm font-bold text-white">🍇 Monte o seu copo perfeito com os adicionais da sua preferência! 🍌</p>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="px-4 pt-4">
+          <div className="bg-zinc-900 border border-red-500/50 rounded-xl p-3 text-center shadow-lg">
+            <p className="text-sm font-bold text-white">🍟 Todos os lanches acompanham mini porção de batata e maionese caseira!</p>
+          </div>
+        </div>
+      )}
 
       <HeroBanner product={featured[0]} customBannerUrl={tenant?.banner_url} storeName={tenant?.nome_da_loja} />
 
