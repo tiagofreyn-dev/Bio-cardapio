@@ -13,6 +13,7 @@ import { brl } from "@/lib/format";
 import { storage } from "@/lib/storage";
 import { useStorageSync } from "@/hooks/use-storage";
 import { supabase } from "@/lib/supabase";
+import { useTenant } from "@/lib/tenant";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -25,6 +26,10 @@ export const Route = createFileRoute("/")({
 });
 
 function Index() {
+  const { tenant } = useTenant();
+  const [dbProducts, setDbProducts] = useState<Product[]>([]);
+  const [dbLoading, setDbLoading] = useState(false);
+
   const products = useStorageSync(() => storage.getProducts());
   const settings = useStorageSync(() => storage.getSettings());
   const [category, setCategory] = useState<Category>("hamburgueres");
@@ -35,6 +40,92 @@ function Index() {
   const [activeCampaign, setActiveCampaign] = useState<Campaign | null>(null);
 
   useEffect(() => {
+    async function loadTenantProducts() {
+      if (!tenant || tenant.id === "default-loja") {
+        setDbProducts([]);
+        return;
+      }
+      if (!supabase) return;
+
+      setDbLoading(true);
+      try {
+        const fetchPromise = supabase
+          .from("produtos")
+          .select("*")
+          .eq("loja_id", tenant.id);
+        const timeoutPromise = new Promise<any>((_, reject) =>
+          setTimeout(() => reject(new Error("Timeout ao buscar produtos")), 2500)
+        );
+
+        const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          const mappedProds: Product[] = data.map((row) => ({
+            id: row.id,
+            name: row.name,
+            description: row.description,
+            price: Number(row.price),
+            image: row.image || "🍔",
+            category: row.category as any,
+            available: row.available,
+            customizable: row.customizable,
+            hasLettuceOption: row.has_lettuce_option,
+            hasKetchupOption: row.has_ketchup_option,
+            hasMayoOption: row.has_mayo_option,
+          }));
+          setDbProducts(mappedProds);
+        } else if (data && data.length === 0) {
+          // Criar produtos iniciais automáticos
+          const defaultProducts = [
+            { name: "Açaí Tradicional Especial", description: "Açaí puro batido na hora, acompanha granola, banana e leite condensado.", price: 18.9, image: "🍦", category: "hamburgueres" as any, available: true, customizable: true, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false },
+            { name: "Batata Frita Tradicional", description: "Porção crocante e sequinha.", price: 22.0, image: "🍟", category: "porcoes" as any, available: true, customizable: false, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false },
+            { name: "Coca-Cola Lata", description: "Gelada e refrescante.", price: 7.0, image: "🥤", category: "bebidas" as any, available: true, customizable: false, has_lettuce_option: false, has_ketchup_option: false, has_mayo_option: false }
+          ];
+          const insertData = defaultProducts.map((p) => ({ ...p, loja_id: tenant.id }));
+          
+          const insertPromise = supabase.from("produtos").insert(insertData);
+          const insertTimeout = new Promise<any>((_, reject) =>
+            setTimeout(() => reject(new Error("Timeout ao criar produtos iniciais")), 2500)
+          );
+          await Promise.race([insertPromise, insertTimeout]);
+
+          const retryPromise = supabase
+            .from("produtos")
+            .select("*")
+            .eq("loja_id", tenant.id);
+          const retryTimeout = new Promise<any>((_, reject) =>
+            setTimeout(() => reject(new Error("Timeout ao rebuscar produtos")), 2500)
+          );
+          const { data: retryData } = await Promise.race([retryPromise, retryTimeout]);
+
+          if (retryData) {
+            const mappedProds: Product[] = retryData.map((row) => ({
+              id: row.id,
+              name: row.name,
+              description: row.description,
+              price: Number(row.price),
+              image: row.image || "🍔",
+              category: row.category as any,
+              available: row.available,
+              customizable: row.customizable,
+              hasLettuceOption: row.has_lettuce_option,
+              hasKetchupOption: row.has_ketchup_option,
+              hasMayoOption: row.has_mayo_option,
+            }));
+            setDbProducts(mappedProds);
+          }
+        }
+      } catch (err) {
+        console.error("Erro ao buscar produtos do Supabase:", err);
+      } finally {
+        setDbLoading(false);
+      }
+    }
+    loadTenantProducts();
+  }, [tenant]);
+
+  useEffect(() => {
     try {
       const raw = localStorage.getItem("insano.cart");
       if (raw) setCart(JSON.parse(raw));
@@ -43,11 +134,15 @@ function Index() {
     async function fetchCampaign() {
       try {
         if (!supabase) return;
-        const { data, error } = await supabase
+        const fetchPromise = supabase
           .from("campaigns")
           .select("*")
           .eq("is_active", true)
           .maybeSingle();
+        const timeoutPromise = new Promise<any>((_, reject) =>
+          setTimeout(() => reject(new Error("Timeout ao buscar campanha ativa")), 2500)
+        );
+        const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
 
         if (error) throw error;
         if (data) setActiveCampaign(data);
@@ -99,8 +194,9 @@ function Index() {
     }
   }, []);
 
-  const filtered = useMemo(() => products.filter((p) => p.category === category), [products, category]);
-  const featured = useMemo(() => products.filter((p) => p.is_featured), [products]);
+  const activeProducts = tenant && tenant.id !== "default-loja" && dbProducts.length > 0 ? dbProducts : products;
+  const filtered = useMemo(() => activeProducts.filter((p) => p.category === category), [activeProducts, category]);
+  const featured = useMemo(() => activeProducts.filter((p) => p.is_featured), [activeProducts]);
   const count = cart.reduce((s, i) => s + i.qty, 0);
   const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
 
@@ -151,7 +247,7 @@ function Index() {
         </div>
       </div>
 
-      <HeroBanner product={featured[0]} />
+      <HeroBanner product={featured[0]} customBannerUrl={tenant?.banner_url} storeName={tenant?.nome_da_loja} />
 
       {featured.length > 0 && (
         <section className="pt-4 pb-2">

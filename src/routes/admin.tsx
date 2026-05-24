@@ -6,6 +6,7 @@ import type { Product, Category, CustomerLoyalty, Campaign, CampaignWinner, Part
 import { brl } from "@/lib/format";
 import { ArrowLeft, Plus, Pencil, Trash2, Search, Gift, Trophy, Download, DollarSign, TrendingUp, ShoppingCart, Truck } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { useTenant } from "@/lib/tenant";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({ meta: [{ title: "Painel — Insano Lanches" }] }),
@@ -17,15 +18,49 @@ type Tab = "geral" | "fidelidade" | "produtos" | "sorteios" | "faturamento";
 function AdminPage() {
   const [tab, setTab] = useState<Tab>("geral");
   const settings = useStorageSync(() => storage.getSettings());
+  const { tenant, refreshTenant, logoutTenant } = useTenant();
+
   const [password, setPassword] = useState("");
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [error, setError] = useState("");
+  const [loadingAuth, setLoadingAuth] = useState(true);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const auth = sessionStorage.getItem("insano.admin.auth");
-      if (auth === "true") setIsAuthenticated(true);
+    async function checkAuth() {
+      let authenticated = false;
+      try {
+        if (typeof window !== "undefined") {
+          const pinAuth = sessionStorage.getItem("insano.admin.auth");
+          if (pinAuth === "true") {
+            authenticated = true;
+          }
+        }
+
+        if (!authenticated && supabase) {
+          // Timeout de 2.5 segundos para evitar travamento de rede
+          const authPromise = supabase.auth.getUser();
+          const timeoutPromise = new Promise<any>((_, reject) =>
+            setTimeout(() => reject(new Error("Timeout de rede")), 2500)
+          );
+
+          const res = await Promise.race([authPromise, timeoutPromise]);
+          const user = res?.data?.user;
+          const error = res?.error;
+
+          if (!error && user) {
+            authenticated = true;
+          }
+        }
+      } catch (err) {
+        console.warn("Erro ao verificar autenticação no Supabase:", err);
+      }
+
+      if (authenticated) {
+        setIsAuthenticated(true);
+      }
+      setLoadingAuth(false);
     }
+    checkAuth();
   }, []);
 
   function handleLogin(e: React.FormEvent) {
@@ -38,6 +73,14 @@ function AdminPage() {
     } else {
       setError("Senha incorreta! Tente novamente.");
     }
+  }
+
+  if (loadingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-zinc-950 text-white font-sans">
+        <div className="w-8 h-8 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
+      </div>
+    );
   }
 
   if (!isAuthenticated) {
@@ -108,12 +151,26 @@ function AdminPage() {
   return (
     <div className="min-h-screen">
       <header className="sticky top-0 z-30 bg-background/95 backdrop-blur border-b border-border">
-        <div className="flex items-center gap-3 px-4 py-3">
-          <Link to="/" className="p-2 text-muted-foreground"><ArrowLeft className="w-5 h-5" /></Link>
-          <div>
-            <p className="text-[11px] uppercase tracking-widest text-primary font-bold">Painel do Dono</p>
-            <h1 className="font-extrabold">Insano Admin</h1>
+        <div className="flex items-center justify-between gap-3 px-4 py-3">
+          <div className="flex items-center gap-3">
+            <Link to="/" className="p-2 text-muted-foreground"><ArrowLeft className="w-5 h-5" /></Link>
+            <div>
+              <p className="text-[11px] uppercase tracking-widest text-primary font-bold">Painel do Dono</p>
+              <h1 className="font-extrabold">{tenant ? tenant.nome_da_loja : "Insano Admin"}</h1>
+            </div>
           </div>
+          {isAuthenticated && (
+            <button
+              onClick={async () => {
+                await logoutTenant();
+                sessionStorage.removeItem("insano.admin.auth");
+                window.location.href = "/";
+              }}
+              className="px-3 py-1.5 rounded-xl bg-red-950/20 text-red-400 hover:bg-red-950/40 border border-red-500/20 text-xs font-bold transition active:scale-95 duration-200"
+            >
+              Sair da Conta
+            </button>
+          )}
         </div>
         <div className="flex gap-2 px-4 pb-3 overflow-x-auto no-scrollbar">
           {([["geral", "⚙️ Geral"], ["fidelidade", "🎁 Fidelidade"], ["produtos", "🍔 Produtos"], ["sorteios", "🏆 Sorteios"], ["faturamento", "📊 Faturamento"]] as [Tab, string][]).map(([id, label]) => (
@@ -142,7 +199,61 @@ function AdminPage() {
 function GeneralTab() {
   const settings = useStorageSync(() => storage.getSettings());
   const products = useStorageSync(() => storage.getProducts());
+  const { tenant, refreshTenant } = useTenant();
+
+  const isTenant = tenant && tenant.id !== "default-loja";
+
+  // Estados locais para a loja do tenant
+  const [tName, setTName] = useState("");
+  const [tWhatsapp, setTWhatsapp] = useState("");
+  const [tAddress, setTAddress] = useState("");
+  const [tColor, setTColor] = useState("#EF4444");
+  const [tLogo, setTLogo] = useState("");
+  const [tBanner, setTBanner] = useState("");
+  const [tEffect, setTEffect] = useState("nenhum");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (tenant) {
+      setTName(tenant.nome_da_loja || "");
+      setTWhatsapp(tenant.whatsapp || "");
+      setTAddress(tenant.endereco || "");
+      setTColor(tenant.cor_principal || "#EF4444");
+      setTLogo(tenant.logo_url || "");
+      setTBanner(tenant.banner_url || "");
+      setTEffect(tenant.efeito_ativo || "nenhum");
+    }
+  }, [tenant]);
+
   const update = (patch: Partial<typeof settings>) => storage.setSettings({ ...settings, ...patch });
+
+  async function handleSaveTenant(e: React.FormEvent) {
+    e.preventDefault();
+    if (!tenant || !supabase) return;
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from("lojas")
+        .update({
+          nome_da_loja: tName.trim(),
+          whatsapp: tWhatsapp.trim(),
+          endereco: tAddress.trim(),
+          cor_principal: tColor,
+          logo_url: tLogo.trim() || null,
+          banner_url: tBanner.trim() || null,
+          efeito_ativo: tEffect,
+        })
+        .eq("id", tenant.id);
+
+      if (error) throw error;
+      alert("Identidade visual e configurações da loja salvas com sucesso!");
+      await refreshTenant();
+    } catch (err: any) {
+      alert("Erro ao salvar configurações da loja: " + err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
 
   const [locations, setLocations] = useState<DeliveryLocation[]>([]);
   const [locLoading, setLocLoading] = useState(true);
@@ -157,10 +268,14 @@ function GeneralTab() {
     setLocError(null);
     try {
       if (!supabase) return;
-      const { data, error } = await supabase
+      const fetchPromise = supabase
         .from("delivery_locations")
         .select("*")
         .order("name", { ascending: true });
+      const timeoutPromise = new Promise<any>((_, reject) =>
+        setTimeout(() => reject(new Error("Timeout ao carregar taxas de entrega")), 2500)
+      );
+      const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
       if (error) throw error;
       setLocations(data || []);
     } catch (err: any) {
@@ -225,35 +340,74 @@ function GeneralTab() {
 
   return (
     <section className="space-y-4">
-      <Card title="Loja">
-        <Field label="Nome da lanchonete">
-          <input value={settings.storeName} onChange={(e) => update({ storeName: e.target.value })} className={inputCls} />
-        </Field>
-        <Field label="Telefone WhatsApp (com DDI/DDD)">
-          <input value={settings.whatsapp} onChange={(e) => update({ whatsapp: e.target.value.replace(/\D/g, "") })} className={inputCls} />
-        </Field>
-        <Field label="Endereço do comércio">
-          <input 
-            value={settings.storeAddress || ""} 
-            onChange={(e) => update({ storeAddress: e.target.value })} 
-            className={inputCls} 
-            placeholder="Ex: Av. Brasil, 1234 - Centro" 
-          />
-        </Field>
-        <Field label="Status da loja">
-          <button
-            onClick={() => update({ isOpen: !settings.isOpen })}
-            className={`w-full h-12 rounded-xl font-black text-sm transition-all duration-300 active:scale-[0.98] flex items-center justify-center gap-2 shadow-md ${
-              settings.isOpen 
-                ? "bg-emerald-600/15 text-emerald-400 ring-2 ring-emerald-500/30 hover:bg-emerald-600/20" 
-                : "bg-rose-600/15 text-rose-400 ring-2 ring-rose-500/30 hover:bg-rose-600/20"
-            }`}
-          >
-            <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${settings.isOpen ? "bg-emerald-400 shadow-[0_0_8px_#34d399]" : "bg-rose-400"}`}></span>
-            {settings.isOpen ? "Loja Aberta — Aceitando pedidos" : "Loja Fechada — Bloquear novos pedidos"}
-          </button>
-        </Field>
-      </Card>
+      {isTenant ? (
+        <form onSubmit={handleSaveTenant}>
+          <Card title="🎨 Identidade Visual e Configurações">
+            <Field label="Nome da Loja / Comércio">
+              <input value={tName} onChange={(e) => setTName(e.target.value)} className={inputCls} required />
+            </Field>
+            <Field label="Telefone WhatsApp (para receber pedidos)">
+              <input value={tWhatsapp} onChange={(e) => setTWhatsapp(e.target.value.replace(/\D/g, ""))} className={inputCls} placeholder="Ex: 5546999999999" required />
+            </Field>
+            <Field label="Endereço Completo">
+              <input value={tAddress} onChange={(e) => setTAddress(e.target.value)} className={inputCls} placeholder="Ex: Av. Brasil, 123 - Centro" />
+            </Field>
+            <Field label="Cor Principal da Loja">
+              <div className="flex gap-2">
+                <input type="color" value={tColor} onChange={(e) => setTColor(e.target.value)} className="w-12 h-12 rounded-xl bg-zinc-950 border border-zinc-800 cursor-pointer" />
+                <input type="text" value={tColor} onChange={(e) => setTColor(e.target.value)} className={`${inputCls} flex-1`} placeholder="#EF4444" />
+              </div>
+            </Field>
+            <Field label="URL da Logomarca (Imagem redonda)">
+              <input value={tLogo} onChange={(e) => setTLogo(e.target.value)} className={inputCls} placeholder="https://exemplo.com/logo.jpg" />
+            </Field>
+            <Field label="URL do Banner/Capa (Aparece no topo)">
+              <input value={tBanner} onChange={(e) => setTBanner(e.target.value)} className={inputCls} placeholder="https://exemplo.com/banner.jpg" />
+            </Field>
+            <Field label="Efeito Visual na Tela">
+              <select value={tEffect} onChange={(e) => setTEffect(e.target.value)} className={inputCls}>
+                <option value="nenhum">Nenhum — Clássico e limpo</option>
+                <option value="queda-neve">Açaí/Queda de Partículas Roxo/Branco</option>
+                <option value="confete">Chuva Festiva de Confetes</option>
+                <option value="neon">Brilho Neon nas Bordas e Botões</option>
+              </select>
+            </Field>
+            <button type="submit" disabled={saving} className={`${btnPrimary} w-full h-12 rounded-xl mt-3`}>
+              {saving ? "Salvando Identidade..." : "Salvar Configurações da Loja 💾"}
+            </button>
+          </Card>
+        </form>
+      ) : (
+        <Card title="Loja">
+          <Field label="Nome da lanchonete">
+            <input value={settings.storeName} onChange={(e) => update({ storeName: e.target.value })} className={inputCls} />
+          </Field>
+          <Field label="Telefone WhatsApp (com DDI/DDD)">
+            <input value={settings.whatsapp} onChange={(e) => update({ whatsapp: e.target.value.replace(/\D/g, "") })} className={inputCls} />
+          </Field>
+          <Field label="Endereço do comércio">
+            <input 
+              value={settings.storeAddress || ""} 
+              onChange={(e) => update({ storeAddress: e.target.value })} 
+              className={inputCls} 
+              placeholder="Ex: Av. Brasil, 1234 - Centro" 
+            />
+          </Field>
+          <Field label="Status da loja">
+            <button
+              onClick={() => update({ isOpen: !settings.isOpen })}
+              className={`w-full h-12 rounded-xl font-black text-sm transition-all duration-300 active:scale-[0.98] flex items-center justify-center gap-2 shadow-md ${
+                settings.isOpen 
+                  ? "bg-emerald-600/15 text-emerald-400 ring-2 ring-emerald-500/30 hover:bg-emerald-600/20" 
+                  : "bg-rose-600/15 text-rose-400 ring-2 ring-rose-500/30 hover:bg-rose-600/20"
+              }`}
+            >
+              <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${settings.isOpen ? "bg-emerald-400 shadow-[0_0_8px_#34d399]" : "bg-rose-400"}`}></span>
+              {settings.isOpen ? "Loja Aberta — Aceitando pedidos" : "Loja Fechada — Bloquear novos pedidos"}
+            </button>
+          </Field>
+        </Card>
+      )}
 
       <Card title="📍 Taxas de Entrega por Região">
         <form onSubmit={handleSaveLocation} className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end p-4 rounded-xl bg-surface-elevated ring-1 ring-border mb-4">
@@ -445,24 +599,116 @@ function LoyaltyTab() {
 
 function ProductsTab() {
   const products = useStorageSync(() => storage.getProducts());
+  const { tenant } = useTenant();
+
+  const isTenant = tenant && tenant.id !== "default-loja";
+
+  const [dbProducts, setDbProducts] = useState<Product[]>([]);
+  const [dbLoading, setDbLoading] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  function save(p: Product) {
-    const list = [...products];
-    const idx = list.findIndex((x) => x.id === p.id);
-    if (idx >= 0) list[idx] = p;
-    else list.push(p);
-    storage.setProducts(list);
+  async function fetchDbProducts() {
+    if (!isTenant || !supabase || !tenant) return;
+    setDbLoading(true);
+    try {
+      const fetchPromise = supabase
+        .from("produtos")
+        .select("*")
+        .eq("loja_id", tenant.id);
+      const timeoutPromise = new Promise<any>((_, reject) =>
+        setTimeout(() => reject(new Error("Timeout ao carregar produtos")), 2500)
+      );
+      const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
+
+      if (error) throw error;
+      if (data) {
+        const mapped: Product[] = data.map((row) => ({
+          id: row.id,
+          name: row.name,
+          description: row.description,
+          price: Number(row.price),
+          image: row.image || "🍔",
+          category: row.category as any,
+          available: row.available,
+          customizable: row.customizable,
+          hasLettuceOption: row.has_lettuce_option,
+          hasKetchupOption: row.has_ketchup_option,
+          hasMayoOption: row.has_mayo_option,
+        }));
+        setDbProducts(mapped);
+      }
+    } catch (err: any) {
+      console.error("Erro ao buscar produtos do inquilino:", err);
+    } finally {
+      setDbLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    fetchDbProducts();
+  }, [tenant]);
+
+  const activeProducts = isTenant ? dbProducts : products;
+
+  async function save(p: Product) {
+    if (isTenant && supabase && tenant) {
+      try {
+        const dbObj = {
+          loja_id: tenant.id,
+          name: p.name,
+          description: p.description,
+          price: p.price,
+          image: p.image,
+          category: p.category,
+          available: p.available,
+          customizable: p.customizable,
+          has_lettuce_option: p.hasLettuceOption,
+          has_ketchup_option: p.hasKetchupOption,
+          has_mayo_option: p.hasMayoOption,
+        };
+
+        if (isNew) {
+          const { error } = await supabase.from("produtos").insert(dbObj);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase.from("produtos").update(dbObj).eq("id", p.id);
+          if (error) throw error;
+        }
+        await fetchDbProducts();
+      } catch (err: any) {
+        alert("Erro ao salvar produto no Supabase: " + err.message);
+        return;
+      }
+    } else {
+      const list = [...products];
+      const idx = list.findIndex((x) => x.id === p.id);
+      if (idx >= 0) list[idx] = p;
+      else list.push(p);
+      storage.setProducts(list);
+    }
     setEditing(null);
     setIsNew(false);
   }
+
   function toggle(p: Product) {
     save({ ...p, available: !p.available });
   }
-  function toggleFeatured(p: Product) {
-    save({ ...p, is_featured: !p.is_featured });
+
+  async function handleDeleteProduct(id: string) {
+    if (isTenant && supabase) {
+      try {
+        const { error } = await supabase.from("produtos").delete().eq("id", id);
+        if (error) throw error;
+        await fetchDbProducts();
+      } catch (err: any) {
+        alert("Erro ao excluir do Supabase: " + err.message);
+      }
+    } else {
+      storage.setProducts(products.filter((x) => x.id !== id));
+    }
+    setDeletingId(null);
   }
 
   return (
@@ -489,59 +735,56 @@ function ProductsTab() {
         <Plus className="w-4 h-4" /> Novo produto
       </button>
 
-      <ul className="space-y-2">
-        {products.map((p) => (
-          <li key={p.id} className="p-3 rounded-xl bg-surface ring-1 ring-border flex items-center gap-3">
-            <div className="w-12 h-12 rounded-lg bg-surface-elevated flex items-center justify-center overflow-hidden text-2xl shrink-0">
-              {(p.image.startsWith('http') || p.image.startsWith('/')) ? <img src={p.image} className="w-full h-full object-cover" /> : p.image}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-bold text-sm truncate">{p.name}</p>
-              <p className="text-xs text-muted-foreground">{brl(p.price)} • {p.category}</p>
-            </div>
-            <label className="flex flex-col items-center justify-center gap-1 cursor-pointer mx-1 shrink-0">
-              <span className="text-[9px] font-bold uppercase text-muted-foreground">Destaque</span>
-              <input type="checkbox" checked={!!p.is_featured} onChange={() => toggleFeatured(p)} className="w-4 h-4 accent-primary" />
-            </label>
-            <button onClick={() => toggle(p)} className={`text-[10px] font-bold px-2 py-1 rounded-full ${p.available ? "bg-success/15 text-success" : "bg-destructive/15 text-destructive"}`}>
-              {p.available ? "Disponível" : "Esgotado"}
-            </button>
-            <button onClick={() => { setIsNew(false); setEditing(p); }} className="p-2 text-muted-foreground"><Pencil className="w-4 h-4" /></button>
-            
-            {deletingId === p.id ? (
-              <div className="flex items-center gap-1 shrink-0">
+      {dbLoading ? (
+        <div className="text-center text-xs text-muted-foreground py-8">Carregando produtos do banco...</div>
+      ) : (
+        <ul className="space-y-2">
+          {activeProducts.map((p) => (
+            <li key={p.id} className="p-3 rounded-xl bg-surface ring-1 ring-border flex items-center gap-3">
+              <div className="w-12 h-12 rounded-lg bg-surface-elevated flex items-center justify-center overflow-hidden text-2xl shrink-0">
+                {(p.image.startsWith('http') || p.image.startsWith('/')) ? <img src={p.image} className="w-full h-full object-cover" /> : p.image}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-bold text-sm truncate">{p.name}</p>
+                <p className="text-xs text-muted-foreground">{brl(p.price)} • {p.category}</p>
+              </div>
+              <button onClick={() => toggle(p)} className={`text-[10px] font-bold px-2 py-1 rounded-full ${p.available ? "bg-success/15 text-success" : "bg-destructive/15 text-destructive"}`}>
+                {p.available ? "Disponível" : "Esgotado"}
+              </button>
+              <button onClick={() => { setIsNew(false); setEditing(p); }} className="p-2 text-muted-foreground"><Pencil className="w-4 h-4" /></button>
+              
+              {deletingId === p.id ? (
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    onClick={() => handleDeleteProduct(p.id)}
+                    className="px-2.5 py-1 rounded-lg bg-destructive text-destructive-foreground text-[10px] font-extrabold shadow-sm active:scale-95 transition"
+                  >
+                    Excluir
+                  </button>
+                  <button
+                    onClick={() => setDeletingId(null)}
+                    className="px-2 py-1 rounded-lg bg-surface-elevated ring-1 ring-border text-foreground text-[10px] font-semibold active:scale-95 transition"
+                  >
+                    Sair
+                  </button>
+                </div>
+              ) : (
                 <button
                   onClick={() => {
-                    storage.setProducts(products.filter((x) => x.id !== p.id));
-                    setDeletingId(null);
+                    setDeletingId(p.id);
+                    setTimeout(() => {
+                      setDeletingId((curr) => (curr === p.id ? null : curr));
+                    }, 4000);
                   }}
-                  className="px-2.5 py-1 rounded-lg bg-destructive text-destructive-foreground text-[10px] font-extrabold shadow-sm active:scale-95 transition"
+                  className="p-2 text-destructive hover:bg-destructive/10 rounded-lg transition active:scale-95 shrink-0"
                 >
-                  Excluir
+                  <Trash2 className="w-4 h-4" />
                 </button>
-                <button
-                  onClick={() => setDeletingId(null)}
-                  className="px-2 py-1 rounded-lg bg-surface-elevated ring-1 ring-border text-foreground text-[10px] font-semibold active:scale-95 transition"
-                >
-                  Sair
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => {
-                  setDeletingId(p.id);
-                  setTimeout(() => {
-                    setDeletingId((curr) => (curr === p.id ? null : curr));
-                  }, 4000);
-                }}
-                className="p-2 text-destructive hover:bg-destructive/10 rounded-lg transition active:scale-95 shrink-0"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            )}
-          </li>
-        ))}
-      </ul>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
 
       {editing && <ProductModal product={editing} isNew={isNew} onClose={() => { setEditing(null); setIsNew(false); }} onSave={save} />}
     </section>
