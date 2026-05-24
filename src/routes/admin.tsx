@@ -207,10 +207,6 @@ function GeneralTab() {
   const [tName, setTName] = useState("");
   const [tWhatsapp, setTWhatsapp] = useState("");
   const [tAddress, setTAddress] = useState("");
-  const [tColor, setTColor] = useState("#EF4444");
-  const [tLogo, setTLogo] = useState("");
-  const [tBanner, setTBanner] = useState("");
-  const [tEffect, setTEffect] = useState("nenhum");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -218,10 +214,6 @@ function GeneralTab() {
       setTName(tenant.nome_da_loja || "");
       setTWhatsapp(tenant.whatsapp || "");
       setTAddress(tenant.endereco || "");
-      setTColor(tenant.cor_principal || "#EF4444");
-      setTLogo(tenant.logo_url || "");
-      setTBanner(tenant.banner_url || "");
-      setTEffect(tenant.efeito_ativo || "nenhum");
     }
   }, [tenant]);
 
@@ -238,15 +230,11 @@ function GeneralTab() {
           nome_da_loja: tName.trim(),
           whatsapp: tWhatsapp.trim(),
           endereco: tAddress.trim(),
-          cor_principal: tColor,
-          logo_url: tLogo.trim() || null,
-          banner_url: tBanner.trim() || null,
-          efeito_ativo: tEffect,
         })
         .eq("id", tenant.id);
 
       if (error) throw error;
-      alert("Identidade visual e configurações da loja salvas com sucesso!");
+      alert("Configurações da loja salvas com sucesso!");
       await refreshTenant();
     } catch (err: any) {
       alert("Erro ao salvar configurações da loja: " + err.message);
@@ -342,7 +330,7 @@ function GeneralTab() {
     <section className="space-y-4">
       {isTenant ? (
         <form onSubmit={handleSaveTenant}>
-          <Card title="🎨 Identidade Visual e Configurações">
+          <Card title="⚙️ Configurações Gerais">
             <Field label="Nome da Loja / Comércio">
               <input value={tName} onChange={(e) => setTName(e.target.value)} className={inputCls} required />
             </Field>
@@ -352,28 +340,8 @@ function GeneralTab() {
             <Field label="Endereço Completo">
               <input value={tAddress} onChange={(e) => setTAddress(e.target.value)} className={inputCls} placeholder="Ex: Av. Brasil, 123 - Centro" />
             </Field>
-            <Field label="Cor Principal da Loja">
-              <div className="flex gap-2">
-                <input type="color" value={tColor} onChange={(e) => setTColor(e.target.value)} className="w-12 h-12 rounded-xl bg-zinc-950 border border-zinc-800 cursor-pointer" />
-                <input type="text" value={tColor} onChange={(e) => setTColor(e.target.value)} className={`${inputCls} flex-1`} placeholder="#EF4444" />
-              </div>
-            </Field>
-            <Field label="URL da Logomarca (Imagem redonda)">
-              <input value={tLogo} onChange={(e) => setTLogo(e.target.value)} className={inputCls} placeholder="https://exemplo.com/logo.jpg" />
-            </Field>
-            <Field label="URL do Banner/Capa (Aparece no topo)">
-              <input value={tBanner} onChange={(e) => setTBanner(e.target.value)} className={inputCls} placeholder="https://exemplo.com/banner.jpg" />
-            </Field>
-            <Field label="Efeito Visual na Tela">
-              <select value={tEffect} onChange={(e) => setTEffect(e.target.value)} className={inputCls}>
-                <option value="nenhum">Nenhum — Clássico e limpo</option>
-                <option value="queda-neve">Açaí/Queda de Partículas Roxo/Branco</option>
-                <option value="confete">Chuva Festiva de Confetes</option>
-                <option value="neon">Brilho Neon nas Bordas e Botões</option>
-              </select>
-            </Field>
             <button type="submit" disabled={saving} className={`${btnPrimary} w-full h-12 rounded-xl mt-3`}>
-              {saving ? "Salvando Identidade..." : "Salvar Configurações da Loja 💾"}
+              {saving ? "Salvando..." : "Salvar Configurações da Loja 💾"}
             </button>
           </Card>
         </form>

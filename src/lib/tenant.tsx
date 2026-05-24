@@ -25,13 +25,47 @@ interface TenantContextProps {
 
 const TenantContext = createContext<TenantContextProps | undefined>(undefined);
 
+interface StoreAesthetics {
+  cor_principal: string;
+  logo_url: string | null;
+  banner_url: string | null;
+  efeito_ativo: string;
+}
+
+const STORE_AESTHETICS_MAP: Record<string, StoreAesthetics> = {
+  "acai-do-carlos": {
+    cor_principal: "#6B21A8", // Roxo Premium
+    logo_url: "https://images.unsplash.com/photo-1590080875515-8a3a8dc5735e?w=300&h=300&fit=crop", // Foto Premium de Açaí
+    banner_url: "https://images.unsplash.com/photo-1590080875515-8a3a8dc5735e?w=1000&h=500&fit=crop", // Banner lindo de açaí
+    efeito_ativo: "queda-neve", // Queda de partículas
+  },
+  "lanches-baiano": {
+    cor_principal: "#F59E0B", // Amarelo/Dourado Laranja
+    logo_url: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=300&h=300&fit=crop", // Hambúrguer premium
+    banner_url: "https://images.unsplash.com/photo-1550547660-d9450f859349?w=1000&h=500&fit=crop", // Banner lanchonete
+    efeito_ativo: "neon", // Brilhos neon
+  },
+};
+
+const DEFAULT_AESTHETICS: StoreAesthetics = {
+  cor_principal: "#EF4444", // Vermelho original
+  logo_url: null,
+  banner_url: null,
+  efeito_ativo: "nenhum",
+};
+
+function resolveAesthetics(slug: string): StoreAesthetics {
+  const cleanSlug = slug.toLowerCase().trim();
+  return STORE_AESTHETICS_MAP[cleanSlug] || DEFAULT_AESTHETICS;
+}
+
 const DEFAULT_TENANT: LojaProfile = {
   id: "default-loja",
   user_id: "",
   nome_da_loja: "Insano Lanches",
   slug: "insano-lanches",
   logo_url: null,
-  cor_principal: "#EF4444", // Vermelho original
+  cor_principal: "#EF4444", 
   banner_url: null,
   efeito_ativo: "nenhum",
   whatsapp: "5546999999999",
@@ -72,9 +106,17 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           );
 
           if (!error && data) {
-            setTenant(data);
+            const aesthetics = resolveAesthetics(data.slug);
+            const enrichedData: LojaProfile = {
+              ...data,
+              cor_principal: aesthetics.cor_principal,
+              logo_url: aesthetics.logo_url,
+              banner_url: aesthetics.banner_url,
+              efeito_ativo: aesthetics.efeito_ativo,
+            };
+            setTenant(enrichedData);
             setIsDefault(false);
-            applyTheme(data);
+            applyTheme(enrichedData);
             setIsLoading(false);
             return;
           }
@@ -94,9 +136,17 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           );
 
           if (!error && data) {
-            setTenant(data);
+            const aesthetics = resolveAesthetics(data.slug);
+            const enrichedData: LojaProfile = {
+              ...data,
+              cor_principal: aesthetics.cor_principal,
+              logo_url: aesthetics.logo_url,
+              banner_url: aesthetics.banner_url,
+              efeito_ativo: aesthetics.efeito_ativo,
+            };
+            setTenant(enrichedData);
             setIsDefault(false);
-            applyTheme(data);
+            applyTheme(enrichedData);
             setIsLoading(false);
             return;
           }
