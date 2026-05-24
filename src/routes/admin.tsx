@@ -539,8 +539,21 @@ function GeneralTab() {
         <div className="p-3 rounded-xl bg-surface-elevated ring-1 ring-border space-y-3">
           <p className="text-sm font-semibold text-muted-foreground">Link para colocar na bio do Instagram:</p>
           <div className="flex gap-2">
-            <input readOnly value={`${window.location.origin}/?loja=${settings.storeName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`} className={`${inputCls} bg-surface`} />
-            <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/?loja=${settings.storeName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`); alert("Link copiado!"); }} className={btnPrimary}>Copiar Link</button>
+            <input 
+              readOnly 
+              value={`${typeof window !== "undefined" ? window.location.origin : ""}/?loja=${isTenant && tenant ? tenant.slug : settings.storeName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`} 
+              className={`${inputCls} bg-surface`} 
+            />
+            <button 
+              onClick={() => { 
+                const link = `${typeof window !== "undefined" ? window.location.origin : ""}/?loja=${isTenant && tenant ? tenant.slug : settings.storeName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+                navigator.clipboard.writeText(link); 
+                alert("Link copiado!"); 
+              }} 
+              className={btnPrimary}
+            >
+              Copiar Link
+            </button>
           </div>
         </div>
       </Card>
