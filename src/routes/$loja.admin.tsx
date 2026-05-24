@@ -996,7 +996,20 @@ function ProductModal({ product, isNew, onClose, onSave }: { product: Product; i
           <div className="space-y-1.5 mb-3">
             <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block">Escolha rápida de ícone:</span>
             <div className="grid grid-cols-6 gap-2">
-              {[
+              {(isAcaiShop ? [
+                { emoji: "🟣", label: "Açaí" },
+                { emoji: "🍓", label: "Morango" },
+                { emoji: "🍌", label: "Banana" },
+                { emoji: "🥤", label: "Milk-Shake" },
+                { emoji: "🍨", label: "Sorvete" },
+                { emoji: "🧊", label: "Picolé" },
+                { emoji: "🥟", label: "Salgado" },
+                { emoji: "🍰", label: "Bolo" },
+                { emoji: "🍫", label: "Chocolate" },
+                { emoji: "🍯", label: "Caldas" },
+                { emoji: "🍩", label: "Donuts" },
+                { emoji: "🧁", label: "Cupcake" }
+              ] : [
                 { emoji: "🍔", label: "Hambúrguer" },
                 { emoji: "🍟", label: "Batata Frita" },
                 { emoji: "🍕", label: "Pizza" },
@@ -1009,7 +1022,7 @@ function ProductModal({ product, isNew, onClose, onSave }: { product: Product; i
                 { emoji: "🍗", label: "Frango Frito" },
                 { emoji: "🥓", label: "Bacon" },
                 { emoji: "🥗", label: "Salada" }
-              ].map((item) => (
+              ]).map((item) => (
                 <button
                   key={item.emoji}
                   type="button"
@@ -1052,36 +1065,38 @@ function ProductModal({ product, isNew, onClose, onSave }: { product: Product; i
             )}
           </select>
         </Field>
-        <div className="space-y-2">
-          <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block">Opções de Customização:</span>
-          <label className="flex items-center justify-between p-3 rounded-xl bg-surface-elevated">
-            <span className="text-sm font-semibold">Opção de Alface</span>
-            <input 
-              type="checkbox" 
-              checked={p.hasLettuceOption ?? p.customizable} 
-              onChange={(e) => setP({ ...p, hasLettuceOption: e.target.checked })} 
-              className="w-5 h-5 accent-primary" 
-            />
-          </label>
-          <label className="flex items-center justify-between p-3 rounded-xl bg-surface-elevated">
-            <span className="text-sm font-semibold">Opção de Ketchup</span>
-            <input 
-              type="checkbox" 
-              checked={p.hasKetchupOption ?? p.customizable} 
-              onChange={(e) => setP({ ...p, hasKetchupOption: e.target.checked })} 
-              className="w-5 h-5 accent-primary" 
-            />
-          </label>
-          <label className="flex items-center justify-between p-3 rounded-xl bg-surface-elevated">
-            <span className="text-sm font-semibold">Opção de Maionese Verde</span>
-            <input 
-              type="checkbox" 
-              checked={p.hasMayoOption ?? p.customizable} 
-              onChange={(e) => setP({ ...p, hasMayoOption: e.target.checked })} 
-              className="w-5 h-5 accent-primary" 
-            />
-          </label>
-        </div>
+        {!isAcaiShop && (
+          <div className="space-y-2">
+            <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block">Opções de Customização:</span>
+            <label className="flex items-center justify-between p-3 rounded-xl bg-surface-elevated">
+              <span className="text-sm font-semibold">Opção de Alface</span>
+              <input 
+                type="checkbox" 
+                checked={p.hasLettuceOption ?? p.customizable} 
+                onChange={(e) => setP({ ...p, hasLettuceOption: e.target.checked })} 
+                className="w-5 h-5 accent-primary" 
+              />
+            </label>
+            <label className="flex items-center justify-between p-3 rounded-xl bg-surface-elevated">
+              <span className="text-sm font-semibold">Opção de Ketchup</span>
+              <input 
+                type="checkbox" 
+                checked={p.hasKetchupOption ?? p.customizable} 
+                onChange={(e) => setP({ ...p, hasKetchupOption: e.target.checked })} 
+                className="w-5 h-5 accent-primary" 
+              />
+            </label>
+            <label className="flex items-center justify-between p-3 rounded-xl bg-surface-elevated">
+              <span className="text-sm font-semibold">Opção de Maionese Verde</span>
+              <input 
+                type="checkbox" 
+                checked={p.hasMayoOption ?? p.customizable} 
+                onChange={(e) => setP({ ...p, hasMayoOption: e.target.checked })} 
+                className="w-5 h-5 accent-primary" 
+              />
+            </label>
+          </div>
+        )}
         <label className="flex items-center justify-between p-3 rounded-xl bg-surface-elevated">
           <span className="text-sm font-semibold">Disponível</span>
           <input type="checkbox" checked={p.available} onChange={(e) => setP({ ...p, available: e.target.checked })} className="w-5 h-5 accent-primary" />
@@ -1090,15 +1105,15 @@ function ProductModal({ product, isNew, onClose, onSave }: { product: Product; i
           <button onClick={onClose} className={`flex-1 ${btnSecondary}`}>Cancelar</button>
           <button 
             onClick={() => {
-              const finalLettuce = p.hasLettuceOption ?? p.customizable;
-              const finalKetchup = p.hasKetchupOption ?? p.customizable;
-              const finalMayo = p.hasMayoOption ?? p.customizable;
+              const finalLettuce = isAcaiShop ? false : (p.hasLettuceOption ?? p.customizable);
+              const finalKetchup = isAcaiShop ? false : (p.hasKetchupOption ?? p.customizable);
+              const finalMayo = isAcaiShop ? false : (p.hasMayoOption ?? p.customizable);
               onSave({
                 ...p,
                 hasLettuceOption: finalLettuce,
                 hasKetchupOption: finalKetchup,
                 hasMayoOption: finalMayo,
-                customizable: finalLettuce || finalKetchup || finalMayo
+                customizable: isAcaiShop ? false : (finalLettuce || finalKetchup || finalMayo)
               });
             }} 
             className={`flex-1 ${btnPrimary}`}
