@@ -112,3 +112,16 @@ export interface DeliveryLocation {
   fee: number;
   created_at?: string;
 }
+
+export interface ToppingOption {
+  name: string;
+  price: number;
+  available?: boolean;
+}
+
+export interface ToppingCategory {
+  category: string;
+  icon: string;
+  items: ToppingOption[];
+}
+

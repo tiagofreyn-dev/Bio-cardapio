@@ -1,98 +1,10 @@
 import { useState } from "react";
-import type { Product } from "@/lib/types";
+import type { Product, ToppingOption } from "@/lib/types";
 import { brl } from "@/lib/format";
 import { X } from "lucide-react";
 import { storage } from "@/lib/storage";
 import { useStorageSync } from "@/hooks/use-storage";
 import { useTenant } from "@/lib/tenant";
-
-interface ToppingOption {
-  name: string;
-  price: number;
-}
-
-const TOPPING_CATEGORIES: { category: string; icon: string; items: ToppingOption[] }[] = [
-  {
-    category: "Frutas",
-    icon: "🍓",
-    items: [
-      { name: "Banana", price: 3.00 },
-      { name: "Maçã", price: 3.00 },
-      { name: "Morango", price: 4.80 },
-      { name: "Kiwi", price: 5.80 },
-      { name: "Abacaxi", price: 4.00 },
-      { name: "Manga", price: 3.50 }
-    ]
-  },
-  {
-    category: "Derivados do Leite",
-    icon: "🥛",
-    items: [
-      { name: "Leite Condensado", price: 3.80 },
-      { name: "Leite em Pó", price: 3.80 }
-    ]
-  },
-  {
-    category: "Diversos & Cereais",
-    icon: "🥣",
-    items: [
-      { name: "Amendoim", price: 3.00 },
-      { name: "Paçoca", price: 3.00 },
-      { name: "Coco Ralado", price: 3.00 },
-      { name: "Óreo", price: 3.00 },
-      { name: "Granola", price: 3.50 },
-      { name: "Sucrilhos", price: 3.50 }
-    ]
-  },
-  {
-    category: "Chocolates",
-    icon: "🍫",
-    items: [
-      { name: "Bis Branco", price: 2.90 },
-      { name: "Bis Preto", price: 2.80 },
-      { name: "Ouro Branco", price: 3.50 },
-      { name: "Sonho de Valsa", price: 3.50 },
-      { name: "Kit Kat", price: 4.50 },
-      { name: "Granulado", price: 3.80 },
-      { name: "Raspa de Chocolate", price: 3.80 },
-      { name: "Laka", price: 3.80 },
-      { name: "Chocoball", price: 3.80 },
-      { name: "Nutella", price: 6.00 },
-      { name: "Ovomaltine", price: 4.00 },
-      { name: "Confete", price: 4.00 }
-    ]
-  },
-  {
-    category: "Coberturas",
-    icon: "🍯",
-    items: [
-      { name: "Cobertura de Chocolate", price: 2.80 },
-      { name: "Cobertura de Morango", price: 2.80 },
-      { name: "Cobertura de Limão", price: 2.80 }
-    ]
-  },
-  {
-    category: "Mousses",
-    icon: "🍧",
-    items: [
-      { name: "Mousse de Maracujá", price: 4.80 },
-      { name: "Mousse de Morango", price: 4.80 }
-    ]
-  },
-  {
-    category: "Cremes",
-    icon: "🍦",
-    items: [
-      { name: "Creme de Ninho", price: 6.00 },
-      { name: "Creme de Laka Branco", price: 6.00 },
-      { name: "Creme de Trufas", price: 6.00 },
-      { name: "Creme de Kinder Bueno", price: 6.00 },
-      { name: "Creme de Coco", price: 6.00 },
-      { name: "Creme de Prestígio", price: 6.00 },
-      { name: "Creme de Ferrero Rocher", price: 8.90 }
-    ]
-  }
-];
 
 const MILKSHAKE_FLAVORS = [
   "Ovomaltine", "Ferrero Rocher", "Nutela", "Laka", "Sonho de Valsa", 
@@ -116,6 +28,7 @@ export function CustomizeModal({
 }) {
   const { tenant } = useTenant();
   const settings = useStorageSync(() => storage.getSettings());
+  const toppingCategories = useStorageSync(() => storage.getToppings());
   const isAcaiShop = tenant?.slug.includes("acai") ?? false;
 
   // Lógica de hambúrguer
@@ -130,7 +43,8 @@ export function CustomizeModal({
 
   // Lógica de Açaí
   const [selectedToppings, setSelectedToppings] = useState<ToppingOption[]>([]);
-  const [activeTab, setActiveTab] = useState(TOPPING_CATEGORIES[0].category);
+  const [activeTabState, setActiveTabState] = useState<string>("");
+  const activeTab = activeTabState || toppingCategories[0]?.category || "";
 
   // Lógica de Milk-Shake
   const [selectedFlavor, setSelectedFlavor] = useState<string>("Ovomaltine");
@@ -156,11 +70,11 @@ export function CustomizeModal({
 
           {/* Abas das Categorias de Adicionais */}
           <div className="flex gap-1.5 overflow-x-auto pb-2 no-scrollbar border-b border-border">
-            {TOPPING_CATEGORIES.map((cat) => (
+            {toppingCategories.map((cat) => (
               <button
                 key={cat.category}
                 type="button"
-                onClick={() => setActiveTab(cat.category)}
+                onClick={() => setActiveTabState(cat.category)}
                 className={`px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 transition ${
                   activeTab === cat.category
                     ? "bg-primary text-primary-foreground"
@@ -174,8 +88,11 @@ export function CustomizeModal({
 
           {/* Lista de Adicionais da Categoria Ativa */}
           <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
-            {TOPPING_CATEGORIES.find((cat) => cat.category === activeTab)?.items.map((top) => {
-              const isSelected = selectedToppings.some((t) => t.name === top.name);
+            {toppingCategories
+              .find((cat) => cat.category === activeTab)
+              ?.items.filter((item) => item.available !== false)
+              .map((top) => {
+                const isSelected = selectedToppings.some((t) => t.name === top.name);
               return (
                 <label
                   key={top.name}

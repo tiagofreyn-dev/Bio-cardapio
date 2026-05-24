@@ -1,4 +1,4 @@
-import type { Product, Settings, CustomerLoyalty } from "./types";
+import type { Product, Settings, CustomerLoyalty, ToppingCategory } from "./types";
 import { supabase } from "./supabase";
 
 const KEYS = {
@@ -8,9 +8,93 @@ const KEYS = {
   products: "insano.products",
   redemptions: "insano.redemptions",
   campaignWinners: "insano.campaign.winners",
+  toppings: "insano.toppings",
 };
 
-const SYNCABLE_KEYS = [KEYS.settings, KEYS.products, KEYS.redemptions, KEYS.customers, KEYS.campaignWinners];
+const SYNCABLE_KEYS = [KEYS.settings, KEYS.products, KEYS.redemptions, KEYS.customers, KEYS.campaignWinners, KEYS.toppings];
+
+export const DEFAULT_TOPPINGS: ToppingCategory[] = [
+  {
+    category: "Frutas",
+    icon: "🍓",
+    items: [
+      { name: "Banana", price: 3.00 },
+      { name: "Maçã", price: 3.00 },
+      { name: "Morango", price: 4.80 },
+      { name: "Kiwi", price: 5.80 },
+      { name: "Abacaxi", price: 4.00 },
+      { name: "Manga", price: 3.50 }
+    ]
+  },
+  {
+    category: "Derivados do Leite",
+    icon: "🥛",
+    items: [
+      { name: "Leite Condensado", price: 3.80 },
+      { name: "Leite em Pó", price: 3.80 }
+    ]
+  },
+  {
+    category: "Diversos & Cereais",
+    icon: "🥣",
+    items: [
+      { name: "Amendoim", price: 3.00 },
+      { name: "Paçoca", price: 3.00 },
+      { name: "Coco Ralado", price: 3.00 },
+      { name: "Óreo", price: 3.00 },
+      { name: "Granola", price: 3.50 },
+      { name: "Sucrilhos", price: 3.50 }
+    ]
+  },
+  {
+    category: "Chocolates",
+    icon: "🍫",
+    items: [
+      { name: "Bis Branco", price: 2.90 },
+      { name: "Bis Preto", price: 2.80 },
+      { name: "Ouro Branco", price: 3.50 },
+      { name: "Sonho de Valsa", price: 3.50 },
+      { name: "Kit Kat", price: 4.50 },
+      { name: "Granulado", price: 3.80 },
+      { name: "Raspa de Chocolate", price: 3.80 },
+      { name: "Laka", price: 3.80 },
+      { name: "Chocoball", price: 3.80 },
+      { name: "Nutella", price: 6.00 },
+      { name: "Ovomaltine", price: 4.00 },
+      { name: "Confete", price: 4.00 }
+    ]
+  },
+  {
+    category: "Coberturas",
+    icon: "🍯",
+    items: [
+      { name: "Cobertura de Chocolate", price: 2.80 },
+      { name: "Cobertura de Morango", price: 2.80 },
+      { name: "Cobertura de Limão", price: 2.80 }
+    ]
+  },
+  {
+    category: "Mousses",
+    icon: "🍧",
+    items: [
+      { name: "Mousse de Maracujá", price: 4.80 },
+      { name: "Mousse de Morango", price: 4.80 }
+    ]
+  },
+  {
+    category: "Cremes",
+    icon: "🍦",
+    items: [
+      { name: "Creme de Ninho", price: 6.00 },
+      { name: "Creme de Laka Branco", price: 6.00 },
+      { name: "Creme de Trufas", price: 6.00 },
+      { name: "Creme de Kinder Bueno", price: 6.00 },
+      { name: "Creme de Coco", price: 6.00 },
+      { name: "Creme de Prestígio", price: 6.00 },
+      { name: "Creme de Ferrero Rocher", price: 8.90 }
+    ]
+  }
+];
 
 const DEFAULT_SETTINGS: Settings = {
   storeName: "Insano Lanches",
@@ -91,6 +175,10 @@ export const storage = {
     const list = storage.getCampaignWinners();
     write(KEYS.campaignWinners, [w, ...list]);
   },
+
+  getToppings: (): ToppingCategory[] => read<ToppingCategory[]>(KEYS.toppings, DEFAULT_TOPPINGS),
+  setToppings: (t: ToppingCategory[]) => write(KEYS.toppings, t),
+  resetToppings: () => write(KEYS.toppings, DEFAULT_TOPPINGS),
 
   syncFromCloud: async () => {
     if (!supabase) return;

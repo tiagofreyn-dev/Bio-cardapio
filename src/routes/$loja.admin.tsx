@@ -2,9 +2,9 @@ import { useState, useEffect } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { storage } from "@/lib/storage";
 import { useStorageSync } from "@/hooks/use-storage";
-import type { Product, Category, CustomerLoyalty, Campaign, CampaignWinner, Participant, OrderHistory, DeliveryLocation } from "@/lib/types";
+import type { Product, Category, CustomerLoyalty, Campaign, CampaignWinner, Participant, OrderHistory, DeliveryLocation, ToppingCategory, ToppingOption } from "@/lib/types";
 import { brl } from "@/lib/format";
-import { ArrowLeft, Plus, Pencil, Trash2, Search, Gift, Trophy, Download, DollarSign, TrendingUp, ShoppingCart, Truck } from "lucide-react";
+import { ArrowLeft, Plus, Pencil, Trash2, Search, Gift, Trophy, Download, DollarSign, TrendingUp, ShoppingCart, Truck, PlusCircle, Sparkles, Undo } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useTenant } from "@/lib/tenant";
 
@@ -13,7 +13,7 @@ export const Route = createFileRoute("/$loja/admin")({
   component: AdminPage,
 });
 
-type Tab = "geral" | "produtos" | "sorteios" | "faturamento";
+type Tab = "geral" | "produtos" | "sorteios" | "faturamento" | "adicionais";
 
 function AdminPage() {
   const { loja } = Route.useParams();
@@ -298,7 +298,7 @@ function AdminPage() {
           </button>
         </div>
         <div className="flex gap-2 px-4 pb-3 overflow-x-auto no-scrollbar">
-          {([["geral", "⚙️ Geral"], ["produtos", "🍔 Produtos"], ["sorteios", "🏆 Sorteios"], ["faturamento", "📊 Faturamento"]] as [Tab, string][]).map(([id, label]) => (
+          {([["geral", "⚙️ Geral"], ["produtos", "🍔 Produtos"], ["adicionais", "➕ Adicionais"], ["sorteios", "🏆 Sorteios"], ["faturamento", "📊 Faturamento"]] as [Tab, string][]).map(([id, label]) => (
             <button
               key={id}
               onClick={() => setTab(id)}
@@ -313,6 +313,7 @@ function AdminPage() {
       <main className="p-4 space-y-4">
         {tab === "geral" && <GeneralTab />}
         {tab === "produtos" && <ProductsTab />}
+        {tab === "adicionais" && <ToppingsTab />}
         {tab === "sorteios" && <CampaignsTab />}
         {tab === "faturamento" && <FaturamentoTab />}
       </main>
@@ -2141,5 +2142,329 @@ function FaturamentoTab() {
         </div>
       </div>
     </section>
+  );
+}
+
+function ToppingsTab() {
+  const toppings = useStorageSync(() => storage.getToppings());
+  
+  // Form states for adding new toppings
+  const [name, setName] = useState("");
+  const [price, setPrice] = useState("");
+  const [category, setCategory] = useState("Frutas");
+  
+  // Nova categoria
+  const [isNewCategory, setIsNewCategory] = useState(false);
+  const [customCatName, setCustomCatName] = useState("");
+  const [customCatIcon, setCustomCatIcon] = useState("✨");
+
+  // Edição em linha
+  const [editingKey, setEditingKey] = useState<{ catIndex: number; itemIndex: number } | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editPrice, setEditPrice] = useState("");
+
+  const categories = toppings.map((c) => c.category);
+
+  function handleAddTopping(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim()) return alert("Por favor, preencha o nome do adicional.");
+    
+    let targetCat = category;
+    let targetIcon = "✨";
+
+    if (isNewCategory) {
+      if (!customCatName.trim()) return alert("Por favor, preencha o nome da nova categoria.");
+      targetCat = customCatName.trim();
+      targetIcon = customCatIcon.trim() || "✨";
+    }
+
+    const priceNum = parseFloat(price) || 0;
+
+    const updated = [...toppings];
+    let catObj = updated.find((c) => c.category.toLowerCase() === targetCat.toLowerCase());
+
+    if (!catObj) {
+      catObj = {
+        category: targetCat,
+        icon: targetIcon,
+        items: [],
+      };
+      updated.push(catObj);
+    }
+
+    catObj.items.push({
+      name: name.trim(),
+      price: priceNum,
+      available: true,
+    });
+
+    storage.setToppings(updated);
+
+    // Limpar estados
+    setName("");
+    setPrice("");
+    if (isNewCategory) {
+      setIsNewCategory(false);
+      setCustomCatName("");
+      setCustomCatIcon("✨");
+      setCategory(targetCat);
+    }
+    alert("Adicional adicionado com sucesso!");
+  }
+
+  function handleToggleAvailable(catIndex: number, itemIndex: number) {
+    const updated = [...toppings];
+    const item = updated[catIndex].items[itemIndex];
+    item.available = item.available === false ? true : false;
+    storage.setToppings(updated);
+  }
+
+  function handleDelete(catIndex: number, itemIndex: number) {
+    if (!confirm("Tem certeza que deseja remover este adicional?")) return;
+    const updated = [...toppings];
+    updated[catIndex].items.splice(itemIndex, 1);
+    
+    // Se a categoria ficar vazia, removemos a categoria também
+    if (updated[catIndex].items.length === 0) {
+      updated.splice(catIndex, 1);
+    }
+    
+    storage.setToppings(updated);
+    setEditingKey(null);
+  }
+
+  function startEdit(catIndex: number, itemIndex: number, currentName: string, currentPrice: number) {
+    setEditingKey({ catIndex, itemIndex });
+    setEditName(currentName);
+    setEditPrice(currentPrice.toString());
+  }
+
+  function saveEdit(catIndex: number, itemIndex: number) {
+    if (!editName.trim()) return alert("O nome não pode ser vazio.");
+    const priceNum = parseFloat(editPrice) || 0;
+
+    const updated = [...toppings];
+    updated[catIndex].items[itemIndex] = {
+      ...updated[catIndex].items[itemIndex],
+      name: editName.trim(),
+      price: priceNum,
+    };
+
+    storage.setToppings(updated);
+    setEditingKey(null);
+  }
+
+  function handleReset() {
+    if (!confirm("Aviso: Isso irá restaurar a lista original de adicionais (Frutas, Cremes, Chocolates...) e apagar qualquer modificação que você tenha feito nesta aba. Deseja prosseguir?")) return;
+    storage.resetToppings();
+    alert("Lista de adicionais restaurada para o padrão!");
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* CARD 1: CADASTRAR COMPLEMENTO */}
+      <Card title="Adicionar Novo Adicional / Complemento">
+        <form onSubmit={handleAddTopping} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Field label="Nome do Adicional">
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Ex: Leite Ninho Extra, Kiwi em rodelas"
+                className={inputCls}
+                required
+              />
+            </Field>
+
+            <Field label="Preço Adicional (R$)">
+              <input
+                type="number"
+                step="0.01"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                placeholder="0.00 (Deixe 0 para gratuito)"
+                className={inputCls}
+                required
+              />
+            </Field>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Field label="Categoria">
+              <select
+                value={isNewCategory ? "NEW" : category}
+                onChange={(e) => {
+                  if (e.target.value === "NEW") {
+                    setIsNewCategory(true);
+                  } else {
+                    setIsNewCategory(false);
+                    setCategory(e.target.value);
+                  }
+                }}
+                className={inputCls}
+              >
+                {categories.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
+                <option value="NEW">➕ Criar Nova Categoria...</option>
+              </select>
+            </Field>
+
+            {isNewCategory && (
+              <div className="grid grid-cols-3 gap-2">
+                <div className="col-span-2">
+                  <Field label="Nome da Categoria">
+                    <input
+                      type="text"
+                      value={customCatName}
+                      onChange={(e) => setCustomCatName(e.target.value)}
+                      placeholder="Ex: Caldas, Especiais"
+                      className={inputCls}
+                      required
+                    />
+                  </Field>
+                </div>
+                <div>
+                  <Field label="Ícone / Emoji">
+                    <input
+                      type="text"
+                      value={customCatIcon}
+                      onChange={(e) => setCustomCatIcon(e.target.value)}
+                      placeholder="🍦"
+                      className={`${inputCls} text-center`}
+                      maxLength={4}
+                    />
+                  </Field>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="pt-2 flex justify-end">
+            <button type="submit" className={`${btnPrimary} flex items-center gap-2 h-12 w-full md:w-auto`}>
+              <Plus className="w-4 h-4" /> Salvar Adicional
+            </button>
+          </div>
+        </form>
+      </Card>
+
+      {/* CARD 2: LISTAGEM E EDIÇÃO */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-black text-white flex items-center gap-2">
+            ✨ Gerenciamento de Adicionais
+          </h2>
+          <button
+            onClick={handleReset}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-950/20 text-red-400 hover:bg-red-950/40 border border-red-500/20 text-xs font-bold transition active:scale-95 duration-200"
+            title="Apaga todas as customizações e restaura os adicionais padrão de fábrica"
+          >
+            <Undo className="w-3.5 h-3.5" /> Restaurar Padrões
+          </button>
+        </div>
+
+        {toppings.map((catObj, catIndex) => (
+          <div key={catObj.category} className="rounded-2xl bg-surface ring-1 ring-border p-4 space-y-3">
+            <div className="flex items-center gap-2 pb-2 border-b border-border">
+              <span className="text-xl leading-none">{catObj.icon}</span>
+              <h3 className="font-extrabold text-white text-base">{catObj.category}</h3>
+              <span className="text-[10px] bg-primary/10 text-primary font-bold px-2 py-0.5 rounded-full">
+                {catObj.items.length} {catObj.items.length === 1 ? "item" : "itens"}
+              </span>
+            </div>
+
+            <div className="divide-y divide-border/60">
+              {catObj.items.map((item, itemIndex) => {
+                const isEditing = editingKey?.catIndex === catIndex && editingKey?.itemIndex === itemIndex;
+                const isAvailable = item.available !== false;
+                
+                return (
+                  <div key={item.name} className="py-3 flex flex-col md:flex-row md:items-center justify-between gap-3 first:pt-1 last:pb-1">
+                    {isEditing ? (
+                      <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <input
+                          type="text"
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          className={inputCls}
+                          placeholder="Nome do adicional"
+                          required
+                        />
+                        <div className="flex gap-2">
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={editPrice}
+                            onChange={(e) => setEditPrice(e.target.value)}
+                            className={inputCls}
+                            placeholder="Preço (R$)"
+                            required
+                          />
+                          <button
+                            onClick={() => saveEdit(catIndex, itemIndex)}
+                            className="px-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs shrink-0 transition"
+                          >
+                            Salvar
+                          </button>
+                          <button
+                            onClick={() => setEditingKey(null)}
+                            className="px-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold text-xs shrink-0 transition"
+                          >
+                            X
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between flex-1 gap-2">
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="checkbox"
+                            checked={isAvailable}
+                            onChange={() => handleToggleAvailable(catIndex, itemIndex)}
+                            className="w-4 h-4 accent-primary rounded cursor-pointer"
+                            title={isAvailable ? "Disponível (clique para pausar)" : "Pausado (clique para ativar)"}
+                          />
+                          <span className={`text-sm font-semibold transition ${isAvailable ? "text-zinc-200" : "text-zinc-500 line-through"}`}>
+                            {item.name}
+                          </span>
+                          {!isAvailable && (
+                            <span className="text-[9px] font-extrabold uppercase bg-red-950/40 text-red-400 border border-red-500/20 px-2 py-0.5 rounded">
+                              Pausado
+                            </span>
+                          )}
+                        </div>
+                        <span className={`text-sm font-extrabold transition ${isAvailable ? "text-primary" : "text-zinc-600"}`}>
+                          {item.price === 0 ? "Grátis" : brl(item.price)}
+                        </span>
+                      </div>
+                    )}
+
+                    {!isEditing && (
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => startEdit(catIndex, itemIndex, item.name, item.price)}
+                          className="h-8 px-3 rounded-lg bg-surface-elevated text-zinc-300 hover:text-white border border-border text-xs font-bold transition flex items-center gap-1"
+                        >
+                          <Pencil className="w-3 h-3" /> Editar
+                        </button>
+                        <button
+                          onClick={() => handleDelete(catIndex, itemIndex)}
+                          className="h-8 px-2.5 rounded-lg bg-red-950/20 text-red-400 hover:text-red-300 border border-red-500/20 text-xs font-bold transition flex items-center"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
