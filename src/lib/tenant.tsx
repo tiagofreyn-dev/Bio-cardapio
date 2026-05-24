@@ -45,6 +45,12 @@ const STORE_AESTHETICS_MAP: Record<string, StoreAesthetics> = {
     banner_url: "https://images.unsplash.com/photo-1590080875515-8a3a8dc5735e?w=1000&h=500&fit=crop", // Banner lindo de açaí
     efeito_ativo: "nenhum", // Efeito desativado
   },
+  "acai-tropical-delivery": {
+    cor_principal: "#ec4899", // Rosa/Magenta Vibrante do Logo!
+    logo_url: "/acai-tropical-logo.jpg", // Novo Logo
+    banner_url: "https://images.unsplash.com/photo-1590080875515-8a3a8dc5735e?w=1000&h=500&fit=crop", // Banner
+    efeito_ativo: "nenhum", // Efeito desativado
+  },
   "lanches-baiano": {
     cor_principal: "#F59E0B", // Amarelo/Dourado Laranja
     logo_url: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=300&h=300&fit=crop", // Hambúrguer premium
@@ -185,8 +191,12 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       // Amarelo para os preços
       document.documentElement.style.setProperty("--price-color", "#F59E0B");
 
-      // Menu limpo com degradê suave imersivo que destaca roxo e verde
-      document.body.style.background = "radial-gradient(circle at top right, #3c0c4a 0%, #0d0114 65%, #071a07 100%)";
+      // Menu limpo com degradê suave imersivo que destaca roxo/rosa e verde
+      if (profile.slug === "acai-tropical-delivery") {
+        document.body.style.background = "radial-gradient(circle at top right, #5c0d3a 0%, #0d0114 65%, #071a07 100%)";
+      } else {
+        document.body.style.background = "radial-gradient(circle at top right, #3c0c4a 0%, #0d0114 65%, #071a07 100%)";
+      }
       document.body.style.backgroundAttachment = "fixed";
       document.body.style.minHeight = "100vh";
     } else {

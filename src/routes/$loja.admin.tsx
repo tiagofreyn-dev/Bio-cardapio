@@ -593,17 +593,19 @@ function GeneralTab() {
 
 
 
-      <Card title="🍔 Adicionais de Customização">
-        <Field label="Valor Adicional da Maionese Verde (R$)">
-          <input 
-            type="number" 
-            step="0.01" 
-            value={settings.mayoPrice ?? 2.00} 
-            onChange={(e) => update({ mayoPrice: Number(e.target.value) })} 
-            className={inputCls} 
-          />
-        </Field>
-      </Card>
+      {!tenant?.slug.includes("acai") && (
+        <Card title="🍔 Adicionais de Customização">
+          <Field label="Valor Adicional da Maionese Verde (R$)">
+            <input 
+              type="number" 
+              step="0.01" 
+              value={settings.mayoPrice ?? 2.00} 
+              onChange={(e) => update({ mayoPrice: Number(e.target.value) })} 
+              className={inputCls} 
+            />
+          </Field>
+        </Card>
+      )}
 
       <Card title="Pagamento via Pix">
         <Field label="Chave PIX do Estabelecimento">
