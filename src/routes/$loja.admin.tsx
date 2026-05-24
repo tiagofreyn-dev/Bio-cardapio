@@ -898,9 +898,63 @@ function ProductModal({ product, isNew, onClose, onSave }: { product: Product; i
       if (!supabase) {
         throw new Error("Supabase não está configurado. Insira VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY no seu ambiente.");
       }
-      const ext = file.name.split('.').pop();
+
+      // Compactar imagem no client-side usando HTML5 Canvas
+      const compressedFile = await new Promise<File | Blob>((resolve) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (event) => {
+          const img = new Image();
+          img.src = event.target?.result as string;
+          img.onload = () => {
+            const canvas = document.createElement("canvas");
+            const MAX_WIDTH = 600;
+            const MAX_HEIGHT = 600;
+            let width = img.width;
+            let height = img.height;
+
+            if (width > height) {
+              if (width > MAX_WIDTH) {
+                height *= MAX_WIDTH / width;
+                width = MAX_WIDTH;
+              }
+            } else {
+              if (height > MAX_HEIGHT) {
+                width *= MAX_HEIGHT / height;
+                height = MAX_HEIGHT;
+              }
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext("2d");
+            if (!ctx) return resolve(file); // Fallback
+
+            ctx.drawImage(img, 0, 0, width, height);
+            canvas.toBlob(
+              (blob) => {
+                if (blob) {
+                  const compressed = new File([blob], file.name.replace(/\.[^/.]+$/, ".jpg"), {
+                    type: "image/jpeg",
+                    lastModified: Date.now(),
+                  });
+                  resolve(compressed);
+                } else {
+                  resolve(file); // Fallback
+                }
+              },
+              "image/jpeg",
+              0.75 // 75% de qualidade (excelente relação tamanho/visual)
+            );
+          };
+          img.onerror = () => resolve(file);
+        };
+        reader.onerror = () => resolve(file);
+      });
+
+      const ext = "jpg"; // Força JPG compactado
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${ext}`;
-      const { data, error } = await supabase.storage.from('products-images').upload(fileName, file);
+      const { data, error } = await supabase.storage.from('products-images').upload(fileName, compressedFile);
       if (error) throw error;
       const { data: { publicUrl } } = supabase.storage.from('products-images').getPublicUrl(data.path);
       setP({ ...p, image: publicUrl });
