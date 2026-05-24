@@ -84,12 +84,20 @@ function LoginPage() {
         setPassword("");
       } else {
         // Fluxo de Login Tradicional
-        const { data, error: signInError } = await supabase.auth.signInWithPassword({
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
           email: email.trim(),
           password: password,
         });
 
         if (signInError) throw signInError;
+        if (!signInData.user) throw new Error("Erro de autenticação.");
+
+        // Busca o slug da loja correspondente ao usuário logado
+        const { data: store, error: storeError } = await supabase
+          .from("lojas")
+          .select("slug")
+          .eq("user_id", signInData.user.id)
+          .maybeSingle();
 
         setSuccess("Login bem-sucedido! Redirecionando...");
         
@@ -97,7 +105,11 @@ function LoginPage() {
         refreshTenant().catch(() => {});
 
         setTimeout(() => {
-          navigate({ to: "/admin" });
+          if (store && store.slug) {
+            navigate({ to: `/${store.slug}/admin` as any });
+          } else {
+            navigate({ to: "/" });
+          }
         }, 1000);
       }
     } catch (err: any) {
