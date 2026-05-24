@@ -810,19 +810,20 @@ function ProductsTab() {
     <section className="space-y-3">
       <button
         onClick={() => {
+          const isAcai = tenant?.slug.includes("acai") ?? false;
           setIsNew(true);
           setEditing({ 
             id: crypto.randomUUID(), 
             name: "", 
             description: "", 
             price: 0, 
-            image: "🍔", 
-            category: "hamburgueres", 
+            image: isAcai ? "🟣" : "🍔", 
+            category: isAcai ? "acai" : "hamburgueres", 
             available: true, 
-            customizable: true,
-            hasLettuceOption: true,
-            hasKetchupOption: true,
-            hasMayoOption: true
+            customizable: isAcai ? false : true,
+            hasLettuceOption: !isAcai,
+            hasKetchupOption: !isAcai,
+            hasMayoOption: !isAcai
           });
         }}
         className="w-full h-12 rounded-xl bg-primary text-primary-foreground font-bold inline-flex items-center justify-center gap-2"
@@ -887,6 +888,8 @@ function ProductsTab() {
 }
 
 function ProductModal({ product, isNew, onClose, onSave }: { product: Product; isNew: boolean; onClose: () => void; onSave: (p: Product) => void }) {
+  const { tenant } = useTenant();
+  const isAcaiShop = tenant?.slug.includes("acai") ?? false;
   const [p, setP] = useState<Product>(product);
   const [uploading, setUploading] = useState(false);
 
@@ -1030,9 +1033,23 @@ function ProductModal({ product, isNew, onClose, onSave }: { product: Product; i
         </Field>
         <Field label="Categoria">
           <select value={p.category} onChange={(e) => setP({ ...p, category: e.target.value as Category })} className={inputCls}>
-            <option value="hamburgueres">Hambúrgueres</option>
-            <option value="porcoes">Porções</option>
-            <option value="bebidas">Bebidas</option>
+            {isAcaiShop ? (
+              <>
+                <option value="acai">🟣 Açaí (Copos)</option>
+                <option value="milkshake">🥤 Milk-Shake</option>
+                <option value="sorvetes">🍨 Sorvetes</option>
+                <option value="gelinho">🧊 Gelinho & Picolé</option>
+                <option value="salgados">🥟 Salgados</option>
+                <option value="doces">🍰 Doces & Sobremesas</option>
+                <option value="bebidas">🥤 Bebidas</option>
+              </>
+            ) : (
+              <>
+                <option value="hamburgueres">Hambúrgueres</option>
+                <option value="porcoes">Porções</option>
+                <option value="bebidas">Bebidas</option>
+              </>
+            )}
           </select>
         </Field>
         <div className="space-y-2">
