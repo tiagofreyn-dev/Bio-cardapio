@@ -138,7 +138,7 @@ export function CartDrawer({
   const activeDeliveryFee = selectedLocation ? selectedLocation.fee : 0;
   const deliveryFee = delivery === "entrega" ? activeDeliveryFee : 0;
 
-  const canRedeem = points >= settings.loyaltyGoal;
+  const canRedeem = false; // Desativado sistema de fidelidade globalmente
   const cheapest = useMemo(() => (items.length ? Math.min(...items.map((i) => i.price)) : 0), [items]);
 
   const rewardProd = useMemo(() => {
@@ -158,7 +158,7 @@ export function CartDrawer({
   }, [redeem, canRedeem, rewardProd, hasRewardInCart, cheapest]);
 
   const total = Math.max(0, subtotal - discount) + deliveryFee;
-  const willEarnPoint = subtotal > settings.loyaltyMinOrder && !redeem;
+  const willEarnPoint = false; // Desativado sistema de fidelidade globalmente
   const isCampaignEligible = activeCampaign && subtotal >= activeCampaign.min_value;
 
   function buildMessage() {

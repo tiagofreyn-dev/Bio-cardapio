@@ -13,7 +13,7 @@ export const Route = createFileRoute("/$loja/admin")({
   component: AdminPage,
 });
 
-type Tab = "geral" | "fidelidade" | "produtos" | "sorteios" | "faturamento";
+type Tab = "geral" | "produtos" | "sorteios" | "faturamento";
 
 function AdminPage() {
   const { loja } = Route.useParams();
@@ -298,7 +298,7 @@ function AdminPage() {
           </button>
         </div>
         <div className="flex gap-2 px-4 pb-3 overflow-x-auto no-scrollbar">
-          {([["geral", "⚙️ Geral"], ["fidelidade", "🎁 Fidelidade"], ["produtos", "🍔 Produtos"], ["sorteios", "🏆 Sorteios"], ["faturamento", "📊 Faturamento"]] as [Tab, string][]).map(([id, label]) => (
+          {([["geral", "⚙️ Geral"], ["produtos", "🍔 Produtos"], ["sorteios", "🏆 Sorteios"], ["faturamento", "📊 Faturamento"]] as [Tab, string][]).map(([id, label]) => (
             <button
               key={id}
               onClick={() => setTab(id)}
@@ -312,7 +312,6 @@ function AdminPage() {
 
       <main className="p-4 space-y-4">
         {tab === "geral" && <GeneralTab />}
-        {tab === "fidelidade" && <LoyaltyTab />}
         {tab === "produtos" && <ProductsTab />}
         {tab === "sorteios" && <CampaignsTab />}
         {tab === "faturamento" && <FaturamentoTab />}
@@ -592,20 +591,7 @@ function GeneralTab() {
         )}
       </Card>
 
-      <Card title="Configurações do Cartão Fidelidade">
-        <Field label="Valor mínimo do pedido para pontuar (R$)">
-          <input type="number" step="0.01" value={settings.loyaltyMinOrder} onChange={(e) => update({ loyaltyMinOrder: Number(e.target.value) })} className={inputCls} />
-        </Field>
-        <Field label="Quantidade de pontos para ganhar o prêmio">
-          <input type="number" value={settings.loyaltyGoal} onChange={(e) => update({ loyaltyGoal: Number(e.target.value) })} className={inputCls} />
-        </Field>
-        <Field label="Prêmio do Cartão Fidelidade (Lanche Grátis)">
-          <select value={settings.loyaltyRewardId || ""} onChange={(e) => update({ loyaltyRewardId: e.target.value })} className={inputCls}>
-            <option value="">Lanche mais barato do pedido (Padrão)</option>
-            {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-        </Field>
-      </Card>
+
 
       <Card title="🍔 Adicionais de Customização">
         <Field label="Valor Adicional da Maionese Verde (R$)">

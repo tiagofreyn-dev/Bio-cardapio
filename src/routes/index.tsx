@@ -365,7 +365,6 @@ function Index() {
         </section>
       )}
 
-      <LoyaltyCard />
       <CategoryBar value={category} onChange={setCategory} />
       <main className="px-4 py-4 space-y-3">
         {filtered.length === 0 && <p className="text-center text-muted-foreground py-8">Nenhum item nesta categoria.</p>}
