@@ -339,7 +339,15 @@ function DynamicCardapio() {
 
       {count > 0 && <CartFooter qty={count} total={subtotal} onClick={() => setCartOpen(true)} />}
 
-      {cartOpen && <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} cart={cart} onUpdate={setCart} />}
+      {cartOpen && (
+        <CartDrawer
+          items={cart}
+          onClose={() => setCartOpen(false)}
+          onUpdate={(id, qty) => setCart((c) => (qty <= 0 ? c.filter((i) => i.id !== id) : c.map((i) => (i.id === id ? { ...i, qty } : i))))}
+          onRemove={(id) => setCart((c) => c.filter((i) => i.id !== id))}
+          onClear={() => setCart([])}
+        />
+      )}
     </div>
   );
 }
