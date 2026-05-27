@@ -132,9 +132,6 @@ function CadastroPage() {
           tipo: tipo,
           whatsapp: whatsapp.trim().replace(/\D/g, ""),
           endereco: endereco.trim(),
-          taxa_entrega: parseFloat(taxaEntrega) || 0,
-          chave_pix: chavePix.trim(),
-          titular_pix: titularPix.trim(),
         })
         .eq("id", createdLojaId);
 
@@ -305,43 +302,6 @@ function CadastroPage() {
                 value={endereco}
                 onChange={(e) => setEndereco(e.target.value)}
                 placeholder="Rua, Número - Bairro"
-                className={inputCls}
-                required
-              />
-            </label>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <label className={labelCls}>
-                <span>Chave Pix</span>
-                <input
-                  type="text"
-                  value={chavePix}
-                  onChange={(e) => setChavePix(e.target.value)}
-                  placeholder="CNPJ, Celular ou CPF"
-                  className={inputCls}
-                />
-              </label>
-
-              <label className={labelCls}>
-                <span>Titular da Chave Pix</span>
-                <input
-                  type="text"
-                  value={titularPix}
-                  onChange={(e) => setTitularPix(e.target.value)}
-                  placeholder="Nome do Titular"
-                  className={inputCls}
-                />
-              </label>
-            </div>
-
-            <label className={labelCls}>
-              <span>Taxa de Frete Padrão (R$)</span>
-              <input
-                type="number"
-                step="0.01"
-                value={taxaEntrega}
-                onChange={(e) => setTaxaEntrega(e.target.value)}
-                placeholder="5.00"
                 className={inputCls}
                 required
               />
