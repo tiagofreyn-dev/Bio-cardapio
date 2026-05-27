@@ -1,247 +1,70 @@
--- ==========================================================
--- SCRIPT DE CONFIGURAÇÃO DO BANCO DE DADOS - BIO-CARDAPIO
--- Execute este script no SQL Editor do painel do seu Supabase
--- ==========================================================
+-- ======================================================================
+-- 1. BANCO DE DADOS: ESQUEMA SAAS MULTI-TENANT
+-- ======================================================================
 
--- 1. CRIAR TABELA DE LOJAS (Perfis dos Clientes)
+-- Criar tabela de lojas (Tenants)
 CREATE TABLE IF NOT EXISTS public.lojas (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE UNIQUE NOT NULL,
-  nome_da_loja TEXT NOT NULL,
-  slug TEXT UNIQUE NOT NULL,
-  logo_url TEXT,
-  cor_principal TEXT DEFAULT '#EF4444' NOT NULL,
-  banner_url TEXT,
-  efeito_ativo TEXT DEFAULT 'nenhum' NOT NULL, -- 'nenhum', 'queda-neve', 'confete', 'neon'
-  whatsapp TEXT,
-  endereco TEXT,
-  created_at TIMESTAMPTZ DEFAULT now() NOT NULL
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    nome TEXT NOT NULL,
+    slug TEXT UNIQUE NOT NULL,
+    tipo TEXT NOT NULL,
+    cor_tema TEXT NOT NULL,
+    status_assinatura TEXT NOT NULL DEFAULT 'pendente',
+    whatsapp TEXT,
+    endereco TEXT,
+    taxa_entrega NUMERIC(10,2) DEFAULT 0.00,
+    chave_pix TEXT,
+    titular_pix TEXT,
+    criado_em TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Habilitar RLS (Row Level Security) na tabela lojas
+-- Modificar tabelas existentes para incluir colunas de multi-tenancy se não existirem
+ALTER TABLE public.categorias ADD COLUMN IF NOT EXISTS loja_id UUID REFERENCES public.lojas(id) ON DELETE CASCADE;
+ALTER TABLE public.produtos ADD COLUMN IF NOT EXISTS loja_id UUID REFERENCES public.lojas(id) ON DELETE CASCADE;
+ALTER TABLE public.pedidos ADD COLUMN IF NOT EXISTS loja_id UUID REFERENCES public.lojas(id) ON DELETE CASCADE;
+
+-- Criar registro da Hamburgueria Antiga (Legada) com ID fixo
+INSERT INTO public.lojas (id, nome, slug, tipo, cor_tema, status_assinatura)
+VALUES ('d3b07384-d113-4ec5-a55d-e0c157855d01', 'Insano Lanches', 'insano-lanches', 'Hamburgueria', 'Vermelho', 'ativo')
+ON CONFLICT (id) DO NOTHING;
+
+-- Migrar dados legados órfãos para a loja antiga
+UPDATE public.categorias SET loja_id = 'd3b07384-d113-4ec5-a55d-e0c157855d01' WHERE loja_id IS NULL;
+UPDATE public.produtos SET loja_id = 'd3b07384-d113-4ec5-a55d-e0c157855d01' WHERE loja_id IS NULL;
+UPDATE public.pedidos SET loja_id = 'd3b07384-d113-4ec5-a55d-e0c157855d01' WHERE loja_id IS NULL;
+
+-- Habilitar RLS (Row Level Security) em tudo
 ALTER TABLE public.lojas ENABLE ROW LEVEL SECURITY;
-
--- Criar políticas RLS para public.lojas
--- Qualquer pessoa (inclusive visitantes não logados) pode ver os dados da loja
-CREATE POLICY "Permitir leitura pública das lojas" ON public.lojas
-  FOR SELECT USING (true);
-
--- Apenas o proprietário logado pode criar os dados da sua loja
-CREATE POLICY "Permitir inserção pelo dono" ON public.lojas
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
-
--- Apenas o proprietário logado pode editar os dados da sua loja
-CREATE POLICY "Permitir atualização pelo dono" ON public.lojas
-  FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
-
--- Apenas o proprietário logado pode deletar sua loja
-CREATE POLICY "Permitir exclusão pelo dono" ON public.lojas
-  FOR DELETE USING (auth.uid() = user_id);
-
-
--- 2. CRIAR TABELA DE PRODUTOS (Cardápios Individuais por Loja)
-CREATE TABLE IF NOT EXISTS public.produtos (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  loja_id UUID REFERENCES public.lojas(id) ON DELETE CASCADE NOT NULL,
-  name TEXT NOT NULL,
-  description TEXT,
-  price NUMERIC(10, 2) NOT NULL,
-  image TEXT, -- Pode ser um Emoji (ex: "🍔") ou uma URL de imagem
-  category TEXT NOT NULL, -- 'hamburgueres', 'porcoes', 'bebidas'
-  available BOOLEAN DEFAULT true NOT NULL,
-  customizable BOOLEAN DEFAULT false NOT NULL,
-  has_lettuce_option BOOLEAN DEFAULT true,
-  has_ketchup_option BOOLEAN DEFAULT true,
-  has_mayo_option BOOLEAN DEFAULT true,
-  created_at TIMESTAMPTZ DEFAULT now() NOT NULL
-);
-
--- Habilitar RLS na tabela produtos
+ALTER TABLE public.categorias ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.produtos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.pedidos ENABLE ROW LEVEL SECURITY;
 
--- Criar políticas RLS para public.produtos
--- Qualquer pessoa pode listar os produtos da loja
-CREATE POLICY "Permitir leitura pública dos produtos" ON public.produtos
-  FOR SELECT USING (true);
+-- Políticas de RLS para acesso público (Leitura)
+DROP POLICY IF EXISTS "Leitura pública de lojas" ON public.lojas;
+CREATE POLICY "Leitura pública de lojas" ON public.lojas FOR SELECT USING (true);
 
--- Apenas o dono da loja proprietária pode inserir produtos
-CREATE POLICY "Permitir inserção de produtos pelo dono" ON public.produtos
-  FOR INSERT WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM public.lojas 
-      WHERE lojas.id = produtos.loja_id AND lojas.user_id = auth.uid()
-    )
-  );
+DROP POLICY IF EXISTS "Leitura pública de categorias" ON public.categorias;
+CREATE POLICY "Leitura pública de categorias" ON public.categorias FOR SELECT USING (true);
 
--- Apenas o dono da loja proprietária pode editar produtos
-CREATE POLICY "Permitir atualização de produtos pelo dono" ON public.produtos
-  FOR UPDATE USING (
-    EXISTS (
-      SELECT 1 FROM public.lojas 
-      WHERE lojas.id = produtos.loja_id AND lojas.user_id = auth.uid()
-    )
-  ) WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM public.lojas 
-      WHERE lojas.id = produtos.loja_id AND lojas.user_id = auth.uid()
-    )
-  );
+DROP POLICY IF EXISTS "Leitura pública de produtos" ON public.produtos;
+CREATE POLICY "Leitura pública de produtos" ON public.produtos FOR SELECT USING (true);
 
--- Apenas o dono da loja proprietária pode excluir produtos
-CREATE POLICY "Permitir exclusão de produtos pelo dono" ON public.produtos
-  FOR DELETE USING (
-    EXISTS (
-      SELECT 1 FROM public.lojas 
-      WHERE lojas.id = produtos.loja_id AND lojas.user_id = auth.uid()
-    )
-  );
+-- Políticas de RLS para Donos das Lojas (Escrita/Modificação)
+DROP POLICY IF EXISTS "Dono gerencia sua loja" ON public.lojas;
+CREATE POLICY "Dono gerencia sua loja" ON public.lojas FOR ALL USING (auth.uid() = user_id);
 
-
--- 3. FUNÇÃO AUTOMÁTICA DE CRIAÇÃO DO SLUG
--- Gera automaticamente um slug legível a partir do nome da loja caso não seja fornecido
-CREATE OR REPLACE FUNCTION public.gerar_loja_slug()
-RETURNS TRIGGER AS $$
-DECLARE
-  base_slug TEXT;
-  novo_slug TEXT;
-  contador INT := 1;
-BEGIN
-  -- Converter nome para minúsculas, remover acentos e caracteres especiais
-  base_slug := lower(regexp_replace(unaccent(NEW.nome_da_loja), '[^a-zA-Z0-9\s]', '', 'g'));
-  -- Substituir espaços por hífen
-  base_slug := regexp_replace(base_slug, '\s+', '-', 'g');
-  
-  novo_slug := base_slug;
-  
-  -- Verificar se já existe um slug repetido e adicionar contador se necessário
-  WHILE EXISTS (SELECT 1 FROM public.lojas WHERE slug = novo_slug AND id <> NEW.id) LOOP
-    novo_slug := base_slug || '-' || contador;
-    contador := contador + 1;
-  END LOOP;
-  
-  NEW.slug := novo_slug;
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- Trigger para executar a função antes do INSERT/UPDATE na tabela lojas
-DROP TRIGGER IF EXISTS trg_gerar_loja_slug ON public.lojas;
-CREATE TRIGGER trg_gerar_loja_slug
-  BEFORE INSERT OR UPDATE OF nome_da_loja ON public.lojas
-  FOR EACH ROW
-  EXECUTE FUNCTION public.gerar_loja_slug();
-
--- Habilitar a extensão "unaccent" caso não esteja ativada (usada para tirar acentos no slug)
-CREATE EXTENSION IF NOT EXISTS unaccent;
-
-
--- ==========================================================
--- TABELAS E POLÍTICAS ADICIONAIS DO CARDÁPIO DIGITAL
--- ==========================================================
-
--- 4. CRIAR TABELA DE TAXAS DE ENTREGA POR REGIÃO
-CREATE TABLE IF NOT EXISTS public.delivery_locations (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  name TEXT NOT NULL,
-  fee NUMERIC(10, 2) NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT now() NOT NULL
+DROP POLICY IF EXISTS "Dono gerencia suas categorias" ON public.categorias;
+CREATE POLICY "Dono gerencia suas categorias" ON public.categorias FOR ALL USING (
+    EXISTS (SELECT 1 FROM public.lojas WHERE lojas.id = categorias.loja_id AND lojas.user_id = auth.uid())
 );
 
--- Habilitar RLS na tabela delivery_locations
-ALTER TABLE public.delivery_locations ENABLE ROW LEVEL SECURITY;
-
--- Políticas RLS para delivery_locations
-CREATE POLICY "Permitir leitura pública de taxas" ON public.delivery_locations
-  FOR SELECT USING (true);
-
-CREATE POLICY "Permitir gerenciamento completo por qualquer um no admin" ON public.delivery_locations
-  FOR ALL USING (true);
-
-
--- 5. CRIAR TABELA DE HISTÓRICO DE PEDIDOS (Faturamento)
-CREATE TABLE IF NOT EXISTS public.orders_history (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  client_name TEXT NOT NULL,
-  payment_method TEXT NOT NULL, -- 'Pix', 'Cartão', 'Dinheiro'
-  delivery_type TEXT NOT NULL, -- 'Entrega', 'Retirada'
-  subtotal NUMERIC(10, 2) NOT NULL,
-  delivery_fee NUMERIC(10, 2) NOT NULL,
-  total_price NUMERIC(10, 2) NOT NULL,
-  is_fidelidade_resgate BOOLEAN DEFAULT false NOT NULL,
-  items_summary TEXT,
-  created_at TIMESTAMPTZ DEFAULT now() NOT NULL
+DROP POLICY IF EXISTS "Dono gerencia seus produtos" ON public.produtos;
+CREATE POLICY "Dono gerencia seus produtos" ON public.produtos FOR ALL USING (
+    EXISTS (SELECT 1 FROM public.lojas WHERE lojas.id = produtos.loja_id AND lojas.user_id = auth.uid())
 );
 
--- Habilitar RLS na tabela orders_history
-ALTER TABLE public.orders_history ENABLE ROW LEVEL SECURITY;
-
--- Políticas RLS para orders_history
-CREATE POLICY "Permitir inserção de pedidos por qualquer um" ON public.orders_history
-  FOR INSERT WITH CHECK (true);
-
-CREATE POLICY "Permitir leitura de faturamento por qualquer um" ON public.orders_history
-  FOR SELECT USING (true);
-
-
--- 6. CRIAR TABELA DE CAMPANHAS/SORTEIOS
-CREATE TABLE IF NOT EXISTS public.campaigns (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  title TEXT NOT NULL,
-  min_value NUMERIC(10, 2) NOT NULL,
-  is_active BOOLEAN DEFAULT true NOT NULL,
-  ends_at TIMESTAMPTZ,
-  image TEXT,
-  created_at TIMESTAMPTZ DEFAULT now() NOT NULL
+DROP POLICY IF EXISTS "Dono gerencia seus pedidos" ON public.pedidos;
+CREATE POLICY "Dono gerencia seus pedidos" ON public.pedidos FOR ALL USING (
+    EXISTS (SELECT 1 FROM public.lojas WHERE lojas.id = pedidos.loja_id AND lojas.user_id = auth.uid())
 );
-
--- Habilitar RLS na tabela campaigns
-ALTER TABLE public.campaigns ENABLE ROW LEVEL SECURITY;
-
--- Políticas RLS para campaigns
-CREATE POLICY "Permitir leitura pública de sorteios" ON public.campaigns
-  FOR SELECT USING (true);
-
-CREATE POLICY "Permitir gerenciamento completo de sorteios" ON public.campaigns
-  FOR ALL USING (true);
-
-
--- 7. CRIAR TABELA DE PARTICIPANTES DE SORTEIOS
-CREATE TABLE IF NOT EXISTS public.participants (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  campaign_id UUID REFERENCES public.campaigns(id) ON DELETE CASCADE NOT NULL,
-  client_name TEXT NOT NULL,
-  client_phone TEXT NOT NULL,
-  order_total NUMERIC(10, 2) NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT now() NOT NULL
-);
-
--- Habilitar RLS na tabela participants
-ALTER TABLE public.participants ENABLE ROW LEVEL SECURITY;
-
--- Políticas RLS para participants
-CREATE POLICY "Permitir inserção de participantes por qualquer um" ON public.participants
-  FOR INSERT WITH CHECK (true);
-
-CREATE POLICY "Permitir leitura de participantes por qualquer um" ON public.participants
-  FOR SELECT USING (true);
-
-
--- 8. CRIAR TABELA DE GANHADORES DE SORTEIOS
-CREATE TABLE IF NOT EXISTS public.campaign_winners (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  campaign_title TEXT NOT NULL,
-  winner_name TEXT NOT NULL,
-  winner_phone TEXT NOT NULL,
-  winner_order_total NUMERIC(10, 2) NOT NULL,
-  drawn_at TIMESTAMPTZ DEFAULT now() NOT NULL
-);
-
--- Habilitar RLS na tabela campaign_winners
-ALTER TABLE public.campaign_winners ENABLE ROW LEVEL SECURITY;
-
--- Políticas RLS para campaign_winners
-CREATE POLICY "Permitir leitura pública de ganhadores" ON public.campaign_winners
-  FOR SELECT USING (true);
-
-CREATE POLICY "Permitir gerenciamento completo de ganhadores" ON public.campaign_winners
-  FOR ALL USING (true);

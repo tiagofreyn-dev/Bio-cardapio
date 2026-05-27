@@ -11,8 +11,6 @@ import {
 
 import appCss from "../styles.css?url";
 import { storage } from "../lib/storage";
-import { TenantProvider } from "../lib/tenant";
-import { VisualEffects } from "../components/menu/VisualEffects";
 
 function NotFoundComponent() {
   return (
@@ -125,10 +123,7 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <TenantProvider>
-        <VisualEffects />
-        <Outlet />
-      </TenantProvider>
+      <Outlet />
     </QueryClientProvider>
   );
 }

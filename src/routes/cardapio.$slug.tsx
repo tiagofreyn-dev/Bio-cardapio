@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { MenuHeader } from "@/components/menu/MenuHeader";
 import { HeroBanner } from "@/components/menu/HeroBanner";
 import { LoyaltyCard } from "@/components/menu/LoyaltyCard";
@@ -13,35 +13,22 @@ import { brl } from "@/lib/format";
 import { storage } from "@/lib/storage";
 import { useStorageSync } from "@/hooks/use-storage";
 import { supabase } from "@/lib/supabase";
- 
-export const Route = createFileRoute("/")({
-  validateSearch: (search: Record<string, unknown>) => {
-    return {
-      loja: (search.loja as string) || undefined,
-    };
-  },
-  head: () => ({
+import { AlertCircle, Lock, ArrowLeft, RefreshCw } from "lucide-react";
+
+export const Route = createFileRoute("/cardapio/$slug")({
+  head: ({ params }) => ({
     meta: [
-      { title: "Insano Lanches — Cardápio Digital" },
-      { name: "description", content: "Hambúrgueres premium, porções e bebidas. Peça pelo WhatsApp." },
+      { title: `Carregando Cardápio — ${params.slug}` },
     ],
   }),
-  component: Index,
+  component: DynamicCardapio,
 });
- 
-function Index() {
-  const { loja } = Route.useSearch();
-  const navigate = useNavigate();
 
-  // Redirecionamento automático caso seja passado o parâmetro legacy ?loja=
-  useEffect(() => {
-    if (loja && loja !== "insano-lanches") {
-      navigate({ to: "/cardapio/$slug", params: { slug: loja }, replace: true });
-    }
-  }, [loja]);
-
-  const [loadingStore, setLoadingStore] = useState(true);
+function DynamicCardapio() {
+  const { slug } = Route.useParams();
   const [store, setStore] = useState<Loja | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [activeCampaign, setActiveCampaign] = useState<Campaign | null>(null);
 
   // Estados locais do menu
   const products = useStorageSync(() => storage.getProducts());
@@ -51,31 +38,31 @@ function Index() {
   const [cartOpen, setCartOpen] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
 
-  const [activeCampaign, setActiveCampaign] = useState<Campaign | null>(null);
-
-  // 1. Carregar Hamburgueria Antiga (ID Fixo) a partir do Supabase
+  // 1. Carregar Dados do Tenant a partir do Supabase
   useEffect(() => {
-    async function loadLegacyStore() {
-      setLoadingStore(true);
+    async function loadStore() {
+      setLoading(true);
       try {
-        if (!supabase) {
-          setLoadingStore(false);
-          return;
-        }
+        if (!supabase) return;
 
-        const legacyId = "d3b07384-d113-4ec5-a55d-e0c157855d01";
-        
-        // Buscar loja legada
+        // Buscar loja por slug
         const { data: storeData, error: storeError } = await supabase
           .from("lojas")
           .select("*")
-          .eq("id", legacyId)
+          .eq("slug", slug)
           .maybeSingle();
 
         if (storeError) throw storeError;
-        if (storeData) {
-          setStore(storeData);
+        if (!storeData) {
+          setStore(null);
+          setLoading(false);
+          return;
+        }
 
+        setStore(storeData);
+
+        // Se o cardápio estiver ativo, sincroniza os produtos e configurações
+        if (storeData.status_assinatura === "ativo") {
           // Buscar produtos reais da loja
           const { data: productsData, error: productsError } = await supabase
             .from("produtos")
@@ -84,7 +71,7 @@ function Index() {
 
           if (productsError) throw productsError;
 
-          // Mapear produtos
+          // Mapear produtos para o formato do frontend
           const mappedProducts: Product[] = (productsData || []).map((p) => ({
             id: p.id,
             name: p.nome,
@@ -99,7 +86,7 @@ function Index() {
             hasMayoOption: p.has_mayo_option,
           }));
 
-          // Mapear configurações
+          // Mapear configurações da loja
           const mappedSettings = {
             storeName: storeData.nome,
             whatsapp: storeData.whatsapp || "5546999999999",
@@ -112,22 +99,39 @@ function Index() {
             storeAddress: storeData.endereco || "",
           };
 
-          // Salvar no localStorage temporário para renderização reativa
+          // Salvar no localStorage temporário do cliente para reatividade dos componentes locais
           localStorage.setItem("insano.products", JSON.stringify(mappedProducts));
           localStorage.setItem("insano.settings", JSON.stringify(mappedSettings));
           localStorage.setItem("insano.tenant.activeId", storeData.id);
 
-          // Disparar evento para atualizar os componentes
+          // Atualizar o titulo da página na aba do navegador
+          document.title = `${storeData.nome} — Cardápio Digital`;
+
+          // Disparar evento para recarregar componentes reativos
           window.dispatchEvent(new CustomEvent("insano-storage"));
         }
       } catch (err) {
-        console.error("Erro ao carregar hamburgueria legada do Supabase:", err);
+        console.error("Erro ao carregar cardápio dinâmico:", err);
       } finally {
-        setLoadingStore(false);
+        setLoading(false);
       }
     }
-    loadLegacyStore();
-  }, []);
+    loadStore();
+  }, [slug]);
+
+  // Aplicar Cor do Tema Dinamicamente
+  useEffect(() => {
+    if (store?.cor_tema) {
+      let hex = "#EF4444"; // Vermelho
+      if (store.cor_tema === "Azul") hex = "#3B82F6";
+      else if (store.cor_tema === "Verde") hex = "#10B981";
+      else if (store.cor_tema === "Roxo") hex = "#8B5CF6";
+      else if (store.cor_tema === "Laranja") hex = "#F59E0B";
+
+      document.documentElement.style.setProperty("--primary", hex);
+      document.documentElement.style.setProperty("--primary-foreground", "#ffffff");
+    }
+  }, [store]);
 
   // Carregar carrinho e campanha
   useEffect(() => {
@@ -153,47 +157,10 @@ function Index() {
     }
     fetchCampaign();
   }, []);
+
   useEffect(() => {
     localStorage.setItem("insano.cart", JSON.stringify(cart));
   }, [cart]);
-
-  useEffect(() => {
-    try {
-      const savedName = localStorage.getItem("insano.user.name");
-      const savedPoints = localStorage.getItem("insano.loyalty.points");
-      
-      if (savedName && savedPoints) {
-        const nameLower = savedName.trim().toLowerCase();
-        const pointsNum = parseInt(savedPoints, 10);
-
-        // 1. Correção para Vanessa (deduzir 3 pontos extras)
-        const wasVanessaCorrected = localStorage.getItem("insano.loyalty.corrected_vanessa_v1");
-        if (nameLower === "vanessa" && !wasVanessaCorrected) {
-          if (pointsNum >= 4) {
-            const correctedPoints = Math.max(1, pointsNum - 3);
-            localStorage.setItem("insano.loyalty.points", JSON.stringify(correctedPoints));
-            localStorage.setItem("insano.loyalty.corrected_vanessa_v1", "true");
-            window.dispatchEvent(new CustomEvent("insano-storage"));
-            console.log("Pontos de fidelidade corrigidos para a cliente Vanessa.");
-          }
-        }
-
-        // 2. Correção para Jonathan (deduzir 1 ponto extra)
-        const wasJonathanCorrected = localStorage.getItem("insano.loyalty.corrected_jonathan_v1");
-        if (nameLower.includes("jonathan") && !wasJonathanCorrected) {
-          if (pointsNum >= 2) {
-            const correctedPoints = Math.max(1, pointsNum - 1);
-            localStorage.setItem("insano.loyalty.points", JSON.stringify(correctedPoints));
-            localStorage.setItem("insano.loyalty.corrected_jonathan_v1", "true");
-            window.dispatchEvent(new CustomEvent("insano-storage"));
-            console.log("Pontos de fidelidade corrigidos para o cliente Jonathan.");
-          }
-        }
-      }
-    } catch (err) {
-      console.error("Erro ao corrigir pontos de fidelidade dos clientes:", err);
-    }
-  }, []);
 
   const filtered = useMemo(() => products.filter((p) => p.category === category), [products, category]);
   const featured = useMemo(() => products.filter((p) => p.is_featured), [products]);
@@ -212,6 +179,69 @@ function Index() {
     }
   }
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-zinc-950 text-white flex flex-col items-center justify-center space-y-4">
+        <RefreshCw className="w-10 h-10 text-primary animate-spin" />
+        <p className="text-sm font-bold text-zinc-400">Carregando cardápio digital...</p>
+      </div>
+    );
+  }
+
+  // Se o comércio não existir
+  if (!store) {
+    return (
+      <div className="min-h-screen bg-zinc-950 text-white flex flex-col items-center justify-center p-6 text-center space-y-6">
+        <div className="w-20 h-20 rounded-full bg-red-900/10 flex items-center justify-center border border-red-500/20 text-red-500">
+          <AlertCircle className="w-10 h-10" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-3xl font-black">Comércio não encontrado</h2>
+          <p className="text-sm text-zinc-400 max-w-sm mx-auto">
+            O endereço digitado não corresponde a nenhuma loja cadastrada no nosso sistema SaaS.
+          </p>
+        </div>
+        <Link
+          to="/"
+          className="h-11 px-6 rounded-xl bg-zinc-900 ring-1 ring-border font-bold text-sm inline-flex items-center gap-2 hover:bg-zinc-800 transition active:scale-95"
+        >
+          <ArrowLeft className="w-4 h-4" /> Voltar ao Início
+        </Link>
+      </div>
+    );
+  }
+
+  // TRAVA DE PAYWALL: Se status_assinatura for 'pendente'
+  if (store.status_assinatura === "pendente") {
+    return (
+      <div className="min-h-screen bg-zinc-950 text-white flex flex-col items-center justify-center p-6 text-center space-y-6">
+        <div className="w-20 h-20 rounded-full bg-amber-500/10 flex items-center justify-center border border-amber-500/20 text-amber-500 animate-pulse">
+          <Lock className="w-10 h-10" />
+        </div>
+        <div className="space-y-2 max-w-md">
+          <span className="text-[10px] uppercase font-black tracking-widest text-amber-500 bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/25">
+            Cardápio em Construção
+          </span>
+          <h2 className="text-3xl font-black tracking-tight pt-2">Acesso Restrito</h2>
+          <p className="text-sm text-zinc-400 leading-relaxed">
+            Olá! O cardápio digital do estabelecimento **{store.nome}** está sendo configurado e logo estará disponível para novos pedidos!
+          </p>
+        </div>
+        <div className="p-4 bg-zinc-900 ring-1 ring-border rounded-2xl max-w-sm text-xs text-zinc-400 leading-relaxed">
+          <p className="font-bold text-white mb-1">Dono do Estabelecimento?</p>
+          Acesse a Dashboard Administrativa agora mesmo para configurar seus produtos, visualizar o preview e assinar o plano SaaS por R$ 99,90/mês para liberar o acesso!
+        </div>
+        <Link
+          to="/admin"
+          className="h-12 px-6 rounded-xl bg-primary text-primary-foreground font-black text-sm inline-flex items-center gap-2 shadow-[0_5px_20px_rgba(239,68,68,0.3)] active:scale-95 transition"
+        >
+          Entrar na Dashboard Admin
+        </Link>
+      </div>
+    );
+  }
+
+  // RENDERIZAÇÃO OFICIAL DO CARDÁPIO ATIVO
   return (
     <div className="min-h-screen pb-28">
       <MenuHeader />
@@ -230,24 +260,14 @@ function Index() {
                 <p className="text-[11px] sm:text-xs text-zinc-300 mt-0.5">
                   Faça um pedido a partir de <span className="font-extrabold text-primary">{brl(activeCampaign.min_value)}</span> e participe automaticamente!
                 </p>
-                {activeCampaign.ends_at && (
-                  <p className="text-[10px] text-red-450 font-black mt-1 uppercase tracking-wide">
-                    ⚡ Compre até {new Date(activeCampaign.ends_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })} para participar!
-                  </p>
-                )}
               </div>
             </div>
           </div>
         </div>
       )}
 
-      <div className="px-4 pt-4">
-        <div className="bg-zinc-900 border border-red-500/50 rounded-xl p-3 text-center shadow-lg">
-          <p className="text-sm font-bold text-white">🍟 Todos os lanches acompanham mini porção de batata e maionese caseira!</p>
-        </div>
-      </div>
-
-      <HeroBanner product={featured[0]} />
+      {/* Hero Banner do primeiro Destaque */}
+      {featured.length > 0 && <HeroBanner product={featured[0]} />}
 
       {featured.length > 0 && (
         <section className="pt-4 pb-2">
@@ -269,7 +289,7 @@ function Index() {
                     <div className="mt-auto pt-2 flex items-center justify-between">
                       <span className="text-primary font-extrabold text-sm">{brl(p.price)}</span>
                       <button
-                        disabled={out || !settings.isOpen}
+                        disabled={out}
                         onClick={() => handleAdd(p)}
                         className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground disabled:bg-muted disabled:text-muted-foreground shadow-md active:scale-95 transition"
                       >
@@ -294,67 +314,32 @@ function Index() {
       </main>
 
       <footer className="mt-8 mb-4 flex flex-col items-center justify-center gap-1.5 text-center px-4">
-        <span className="text-[10px] uppercase font-bold text-muted-foreground/60 tracking-widest block">Desenvolvido por</span>
-        <a 
-          href="https://www.instagram.com/tiagodefreyn8?igsh=MXQ1ZWFrM2Z1OHJocg==" 
-          target="_blank" 
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-surface-elevated hover:bg-zinc-800 ring-1 ring-border hover:ring-primary/50 transition duration-300 active:scale-95 shadow-md group"
-        >
-          <svg 
-            xmlns="http://www.w3.org/2000/svg" 
-            viewBox="0 0 24 24" 
-            fill="none" 
-            stroke="currentColor" 
-            strokeWidth="2" 
-            strokeLinecap="round" 
-            strokeLinejoin="round" 
-            className="w-4 h-4 text-muted-foreground group-hover:text-primary transition duration-300"
-          >
-            <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
-            <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
-            <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
-          </svg>
-          <span className="text-xs font-extrabold text-foreground group-hover:text-primary transition duration-300">@tiagodefreyn8</span>
-        </a>
+        <p className="text-sm font-black text-white">{settings.storeName}</p>
+        <p className="text-xs text-zinc-500">📍 {settings.storeAddress || "Endereço não cadastrado"}</p>
+        <p className="text-[10px] text-zinc-600 mt-4">Cardápio Digital SaaS © 2026. Todos os direitos reservados.</p>
       </footer>
 
-      <CartFooter count={count} subtotal={subtotal} onOpen={() => setCartOpen(true)} />
+      {customizing && <CustomizeModal product={customizing} onClose={() => setCustomizing(null)} onConfirm={(opts) => {
+        const lettuceText = opts.lettuce ? ` (${opts.lettuce})` : "";
+        const namePlus = customizing.name + lettuceText;
+        const extraPrice = (opts.mayo || 0) * (settings.mayoPrice ?? 2) + (opts.ketchup && opts.ketchup > 2 ? (opts.ketchup - 2) * 0.5 : 0);
+        
+        setCart((c) => [...c, {
+          id: crypto.randomUUID(),
+          productId: customizing.id,
+          name: namePlus,
+          price: customizing.price + extraPrice,
+          qty: 1,
+          lettuce: opts.lettuce,
+          ketchup: opts.ketchup,
+          mayo: opts.mayo,
+        }]);
+        setCustomizing(null);
+      }} />}
 
-      {customizing && (
-        <CustomizeModal
-          product={customizing}
-          onClose={() => setCustomizing(null)}
-          onConfirm={(opts) => {
-            const addedMayoPrice = (opts.mayo ?? 0) * (settings.mayoPrice ?? 2.00);
-            const addedKetchupPrice = (opts.ketchup ?? 0) > 2 ? ((opts.ketchup ?? 0) - 2) * 0.50 : 0;
-            setCart((c) => [
-              ...c,
-              { 
-                id: crypto.randomUUID(), 
-                productId: customizing.id, 
-                name: customizing.name, 
-                price: customizing.price + addedMayoPrice + addedKetchupPrice, 
-                qty: 1, 
-                lettuce: opts.lettuce, 
-                ketchup: opts.ketchup,
-                mayo: opts.mayo
-              },
-            ]);
-            setCustomizing(null);
-          }}
-        />
-      )}
+      {count > 0 && <CartFooter qty={count} total={subtotal} onClick={() => setCartOpen(true)} />}
 
-      {cartOpen && (
-        <CartDrawer
-          items={cart}
-          onClose={() => setCartOpen(false)}
-          onUpdate={(id, qty) => setCart((c) => (qty <= 0 ? c.filter((i) => i.id !== id) : c.map((i) => (i.id === id ? { ...i, qty } : i))))}
-          onRemove={(id) => setCart((c) => c.filter((i) => i.id !== id))}
-          onClear={() => setCart([])}
-        />
-      )}
+      {cartOpen && <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} cart={cart} onUpdate={setCart} />}
     </div>
   );
 }

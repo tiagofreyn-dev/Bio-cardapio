@@ -1,13 +1,4 @@
-export type Category = 
-  | "hamburgueres" 
-  | "porcoes" 
-  | "bebidas" 
-  | "acai" 
-  | "milkshake" 
-  | "sorvetes" 
-  | "gelinho" 
-  | "salgados" 
-  | "doces";
+export type Category = string;
 
 export interface Product {
   id: string;
@@ -33,7 +24,6 @@ export interface CartItem {
   lettuce?: "Alface Tradicional" | "Alface Americana";
   ketchup?: number;
   mayo?: number;
-  toppings?: string[];
 }
 
 export interface Settings {
@@ -113,15 +103,19 @@ export interface DeliveryLocation {
   created_at?: string;
 }
 
-export interface ToppingOption {
-  name: string;
-  price: number;
-  available?: boolean;
-}
-
-export interface ToppingCategory {
-  category: string;
-  icon: string;
-  items: ToppingOption[];
+export interface Loja {
+  id: string;
+  user_id?: string | null;
+  nome: string;
+  slug: string;
+  tipo: string;
+  cor_tema: string;
+  status_assinatura: 'pendente' | 'ativo';
+  whatsapp?: string;
+  endereco?: string;
+  taxa_entrega: number;
+  chave_pix?: string;
+  titular_pix?: string;
+  criado_em?: string;
 }
 

@@ -2,14 +2,12 @@ import type { Product } from "@/lib/types";
 
 interface HeroBannerProps {
   product?: Product;
-  customBannerUrl?: string | null;
-  storeName?: string;
 }
 
-export function HeroBanner({ product, customBannerUrl, storeName }: HeroBannerProps) {
-  const name = product ? product.name : (storeName || "Insano Monster");
-  const desc = product ? (product.description || "O sabor mais incrível da região!") : "Os melhores produtos e ingredientes selecionados.";
-  const image = customBannerUrl || (product ? product.image : null);
+export function HeroBanner({ product }: HeroBannerProps) {
+  const name = product ? product.name : "Insano Monster";
+  const desc = product ? (product.description || "O lanche mais insano da semana!") : "Triplo cheddar, costela e onion rings";
+  const image = product ? product.image : null;
 
   return (
     <section className="relative mx-4 mt-4 rounded-2xl overflow-hidden h-44 bg-gradient-to-br from-primary/40 via-background to-background ring-1 ring-primary/30">

@@ -5,7 +5,6 @@ import { storage } from "@/lib/storage";
 import { useStorageSync } from "@/hooks/use-storage";
 import { X, Minus, Plus, Trash2, Copy, Check, MapPin } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { useTenant } from "@/lib/tenant";
 
 type Delivery = "retirada" | "entrega";
 type Payment = "Pix" | "Cartão" | "Dinheiro";
@@ -26,8 +25,6 @@ export function CartDrawer({
   const settings = useStorageSync(() => storage.getSettings());
   const points = useStorageSync(() => storage.getLoyaltyPoints());
   const products = useStorageSync(() => storage.getProducts());
-  const { tenant } = useTenant();
-  const isAcaiShop = tenant?.slug.includes("acai") ?? false;
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -138,7 +135,7 @@ export function CartDrawer({
   const activeDeliveryFee = selectedLocation ? selectedLocation.fee : 0;
   const deliveryFee = delivery === "entrega" ? activeDeliveryFee : 0;
 
-  const canRedeem = false; // Desativado sistema de fidelidade globalmente
+  const canRedeem = points >= settings.loyaltyGoal;
   const cheapest = useMemo(() => (items.length ? Math.min(...items.map((i) => i.price)) : 0), [items]);
 
   const rewardProd = useMemo(() => {
@@ -158,7 +155,7 @@ export function CartDrawer({
   }, [redeem, canRedeem, rewardProd, hasRewardInCart, cheapest]);
 
   const total = Math.max(0, subtotal - discount) + deliveryFee;
-  const willEarnPoint = false; // Desativado sistema de fidelidade globalmente
+  const willEarnPoint = subtotal > settings.loyaltyMinOrder && !redeem;
   const isCampaignEligible = activeCampaign && subtotal >= activeCampaign.min_value;
 
   function buildMessage() {
@@ -167,9 +164,7 @@ export function CartDrawer({
       lines.push("🚨🚨 ATENÇÃO: PEDIDO COM RESGATE DE LANCHE GRÁTIS! O CARTÃO FIDELIDADE DESTE CLIENTE FOI ZERADO NO SISTEMA! 🚨🚨");
       lines.push("");
     }
-    const storeHeaderName = tenant ? tenant.nome_da_loja.toUpperCase() : "INSANO LANCHES";
-    const headerEmoji = isAcaiShop ? "🟣" : "🍔";
-    lines.push(`${headerEmoji} *NOVO PEDIDO - ${storeHeaderName}* ${headerEmoji}`);
+    lines.push("🍔 *NOVO PEDIDO - INSANO LANCHES* 🍔");
     lines.push("");
     lines.push(`*Cliente:* ${name}`);
     lines.push("");
@@ -177,17 +172,12 @@ export function CartDrawer({
     items.forEach((i) => {
       lines.push(`• ${i.qty}x ${i.name} (${brl(i.price * i.qty)})`);
       const prod = products.find((p) => p.id === i.productId);
-      if (prod && prod.category === "hamburgueres" && !isAcaiShop) {
+      if (prod && prod.category === "hamburgueres") {
         lines.push(`   _*(Acompanha mini batata e maionese especial)*_`);
       }
       if (i.lettuce) lines.push(`   - Opção: ${i.lettuce}`);
       if (typeof i.ketchup === "number" && i.ketchup > 0) lines.push(`   - Sachês de Ketchup: ${i.ketchup} unidades`);
       if (typeof i.mayo === "number" && i.mayo > 0) lines.push(`   - Potes de Maionese Verde: ${i.mayo} unidades`);
-      if (i.toppings && i.toppings.length > 0) {
-        i.toppings.forEach((top) => {
-          lines.push(`   - ${top}`);
-        });
-      }
     });
     lines.push("");
     lines.push("📍 *DADOS DE ENTREGA:*");
@@ -442,13 +432,6 @@ export function CartDrawer({
                       {typeof i.mayo === "number" && i.mayo > 0 && (
                         <p className="text-[11px] text-muted-foreground">• +{i.mayo} Maionese Verde</p>
                       )}
-                      {i.toppings && i.toppings.length > 0 && (
-                        <div className="mt-1 text-[11px] text-zinc-400 font-semibold space-y-0.5">
-                          {i.toppings.map((top, idx) => (
-                            <p key={idx}>• {top}</p>
-                          ))}
-                        </div>
-                      )}
                       <p className="text-primary font-extrabold mt-1">{brl(i.price * i.qty)}</p>
                     </div>
                     <button onClick={() => onRemove(i.id)} className="text-muted-foreground p-1"><Trash2 className="w-4 h-4" /></button>
@@ -609,11 +592,9 @@ export function CartDrawer({
                 )}
               </section>
 
-              {!isAcaiShop && (
-                <div className="rounded-xl border border-red-500/50 bg-red-500/10 p-3 text-center">
-                  <p className="text-xs font-semibold text-red-500">🍟 Todos os lanches acompanham mini porção de batata e maionese caseira!</p>
-                </div>
-              )}
+              <div className="rounded-xl border border-red-500/50 bg-red-500/10 p-3 text-center">
+                <p className="text-xs font-semibold text-red-500">🍟 Todos os lanches acompanham mini porção de batata e maionese caseira!</p>
+              </div>
 
               <section className="rounded-xl bg-surface ring-1 ring-border p-3 space-y-1 text-sm">
                 <Row label="Subtotal" value={brl(subtotal)} />
