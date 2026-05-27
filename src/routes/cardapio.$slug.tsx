@@ -244,7 +244,7 @@ function DynamicCardapio() {
   // RENDERIZAÇÃO OFICIAL DO CARDÁPIO ATIVO
   return (
     <div className="min-h-screen pb-28">
-      <MenuHeader />
+      <MenuHeader storeName={store.nome} isLegacy={false} />
 
       {activeCampaign && (
         <div className="px-4 pt-4">
@@ -316,7 +316,7 @@ function DynamicCardapio() {
       <footer className="mt-8 mb-4 flex flex-col items-center justify-center gap-1.5 text-center px-4">
         <p className="text-sm font-black text-white">{settings.storeName}</p>
         <p className="text-xs text-zinc-500">📍 {settings.storeAddress || "Endereço não cadastrado"}</p>
-        <p className="text-[10px] text-zinc-600 mt-4">Cardápio Digital SaaS © 2026. Todos os direitos reservados.</p>
+        <p className="text-[10px] text-zinc-650 mt-4">Cardápio Digital © 2026. Todos os direitos reservados.</p>
       </footer>
 
       {customizing && <CustomizeModal product={customizing} onClose={() => setCustomizing(null)} onConfirm={(opts) => {

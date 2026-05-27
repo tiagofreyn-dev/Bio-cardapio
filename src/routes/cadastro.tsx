@@ -5,7 +5,7 @@ import { brl } from "@/lib/format";
 import { ArrowLeft, User, Store, Palette, CheckCircle, Eye } from "lucide-react";
 
 export const Route = createFileRoute("/cadastro")({
-  head: () => ({ meta: [{ title: "Criar Cardápio Digital — SaaS Onboarding" }] }),
+  head: () => ({ meta: [{ title: "Criar Cardápio Digital — Onboarding" }] }),
   component: CadastroPage,
 });
 
@@ -410,7 +410,7 @@ function CadastroPage() {
             </div>
             <div className="space-y-1">
               <h3 className="text-2xl font-black text-white">Cardápio Pronto!</h3>
-              <p className="text-xs text-zinc-400">Tudo foi configurado com sucesso no nosso ecossistema SaaS.</p>
+              <p className="text-xs text-zinc-400">Tudo foi configurado com sucesso no nosso ecossistema.</p>
             </div>
             <div className="p-4 bg-zinc-950 rounded-2xl border border-zinc-800 text-xs text-zinc-400 leading-relaxed text-left space-y-2">
               <span className="font-extrabold text-white block">🚀 Proximidades:</span>

@@ -236,7 +236,7 @@ function AdminPage() {
           {/* Header do Box */}
           <div className="p-6 pb-4 text-center space-y-1 bg-gradient-to-b from-zinc-800/40 to-transparent">
             <span className="text-[10px] tracking-[0.2em] font-black uppercase text-primary">Painel Administrativo</span>
-            <h2 className="text-2xl font-black tracking-tight">Bio-Cardápio SaaS</h2>
+            <h2 className="text-2xl font-black tracking-tight">Bio-Cardápio</h2>
             <p className="text-xs text-zinc-400">Gerencie seu cardápio digital multi-tenant.</p>
           </div>
 

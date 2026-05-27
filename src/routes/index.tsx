@@ -214,7 +214,7 @@ function Index() {
 
   return (
     <div className="min-h-screen pb-28">
-      <MenuHeader />
+      <MenuHeader isLegacy={true} />
 
       {activeCampaign && (
         <div className="px-4 pt-4">
