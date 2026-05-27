@@ -13,6 +13,7 @@ export interface Product {
   hasKetchupOption?: boolean;
   hasMayoOption?: boolean;
   is_featured?: boolean;
+  adicionais?: { nome: string; preco: number }[];
 }
 
 export interface CartItem {
@@ -24,6 +25,7 @@ export interface CartItem {
   lettuce?: "Alface Tradicional" | "Alface Americana";
   ketchup?: number;
   mayo?: number;
+  adicionaisSelecionados?: { nome: string; preco: number }[];
 }
 
 export interface Settings {
@@ -40,6 +42,7 @@ export interface Settings {
   isBlocked?: boolean;
   billingLink?: string;
   storeAddress?: string;
+  loyaltyActive?: boolean;
 }
 
 export interface CustomerLoyalty {

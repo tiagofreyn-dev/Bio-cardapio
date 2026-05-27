@@ -562,6 +562,7 @@ function GeneralTab({ lojaId, slug }: { lojaId: string | null; slug?: string }) 
           taxa_entrega: Number(settings.deliveryFee),
           chave_pix: settings.pixKey,
           titular_pix: settings.pixName,
+          fidelidade_ativo: settings.loyaltyActive !== false,
         })
         .eq("id", lojaId);
 
@@ -718,30 +719,32 @@ function GeneralTab({ lojaId, slug }: { lojaId: string | null; slug?: string }) 
       </Card>
 
       <Card title="Configurações do Cartão Fidelidade">
-        <Field label="Valor mínimo do pedido para pontuar (R$)">
-          <input type="number" step="0.01" value={settings.loyaltyMinOrder} onChange={(e) => update({ loyaltyMinOrder: Number(e.target.value) })} className={inputCls} />
-        </Field>
-        <Field label="Quantidade de pontos para ganhar o prêmio">
-          <input type="number" value={settings.loyaltyGoal} onChange={(e) => update({ loyaltyGoal: Number(e.target.value) })} className={inputCls} />
-        </Field>
-        <Field label="Prêmio do Cartão Fidelidade (Lanche Grátis)">
-          <select value={settings.loyaltyRewardId || ""} onChange={(e) => update({ loyaltyRewardId: e.target.value })} className={inputCls}>
-            <option value="">Lanche mais barato do pedido (Padrão)</option>
-            {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        <Field label="Habilitar Programa de Fidelidade?">
+          <select 
+            value={settings.loyaltyActive !== false ? "true" : "false"} 
+            onChange={(e) => update({ loyaltyActive: e.target.value === "true" })} 
+            className={inputCls}
+          >
+            <option value="true">Sim, oferecer cartão fidelidade aos clientes</option>
+            <option value="false">Não, desativar programa de fidelidade</option>
           </select>
         </Field>
-      </Card>
-
-      <Card title="🍔 Adicionais de Customização">
-        <Field label="Valor Adicional da Maionese Verde (R$)">
-          <input 
-            type="number" 
-            step="0.01" 
-            value={settings.mayoPrice ?? 2.00} 
-            onChange={(e) => update({ mayoPrice: Number(e.target.value) })} 
-            className={inputCls} 
-          />
-        </Field>
+        {settings.loyaltyActive !== false && (
+          <>
+            <Field label="Valor mínimo do pedido para pontuar (R$)">
+              <input type="number" step="0.01" value={settings.loyaltyMinOrder} onChange={(e) => update({ loyaltyMinOrder: Number(e.target.value) })} className={inputCls} />
+            </Field>
+            <Field label="Quantidade de pontos para ganhar o prêmio">
+              <input type="number" value={settings.loyaltyGoal} onChange={(e) => update({ loyaltyGoal: Number(e.target.value) })} className={inputCls} />
+            </Field>
+            <Field label="Prêmio do Cartão Fidelidade (Item Grátis)">
+              <select value={settings.loyaltyRewardId || ""} onChange={(e) => update({ loyaltyRewardId: e.target.value })} className={inputCls}>
+                <option value="">Item mais barato do pedido (Padrão)</option>
+                {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </Field>
+          </>
+        )}
       </Card>
 
       <Card title="Pagamento via Pix">
@@ -868,11 +871,9 @@ function ProductsTab({ lojaId }: { lojaId: string | null }) {
         imagem: p.image,
         category: p.category,
         disponivel: p.available,
-        customizavel: p.customizable,
-        has_lettuce_option: p.hasLettuceOption,
-        has_ketchup_option: p.hasKetchupOption,
-        has_mayo_option: p.hasMayoOption,
+        customizavel: (p.adicionais || []).length > 0,
         is_featured: p.is_featured,
+        adicionais: p.adicionais || [],
         loja_id: lojaId,
       };
 
@@ -1053,14 +1054,36 @@ function ProductsTab({ lojaId }: { lojaId: string | null }) {
         ))}
       </ul>
 
-      {editing && <ProductModal product={editing} isNew={isNew} onClose={() => { setEditing(null); setIsNew(false); }} onSave={save} />}
+      {editing && (
+        <ProductModal 
+          product={editing} 
+          isNew={isNew} 
+          existingCategories={Array.from(new Set(products.map((x) => x.category))).filter(Boolean)}
+          onClose={() => { setEditing(null); setIsNew(false); }} 
+          onSave={save} 
+        />
+      )}
     </section>
   );
 }
 
-function ProductModal({ product, isNew, onClose, onSave }: { product: Product; isNew: boolean; onClose: () => void; onSave: (p: Product) => void }) {
+function ProductModal({ 
+  product, 
+  isNew, 
+  existingCategories, 
+  onClose, 
+  onSave 
+}: { 
+  product: Product; 
+  isNew: boolean; 
+  existingCategories: string[]; 
+  onClose: () => void; 
+  onSave: (p: Product) => void 
+}) {
   const [p, setP] = useState<Product>(product);
   const [uploading, setUploading] = useState(false);
+  const [newAddonName, setNewAddonName] = useState("");
+  const [newAddonPrice, setNewAddonPrice] = useState("");
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -1146,60 +1169,106 @@ function ProductModal({ product, isNew, onClose, onSave }: { product: Product; i
             {uploading && <p className="text-xs text-primary font-bold mt-1">Enviando imagem...</p>}
           </div>
         </Field>
-        <Field label="Categoria">
-          <select value={p.category} onChange={(e) => setP({ ...p, category: e.target.value as Category })} className={inputCls}>
-            <option value="hamburgueres">Hambúrgueres</option>
-            <option value="porcoes">Porções</option>
-            <option value="bebidas">Bebidas</option>
-          </select>
+        
+        <Field label="Categoria (Ex: Pizza, Açaí Turbinado, Bebidas)">
+          <div className="space-y-2">
+            <input 
+              value={p.category} 
+              onChange={(e) => setP({ ...p, category: e.target.value })} 
+              className={inputCls} 
+              placeholder="Digite a categoria do produto..." 
+            />
+            {existingCategories.length > 0 && (
+              <div className="flex gap-1.5 flex-wrap pt-1">
+                {existingCategories.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setP({ ...p, category: c })}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition ${
+                      p.category === c 
+                        ? "bg-primary text-primary-foreground shadow-sm" 
+                        : "bg-surface-elevated ring-1 ring-border text-muted-foreground hover:text-white"
+                    }`}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </Field>
-        <div className="space-y-2">
-          <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block">Opções de Customização:</span>
-          <label className="flex items-center justify-between p-3 rounded-xl bg-surface-elevated">
-            <span className="text-sm font-semibold">Opção de Alface</span>
-            <input 
-              type="checkbox" 
-              checked={p.hasLettuceOption ?? p.customizable} 
-              onChange={(e) => setP({ ...p, hasLettuceOption: e.target.checked })} 
-              className="w-5 h-5 accent-primary" 
+
+        <div className="space-y-3 p-3 rounded-2xl bg-zinc-900 border border-zinc-800">
+          <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block">Adicionais do Produto (Opcionais):</span>
+          
+          <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+            {(p.adicionais || []).map((addon, index) => (
+              <div key={index} className="flex items-center justify-between p-2.5 rounded-xl bg-surface-elevated ring-1 ring-border text-xs">
+                <span className="font-bold text-white">{addon.nome} (+ {brl(addon.preco)})</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const list = (p.adicionais || []).filter((_, i) => i !== index);
+                    setP({ ...p, adicionais: list });
+                  }}
+                  className="text-destructive hover:bg-destructive/10 p-1.5 rounded-lg transition"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+            {(p.adicionais || []).length === 0 && (
+              <p className="text-[10px] text-zinc-500 italic text-center py-2">Nenhum adicional configurado para este produto.</p>
+            )}
+          </div>
+
+          <div className="h-px bg-zinc-800 my-2" />
+
+          <div className="flex gap-2 items-center">
+            <input
+              placeholder="Nome (Ex: Cheddar, Morango)"
+              value={newAddonName}
+              onChange={(e) => setNewAddonName(e.target.value)}
+              className={`${inputCls} h-10 text-xs flex-1`}
             />
-          </label>
-          <label className="flex items-center justify-between p-3 rounded-xl bg-surface-elevated">
-            <span className="text-sm font-semibold">Opção de Ketchup</span>
-            <input 
-              type="checkbox" 
-              checked={p.hasKetchupOption ?? p.customizable} 
-              onChange={(e) => setP({ ...p, hasKetchupOption: e.target.checked })} 
-              className="w-5 h-5 accent-primary" 
+            <input
+              type="number"
+              step="0.01"
+              placeholder="Preço (R$)"
+              value={newAddonPrice}
+              onChange={(e) => setNewAddonPrice(e.target.value)}
+              className={`${inputCls} h-10 text-xs w-20`}
             />
-          </label>
-          <label className="flex items-center justify-between p-3 rounded-xl bg-surface-elevated">
-            <span className="text-sm font-semibold">Opção de Maionese Verde</span>
-            <input 
-              type="checkbox" 
-              checked={p.hasMayoOption ?? p.customizable} 
-              onChange={(e) => setP({ ...p, hasMayoOption: e.target.checked })} 
-              className="w-5 h-5 accent-primary" 
-            />
-          </label>
+            <button
+              type="button"
+              onClick={() => {
+                if (!newAddonName.trim()) return alert("Digite o nome do adicional");
+                const priceNum = parseFloat(newAddonPrice) || 0;
+                const list = [...(p.adicionais || []), { nome: newAddonName.trim(), preco: priceNum }];
+                setP({ ...p, adicionais: list, customizable: true });
+                setNewAddonName("");
+                setNewAddonPrice("");
+              }}
+              className="h-10 px-3 bg-primary hover:bg-primary/95 text-primary-foreground font-black text-xs rounded-xl active:scale-95 transition shrink-0"
+            >
+              Adicionar
+            </button>
+          </div>
         </div>
-        <label className="flex items-center justify-between p-3 rounded-xl bg-surface-elevated">
+
+        <label className="flex items-center justify-between p-3 rounded-xl bg-surface-elevated ring-1 ring-border">
           <span className="text-sm font-semibold">Disponível</span>
           <input type="checkbox" checked={p.available} onChange={(e) => setP({ ...p, available: e.target.checked })} className="w-5 h-5 accent-primary" />
         </label>
+        
         <div className="flex gap-2 pt-2">
           <button onClick={onClose} className={`flex-1 ${btnSecondary}`}>Cancelar</button>
           <button 
             onClick={() => {
-              const finalLettuce = p.hasLettuceOption ?? p.customizable;
-              const finalKetchup = p.hasKetchupOption ?? p.customizable;
-              const finalMayo = p.hasMayoOption ?? p.customizable;
               onSave({
                 ...p,
-                hasLettuceOption: finalLettuce,
-                hasKetchupOption: finalKetchup,
-                hasMayoOption: finalMayo,
-                customizable: finalLettuce || finalKetchup || finalMayo
+                customizable: (p.adicionais || []).length > 0
               });
             }} 
             className={`flex-1 ${btnPrimary}`}

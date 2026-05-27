@@ -46,7 +46,7 @@ function Index() {
   // Estados locais do menu
   const products = useStorageSync(() => storage.getProducts());
   const settings = useStorageSync(() => storage.getSettings());
-  const [category, setCategory] = useState<Category>("hamburgueres");
+  const [category, setCategory] = useState<Category>("todos");
   const [customizing, setCustomizing] = useState<Product | null>(null);
   const [cartOpen, setCartOpen] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -75,6 +75,7 @@ function Index() {
         if (storeError) throw storeError;
         if (storeData) {
           setStore(storeData);
+          document.title = `${storeData.nome} — Cardápio Digital`;
 
           // Buscar produtos reais da loja
           const { data: productsData, error: productsError } = await supabase
@@ -94,9 +95,7 @@ function Index() {
             category: p.category || "hamburgueres",
             available: p.disponivel,
             customizable: p.customizavel,
-            hasLettuceOption: p.has_lettuce_option,
-            hasKetchupOption: p.has_ketchup_option,
-            hasMayoOption: p.has_mayo_option,
+            adicionais: p.adicionais || [],
           }));
 
           // Mapear configurações
@@ -110,6 +109,7 @@ function Index() {
             pixKey: storeData.chave_pix || "",
             pixName: storeData.titular_pix || "",
             storeAddress: storeData.endereco || "",
+            loyaltyActive: storeData.fidelidade_ativo !== false,
           };
 
           // Salvar no localStorage temporário para renderização reativa
@@ -195,7 +195,15 @@ function Index() {
     }
   }, []);
 
-  const filtered = useMemo(() => products.filter((p) => p.category === category), [products, category]);
+  const categoriesList = useMemo(() => {
+    return Array.from(new Set(products.map((p) => p.category))).filter(Boolean);
+  }, [products]);
+
+  const filtered = useMemo(() => {
+    return category === "todos"
+      ? products
+      : products.filter((p) => p.category === category);
+  }, [products, category]);
   const featured = useMemo(() => products.filter((p) => p.is_featured), [products]);
   const count = cart.reduce((s, i) => s + i.qty, 0);
   const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
@@ -284,8 +292,8 @@ function Index() {
         </section>
       )}
 
-      <LoyaltyCard />
-      <CategoryBar value={category} onChange={setCategory} />
+      {settings.loyaltyActive !== false && <LoyaltyCard />}
+      <CategoryBar value={category} onChange={setCategory} categories={categoriesList} />
       <main className="px-4 py-4 space-y-3">
         {filtered.length === 0 && <p className="text-center text-muted-foreground py-8">Nenhum item nesta categoria.</p>}
         {filtered.map((p) => (
@@ -325,20 +333,22 @@ function Index() {
         <CustomizeModal
           product={customizing}
           onClose={() => setCustomizing(null)}
-          onConfirm={(opts) => {
-            const addedMayoPrice = (opts.mayo ?? 0) * (settings.mayoPrice ?? 2.00);
-            const addedKetchupPrice = (opts.ketchup ?? 0) > 2 ? ((opts.ketchup ?? 0) - 2) * 0.50 : 0;
+          onConfirm={(selectedAdditions) => {
+            const additionsText = selectedAdditions.length > 0 
+              ? ` (+ ${selectedAdditions.map(a => a.nome).join(", ")})` 
+              : "";
+            const namePlus = customizing.name + additionsText;
+            const extraPrice = selectedAdditions.reduce((sum, a) => sum + a.preco, 0);
+            
             setCart((c) => [
               ...c,
               { 
                 id: crypto.randomUUID(), 
                 productId: customizing.id, 
-                name: customizing.name, 
-                price: customizing.price + addedMayoPrice + addedKetchupPrice, 
+                name: namePlus, 
+                price: customizing.price + extraPrice, 
                 qty: 1, 
-                lettuce: opts.lettuce, 
-                ketchup: opts.ketchup,
-                mayo: opts.mayo
+                adicionaisSelecionados: selectedAdditions,
               },
             ]);
             setCustomizing(null);

@@ -1,9 +1,7 @@
 import { useState } from "react";
 import type { Product } from "@/lib/types";
 import { brl } from "@/lib/format";
-import { X, Minus, Plus } from "lucide-react";
-import { storage } from "@/lib/storage";
-import { useStorageSync } from "@/hooks/use-storage";
+import { X, Check } from "lucide-react";
 
 export function CustomizeModal({
   product,
@@ -12,90 +10,80 @@ export function CustomizeModal({
 }: {
   product: Product;
   onClose: () => void;
-  onConfirm: (opts: { lettuce?: "Alface Tradicional" | "Alface Americana"; ketchup?: number; mayo?: number }) => void;
+  onConfirm: (selected: { nome: string; preco: number }[]) => void;
 }) {
-  const settings = useStorageSync(() => storage.getSettings());
-  const mayoPrice = settings.mayoPrice ?? 2.00;
+  const additions = product.adicionais || [];
+  const [selected, setSelected] = useState<{ nome: string; preco: number }[]>([]);
 
-  const showLettuce = product.hasLettuceOption ?? product.customizable;
-  const showKetchup = product.hasKetchupOption ?? product.customizable;
-  const showMayo = product.hasMayoOption ?? product.customizable;
+  const totalPrice = product.price + selected.reduce((sum, item) => sum + item.preco, 0);
 
-  const [lettuce, setLettuce] = useState<"Alface Tradicional" | "Alface Americana">("Alface Tradicional");
-  const [ketchup, setKetchup] = useState(0);
-  const [mayo, setMayo] = useState(0);
+  function toggleAddition(addon: { nome: string; preco: number }) {
+    setSelected((prev) => {
+      const exists = prev.some((item) => item.nome === addon.nome);
+      if (exists) {
+        return prev.filter((item) => item.nome !== addon.nome);
+      } else {
+        return [...prev, addon];
+      }
+    });
+  }
 
   return (
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center" onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="w-full sm:max-w-md bg-surface rounded-t-3xl sm:rounded-3xl ring-1 ring-border max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-surface flex items-center justify-between p-4 border-b border-border">
+        <div className="sticky top-0 bg-surface flex items-center justify-between p-4 border-b border-border z-10">
           <div>
-            <p className="text-[11px] uppercase text-primary font-bold tracking-wider">Customização</p>
+            <p className="text-[11px] uppercase text-primary font-bold tracking-wider">Adicionar Opcionais</p>
             <h3 className="font-extrabold">{product.name}</h3>
           </div>
           <button onClick={onClose} className="p-2 text-muted-foreground"><X className="w-5 h-5" /></button>
         </div>
 
-        <div className="p-4 space-y-5">
-          {showLettuce && (
-            <section>
-              <h4 className="text-sm font-bold mb-2">Escolha a alface <span className="text-destructive">*</span></h4>
-              <div className="space-y-2">
-                {(["Alface Tradicional", "Alface Americana"] as const).map((opt) => (
-                  <label key={opt} className={`flex items-center gap-3 p-3 rounded-xl ring-1 cursor-pointer ${lettuce === opt ? "ring-primary bg-primary/10" : "ring-border bg-surface-elevated"}`}>
-                    <input
-                      type="radio"
-                      name="lettuce"
-                      checked={lettuce === opt}
-                      onChange={() => setLettuce(opt)}
-                      className="w-4 h-4 accent-primary"
-                    />
-                    <span className="text-sm font-medium">{opt}</span>
-                  </label>
-                ))}
-              </div>
-            </section>
-          )}
-
-          {showKetchup && (
-            <section>
-              <h4 className="text-sm font-bold mb-1">Sachês extras de Ketchup</h4>
-              <p className="text-[11px] text-muted-foreground mb-2">De 0 a 5 unidades (Até 2 grátis, adicionais +R$ 0,50 cada)</p>
-              <div className="flex items-center gap-4 p-3 rounded-xl bg-surface-elevated ring-1 ring-border w-fit">
-                <button onClick={() => setKetchup((k) => Math.max(0, k - 1))} className="w-9 h-9 rounded-full bg-muted flex items-center justify-center"><Minus className="w-4 h-4" /></button>
-                <span className="w-6 text-center font-bold">{ketchup}</span>
-                <button onClick={() => setKetchup((k) => Math.min(5, k + 1))} className="w-9 h-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center"><Plus className="w-4 h-4" /></button>
-              </div>
-            </section>
-          )}
-
-          {showMayo && (
-            <section>
-              <h4 className="text-sm font-bold mb-1">Potes extras de Maionese Verde</h4>
-              <p className="text-[11px] text-muted-foreground mb-2">De 0 a 5 unidades (+{brl(mayoPrice)} cada)</p>
-              <div className="flex items-center gap-4 p-3 rounded-xl bg-surface-elevated ring-1 ring-border w-fit">
-                <button onClick={() => setMayo((m) => Math.max(0, m - 1))} className="w-9 h-9 rounded-full bg-muted flex items-center justify-center"><Minus className="w-4 h-4" /></button>
-                <span className="w-6 text-center font-bold">{mayo}</span>
-                <button onClick={() => setMayo((m) => Math.min(5, m + 1))} className="w-9 h-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center"><Plus className="w-4 h-4" /></button>
-              </div>
-            </section>
-          )}
+        <div className="p-4 space-y-4">
+          <section className="space-y-2">
+            <h4 className="text-xs uppercase font-extrabold text-muted-foreground tracking-wider mb-3">Escolha os adicionais que deseja:</h4>
+            
+            <div className="space-y-2">
+              {additions.map((addon) => {
+                const isChecked = selected.some((item) => item.nome === addon.nome);
+                return (
+                  <button
+                    key={addon.nome}
+                    type="button"
+                    onClick={() => toggleAddition(addon)}
+                    className={`w-full flex items-center justify-between p-3.5 rounded-2xl border transition text-left active:scale-[0.99] ${
+                      isChecked 
+                        ? "border-primary bg-primary/10 ring-1 ring-primary" 
+                        : "border-border bg-surface-elevated hover:bg-zinc-800/40"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition ${
+                        isChecked ? "bg-primary border-primary text-primary-foreground" : "border-border bg-zinc-950"
+                      }`}>
+                        {isChecked && <Check className="w-3.5 h-3.5 stroke-[4]" />}
+                      </div>
+                      <span className="text-sm font-bold text-white">{addon.nome}</span>
+                    </div>
+                    <span className="text-xs font-black text-primary">
+                      {addon.preco > 0 ? `+ ${brl(addon.preco)}` : "Grátis"}
+                    </span>
+                  </button>
+                );
+              })}
+              {additions.length === 0 && (
+                <p className="text-xs text-muted-foreground italic text-center py-4">Nenhum adicional disponível para este produto.</p>
+              )}
+            </div>
+          </section>
         </div>
 
-        <div className="sticky bottom-0 p-4 bg-surface border-t border-border">
+        <div className="sticky bottom-0 p-4 bg-surface border-t border-border z-10">
           <button
-            onClick={() => onConfirm({ 
-              lettuce: showLettuce ? lettuce : undefined, 
-              ketchup: showKetchup ? ketchup : undefined, 
-              mayo: showMayo ? mayo : undefined 
-            })}
-            className="w-full h-12 rounded-xl bg-primary text-primary-foreground font-bold shadow-[0_6px_20px_oklch(0.62_0.22_22/0.5)] active:scale-[0.99]"
+            onClick={() => onConfirm(selected)}
+            className="w-full h-12 rounded-xl bg-primary text-primary-foreground font-black shadow-[0_6px_20px_oklch(0.62_0.22_22/0.5)] active:scale-[0.99] transition text-sm"
           >
-            Confirmar e Adicionar — {brl(
-              product.price + 
-              (showMayo ? mayo * mayoPrice : 0) + 
-              (showKetchup && ketchup > 2 ? (ketchup - 2) * 0.50 : 0)
-            )}
+            Confirmar e Adicionar — {brl(totalPrice)}
           </button>
         </div>
       </div>

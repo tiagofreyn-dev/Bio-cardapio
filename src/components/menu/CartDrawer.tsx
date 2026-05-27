@@ -164,20 +164,18 @@ export function CartDrawer({
       lines.push("🚨🚨 ATENÇÃO: PEDIDO COM RESGATE DE LANCHE GRÁTIS! O CARTÃO FIDELIDADE DESTE CLIENTE FOI ZERADO NO SISTEMA! 🚨🚨");
       lines.push("");
     }
-    lines.push("🍔 *NOVO PEDIDO - INSANO LANCHES* 🍔");
+    lines.push(`🛍️ *NOVO PEDIDO - ${settings.storeName.toUpperCase()}* 🛍️`);
     lines.push("");
     lines.push(`*Cliente:* ${name}`);
     lines.push("");
     lines.push("🛒 *ITENS DO PEDIDO:*");
     items.forEach((i) => {
       lines.push(`• ${i.qty}x ${i.name} (${brl(i.price * i.qty)})`);
-      const prod = products.find((p) => p.id === i.productId);
-      if (prod && prod.category === "hamburgueres") {
-        lines.push(`   _*(Acompanha mini batata e maionese especial)*_`);
+      if (i.adicionaisSelecionados && i.adicionaisSelecionados.length > 0) {
+        i.adicionaisSelecionados.forEach((addon) => {
+          lines.push(`   - Adicional: + ${addon.nome} (${brl(addon.preco)})`);
+        });
       }
-      if (i.lettuce) lines.push(`   - Opção: ${i.lettuce}`);
-      if (typeof i.ketchup === "number" && i.ketchup > 0) lines.push(`   - Sachês de Ketchup: ${i.ketchup} unidades`);
-      if (typeof i.mayo === "number" && i.mayo > 0) lines.push(`   - Potes de Maionese Verde: ${i.mayo} unidades`);
     });
     lines.push("");
     lines.push("📍 *DADOS DE ENTREGA:*");
@@ -425,12 +423,12 @@ export function CartDrawer({
                   <div className="flex justify-between items-start gap-2">
                     <div className="flex-1 min-w-0">
                       <p className="font-bold text-sm">{i.name}</p>
-                      {i.lettuce && <p className="text-[11px] text-muted-foreground">• {i.lettuce}</p>}
-                      {typeof i.ketchup === "number" && i.ketchup > 0 && (
-                        <p className="text-[11px] text-muted-foreground">• +{i.ketchup} Ketchup</p>
-                      )}
-                      {typeof i.mayo === "number" && i.mayo > 0 && (
-                        <p className="text-[11px] text-muted-foreground">• +{i.mayo} Maionese Verde</p>
+                      {i.adicionaisSelecionados && i.adicionaisSelecionados.length > 0 && (
+                        <div className="mt-1 text-[11px] text-muted-foreground space-y-0.5">
+                          {i.adicionaisSelecionados.map((addon) => (
+                            <p key={addon.nome}>• + {addon.nome} ({brl(addon.preco)})</p>
+                          ))}
+                        </div>
                       )}
                       <p className="text-primary font-extrabold mt-1">{brl(i.price * i.qty)}</p>
                     </div>
@@ -448,12 +446,12 @@ export function CartDrawer({
 
           {items.length > 0 && (
             <>
-              {willEarnPoint && (
+              {settings.loyaltyActive !== false && willEarnPoint && (
                 <div className="rounded-xl bg-success/15 text-success px-3 py-2 text-sm font-semibold">
                   🔥 Esse pedido vai te dar +1 carimbo no Cartão Fidelidade!
                 </div>
               )}
-              {canRedeem && (
+              {settings.loyaltyActive !== false && canRedeem && (
                 <label className="flex items-start gap-2 p-3 rounded-xl bg-primary/10 ring-1 ring-primary cursor-pointer">
                   <input type="checkbox" checked={redeem} onChange={(e) => setRedeem(e.target.checked)} className="mt-0.5 w-4 h-4 accent-primary" />
                   <span className="text-sm font-semibold">
@@ -580,7 +578,7 @@ export function CartDrawer({
 
                     <div className="flex justify-between items-center text-xs pt-2 border-t border-zinc-800/60">
                       <span className="text-zinc-400">Titular da Conta</span>
-                      <span className="font-bold text-zinc-200">{settings.pixName || "Insano Lanches"}</span>
+                      <span className="font-bold text-zinc-200">{settings.pixName || settings.storeName}</span>
                     </div>
 
                     {copied && (
