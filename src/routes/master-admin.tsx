@@ -409,7 +409,7 @@ function MasterAdminPage() {
 
   // Render Master Dashboard if authenticated
   return (
-    <div className="min-h-screen bg-zinc-950 text-white flex flex-col">
+    <div className="h-screen bg-zinc-950 text-white flex flex-col overflow-hidden">
       {/* Premium Header */}
       <header className="sticky top-0 z-30 bg-zinc-900/60 border-b border-zinc-850/80 backdrop-blur-md px-6 py-4 flex items-center justify-between shadow-lg">
         <div className="flex items-center gap-3">
