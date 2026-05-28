@@ -434,7 +434,9 @@ function MasterAdminPage() {
               <span>ADMINISTRAÇÃO MASTER</span>
               <span className="text-[9px] font-black tracking-widest text-red-500 bg-red-500/10 px-2 py-0.5 rounded-full border border-red-500/25 uppercase shrink-0">Dono</span>
             </h1>
-            <p className="text-[10px] text-zinc-400 font-medium">Controle geral e faturamento manual dos comércios</p>
+            <p className="text-[10px] text-zinc-400 font-medium">
+              Sessão: <span className="font-bold text-zinc-200">{user?.email || "Nenhum"}</span> ({user?.id === "bypass-admin" ? "⚠️ Modo Bypass / Leitura" : "✅ Autenticado no Supabase"})
+            </p>
           </div>
         </div>
 
