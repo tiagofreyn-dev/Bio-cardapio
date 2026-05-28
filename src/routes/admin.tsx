@@ -24,7 +24,6 @@ function AdminPage() {
   const [password, setPassword] = useState("");
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authType, setAuthType] = useState<"pin" | "email" | null>(null);
-  const [loginTab, setLoginTab] = useState<"email" | "pin">("email");
   const [lojaId, setLojaId] = useState<string | null>(null);
   const [store, setStore] = useState<import("@/lib/types").Loja | null>(null);
   const [loading, setLoading] = useState(false);
@@ -165,31 +164,6 @@ function AdminPage() {
     }
   }
 
-  async function handleLoginPin(e: React.FormEvent) {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
-    try {
-      const legacyPin = "1234";
-      if (password === legacyPin) {
-        const legacyId = "d3b07384-d113-4ec5-a55d-e0c157855d01";
-        setLojaId(legacyId);
-        setAuthType("pin");
-        setIsAuthenticated(true);
-        sessionStorage.setItem("insano.admin.auth", "true");
-        sessionStorage.setItem("insano.admin.lojaId", legacyId);
-        sessionStorage.setItem("insano.admin.authType", "pin");
-        localStorage.setItem("insano.tenant.activeId", legacyId);
-      } else {
-        throw new Error("PIN incorreto! Tente novamente.");
-      }
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }
-
   async function handleActivateSubscription() {
     if (!supabase || !lojaId) return;
     setPaywallSimulating(true);
@@ -240,88 +214,44 @@ function AdminPage() {
             <p className="text-xs text-zinc-400">Gerencie seu cardápio digital multi-tenant.</p>
           </div>
 
-          {/* Abas de Login */}
-          <div className="flex px-6 gap-2 border-b border-zinc-800/60 pb-3">
-            <button
-              onClick={() => { setLoginTab("email"); setError(""); }}
-              className={`flex-1 py-2 text-xs font-bold rounded-xl transition ${
-                loginTab === "email" ? "bg-primary text-primary-foreground" : "bg-zinc-950 text-zinc-400 hover:text-white"
-              }`}
-            >
-              Dono de Loja
-            </button>
-            <button
-              onClick={() => { setLoginTab("pin"); setError(""); }}
-              className={`flex-1 py-2 text-xs font-bold rounded-xl transition ${
-                loginTab === "pin" ? "bg-primary text-primary-foreground" : "bg-zinc-950 text-zinc-400 hover:text-white"
-              }`}
-            >
-              Acesso Rápido (PIN)
-            </button>
-          </div>
-
-          <div className="p-6 pt-4">
+          <div className="p-6">
             {error && (
               <div className="mb-4 p-3 rounded-xl bg-red-950/40 border border-red-500/30 text-xs font-semibold text-red-400 text-center animate-pulse">
                 ⚠️ {error}
               </div>
             )}
 
-            {loginTab === "email" ? (
-              <form onSubmit={handleLoginEmail} className="space-y-4">
-                <label className="block space-y-1">
-                  <span className="text-[10px] uppercase font-bold text-zinc-500">E-mail</span>
-                  <input
-                    type="email"
-                    placeholder="dono@exemplo.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full h-11 px-3 rounded-xl bg-zinc-950 text-white placeholder:text-zinc-700 ring-1 ring-zinc-800 focus:ring-primary outline-none text-sm transition"
-                    required
-                  />
-                </label>
-                <label className="block space-y-1">
-                  <span className="text-[10px] uppercase font-bold text-zinc-500">Senha</span>
-                  <input
-                    type="password"
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full h-11 px-3 rounded-xl bg-zinc-950 text-white placeholder:text-zinc-700 ring-1 ring-zinc-800 focus:ring-primary outline-none text-sm transition"
-                    required
-                  />
-                </label>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full h-11 mt-2 rounded-xl bg-primary text-primary-foreground font-black text-sm transition active:scale-[0.98] disabled:opacity-50"
-                >
-                  {loading ? "Entrando..." : "Entrar no Painel 🚀"}
-                </button>
-              </form>
-            ) : (
-              <form onSubmit={handleLoginPin} className="space-y-4">
-                <div className="text-center py-2">
-                  <p className="text-xs text-zinc-400">Digite o PIN "1234" para acessar a hamburgueria legada original.</p>
-                </div>
+            <form onSubmit={handleLoginEmail} className="space-y-4">
+              <label className="block space-y-1">
+                <span className="text-[10px] uppercase font-bold text-zinc-500">E-mail</span>
+                <input
+                  type="email"
+                  placeholder="dono@exemplo.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full h-11 px-3 rounded-xl bg-zinc-950 text-white placeholder:text-zinc-700 ring-1 ring-zinc-800 focus:ring-primary outline-none text-sm transition"
+                  required
+                />
+              </label>
+              <label className="block space-y-1">
+                <span className="text-[10px] uppercase font-bold text-zinc-500">Senha</span>
                 <input
                   type="password"
-                  placeholder="••••"
+                  placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full h-12 text-center tracking-[0.3em] text-xl font-bold rounded-2xl bg-zinc-950 text-white placeholder:text-zinc-700 ring-1 ring-zinc-800 focus:ring-primary outline-none transition"
+                  className="w-full h-11 px-3 rounded-xl bg-zinc-950 text-white placeholder:text-zinc-700 ring-1 ring-zinc-800 focus:ring-primary outline-none text-sm transition"
                   required
-                  autoFocus
                 />
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full h-11 mt-2 rounded-xl bg-primary text-primary-foreground font-black text-sm transition active:scale-[0.98] disabled:opacity-50"
-                >
-                  {loading ? "Verificando PIN..." : "Liberar Acesso Legado"}
-                </button>
-              </form>
-            )}
+              </label>
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full h-11 mt-2 rounded-xl bg-primary text-primary-foreground font-black text-sm transition active:scale-[0.98] disabled:opacity-50"
+              >
+                {loading ? "Entrando..." : "Entrar no Painel 🚀"}
+              </button>
+            </form>
 
             <div className="mt-6 text-center">
               <Link to="/cadastro" className="text-xs font-bold text-zinc-400 hover:text-primary transition underline">
