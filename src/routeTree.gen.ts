@@ -15,6 +15,8 @@ import { Route as CadastroRouteImport } from './routes/cadastro'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CardapioSlugRouteImport } from './routes/cardapio.$slug'
+import { Route as ApiCheckoutRouteImport } from './routes/api.checkout'
+import { Route as ApiWebhooksStripeRouteImport } from './routes/api.webhooks.stripe'
 
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
@@ -46,6 +48,16 @@ const CardapioSlugRoute = CardapioSlugRouteImport.update({
   path: '/cardapio/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCheckoutRoute = ApiCheckoutRouteImport.update({
+  id: '/api/checkout',
+  path: '/api/checkout',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiWebhooksStripeRoute = ApiWebhooksStripeRouteImport.update({
+  id: '/api/webhooks/stripe',
+  path: '/api/webhooks/stripe',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -53,7 +65,9 @@ export interface FileRoutesByFullPath {
   '/cadastro': typeof CadastroRoute
   '/master-admin': typeof MasterAdminRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/api/checkout': typeof ApiCheckoutRoute
   '/cardapio/$slug': typeof CardapioSlugRoute
+  '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -61,7 +75,9 @@ export interface FileRoutesByTo {
   '/cadastro': typeof CadastroRoute
   '/master-admin': typeof MasterAdminRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/api/checkout': typeof ApiCheckoutRoute
   '/cardapio/$slug': typeof CardapioSlugRoute
+  '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -70,7 +86,9 @@ export interface FileRoutesById {
   '/cadastro': typeof CadastroRoute
   '/master-admin': typeof MasterAdminRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/api/checkout': typeof ApiCheckoutRoute
   '/cardapio/$slug': typeof CardapioSlugRoute
+  '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -80,7 +98,9 @@ export interface FileRouteTypes {
     | '/cadastro'
     | '/master-admin'
     | '/sitemap.xml'
+    | '/api/checkout'
     | '/cardapio/$slug'
+    | '/api/webhooks/stripe'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -88,7 +108,9 @@ export interface FileRouteTypes {
     | '/cadastro'
     | '/master-admin'
     | '/sitemap.xml'
+    | '/api/checkout'
     | '/cardapio/$slug'
+    | '/api/webhooks/stripe'
   id:
     | '__root__'
     | '/'
@@ -96,7 +118,9 @@ export interface FileRouteTypes {
     | '/cadastro'
     | '/master-admin'
     | '/sitemap.xml'
+    | '/api/checkout'
     | '/cardapio/$slug'
+    | '/api/webhooks/stripe'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -105,7 +129,9 @@ export interface RootRouteChildren {
   CadastroRoute: typeof CadastroRoute
   MasterAdminRoute: typeof MasterAdminRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
+  ApiCheckoutRoute: typeof ApiCheckoutRoute
   CardapioSlugRoute: typeof CardapioSlugRoute
+  ApiWebhooksStripeRoute: typeof ApiWebhooksStripeRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -152,6 +178,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CardapioSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/checkout': {
+      id: '/api/checkout'
+      path: '/api/checkout'
+      fullPath: '/api/checkout'
+      preLoaderRoute: typeof ApiCheckoutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/webhooks/stripe': {
+      id: '/api/webhooks/stripe'
+      path: '/api/webhooks/stripe'
+      fullPath: '/api/webhooks/stripe'
+      preLoaderRoute: typeof ApiWebhooksStripeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -161,7 +201,9 @@ const rootRouteChildren: RootRouteChildren = {
   CadastroRoute: CadastroRoute,
   MasterAdminRoute: MasterAdminRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
+  ApiCheckoutRoute: ApiCheckoutRoute,
   CardapioSlugRoute: CardapioSlugRoute,
+  ApiWebhooksStripeRoute: ApiWebhooksStripeRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

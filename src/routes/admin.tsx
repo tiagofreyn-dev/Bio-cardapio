@@ -31,6 +31,21 @@ function AdminPage() {
   const [paywallSimulating, setPaywallSimulating] = useState(false);
   const [error, setError] = useState("");
 
+  const [stripeStatus, setStripeStatus] = useState<"sucesso" | "cancelado" | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const searchParams = new URLSearchParams(window.location.search);
+      if (searchParams.get("sucesso") === "true") {
+        setStripeStatus("sucesso");
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } else if (searchParams.get("cancelado") === "true") {
+        setStripeStatus("cancelado");
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    }
+  }, []);
+
   useEffect(() => {
     if (typeof window !== "undefined") {
       const auth = sessionStorage.getItem("insano.admin.auth");
@@ -165,28 +180,30 @@ function AdminPage() {
   }
 
   async function handleActivateSubscription() {
-    if (!supabase || !lojaId) return;
+    if (!lojaId) return;
     setPaywallSimulating(true);
     try {
-      const { error } = await supabase
-        .from("lojas")
-        .update({ status_assinatura: "ativo" })
-        .eq("id", lojaId);
+      const response = await fetch("/api/checkout", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ lojaId }),
+      });
 
-      if (error) throw error;
-      
-      // Update local state
-      if (store) {
-        const updatedStore = { ...store, status_assinatura: "ativo" };
-        setStore(updatedStore);
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || "Erro ao processar checkout do Stripe");
       }
-      alert("Parabéns! Sua assinatura foi ativada com sucesso (modo simulação). Seu cardápio agora está publicado e visível para o público!");
-      
-      // Recarregar preview
-      const iframe = document.getElementById("live-cardapio-preview") as HTMLIFrameElement;
-      if (iframe) iframe.src = iframe.src;
+
+      const data = await response.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        throw new Error("URL de Checkout não retornada pelo servidor");
+      }
     } catch (err: any) {
-      alert("Erro ao ativar assinatura: " + err.message);
+      alert("Erro ao iniciar pagamento no Stripe: " + err.message);
     } finally {
       setPaywallSimulating(false);
     }
@@ -311,25 +328,87 @@ function AdminPage() {
         </div>
       </header>
 
+      {/* Alertas Premium de Retorno de Pagamento do Stripe Checkout */}
+      {stripeStatus === "sucesso" && (
+        <div className="bg-gradient-to-r from-emerald-950/60 via-emerald-900/50 to-emerald-950/60 border-b border-emerald-500/30 px-4 py-3 flex items-center justify-between gap-3 text-center sm:text-left animate-fade-in shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20 text-emerald-400 shrink-0">
+              <Check className="w-5 h-5 animate-bounce" />
+            </div>
+            <div>
+              <h4 className="font-extrabold text-sm text-white">Pagamento Confirmado! 🎉</h4>
+              <p className="text-[11px] text-zinc-300">Sua assinatura foi ativada com sucesso. Seu cardápio digital já está público e pronto para receber pedidos!</p>
+            </div>
+          </div>
+          <button onClick={() => setStripeStatus(null)} className="text-xs font-bold text-zinc-400 hover:text-white transition px-2">Fechar</button>
+        </div>
+      )}
+
+      {stripeStatus === "cancelado" && (
+        <div className="bg-gradient-to-r from-rose-950/60 via-rose-900/50 to-rose-950/60 border-b border-rose-500/30 px-4 py-3 flex items-center justify-between gap-3 text-center sm:text-left animate-fade-in shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-rose-500/10 flex items-center justify-center border border-rose-500/20 text-rose-400 shrink-0">
+              <Lock className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="font-extrabold text-sm text-white">Pagamento Cancelado</h4>
+              <p className="text-[11px] text-zinc-300">A operação de assinatura foi cancelada. Caso queira liberar o cardápio público, ative novamente a qualquer momento.</p>
+            </div>
+          </div>
+          <button onClick={() => setStripeStatus(null)} className="text-xs font-bold text-zinc-400 hover:text-white transition px-2">Fechar</button>
+        </div>
+      )}
+
       {/* Paywall Banner se pendente e cobrança automática ativa */}
       {store?.status_assinatura === "pendente" && store?.cobranca_automatica !== false && (
-        <div className="bg-gradient-to-r from-amber-950/70 via-amber-900/60 to-amber-950/70 border-b border-amber-500/30 px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left relative overflow-hidden backdrop-blur shadow-lg shrink-0">
+        <div className="bg-gradient-to-r from-amber-950/70 via-amber-900/60 to-amber-950/70 border-b border-amber-500/30 px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left relative overflow-hidden backdrop-blur shadow-lg shrink-0 animate-fade-in">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center border border-amber-500/20 text-amber-500 shrink-0">
               <Lock className="w-5 h-5" />
             </div>
             <div>
-              <h4 className="font-extrabold text-sm text-white">Seu cardápio está em modo rascunho (Paywall Ativo)</h4>
-              <p className="text-[11px] text-zinc-300">Seus clientes não conseguem ver o cardápio público. Ative agora para simular a assinatura por **R$ 99,90/mês**.</p>
+              <h4 className="font-extrabold text-sm text-white">Seu cardápio está em modo rascunho (Acesso Restrito)</h4>
+              <p className="text-[11px] text-zinc-300">Seus clientes não conseguem ver o cardápio público. Ative agora o seu plano por apenas **R$ 99,90/mês** no Stripe para liberar!</p>
             </div>
           </div>
           <button
             onClick={handleActivateSubscription}
             disabled={paywallSimulating}
-            className="h-10 px-5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-extrabold text-xs shadow-md transition active:scale-95 shrink-0 flex items-center justify-center gap-1.5"
+            className="h-10 px-5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-extrabold text-xs shadow-md transition active:scale-95 shrink-0 flex items-center justify-center gap-1.5 hover:scale-[1.02]"
           >
-            {paywallSimulating ? "Ativando plano..." : "Ativar Plano (R$ 99,90/mês) 🚀"}
+            {paywallSimulating ? "Redirecionando..." : "Ativar Plano (R$ 99,90/mês) 🚀"}
           </button>
+        </div>
+      )}
+
+      {/* Banner de Sucesso / Cardápio Liberado com Link Público de Compartilhamento */}
+      {store?.status_assinatura === "ativo" && store?.cobranca_automatica !== false && (
+        <div className="bg-gradient-to-r from-emerald-950/60 via-emerald-900/50 to-emerald-950/60 border-b border-emerald-500/30 px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left relative overflow-hidden backdrop-blur shadow-lg shrink-0 animate-fade-in">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20 text-emerald-400 shrink-0">
+              <Check className="w-5 h-5 animate-bounce" />
+            </div>
+            <div>
+              <h4 className="font-extrabold text-sm text-white">Seu cardápio está online e liberado! 🚀</h4>
+              <p className="text-[11px] text-zinc-300">Sua assinatura do plano recorrente está ativa e o cardápio público está totalmente online para receber pedidos.</p>
+            </div>
+          </div>
+          <div className="flex gap-2 w-full sm:w-auto items-center shrink-0">
+            <input 
+              readOnly 
+              value={`${window.location.origin}/cardapio/${store.slug}`}
+              className="px-3 h-9 rounded-xl bg-zinc-950 text-zinc-300 text-xs font-bold ring-1 ring-zinc-800 focus:outline-none w-full sm:w-44 truncate"
+            />
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(`${window.location.origin}/cardapio/${store.slug}`);
+                alert("Link do cardápio copiado!");
+              }}
+              className="h-9 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold text-xs shadow-md transition active:scale-95 shrink-0 flex items-center justify-center gap-1.5"
+            >
+              Copiar Link
+            </button>
+          </div>
         </div>
       )}
 
