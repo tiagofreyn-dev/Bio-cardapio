@@ -374,15 +374,15 @@ function AdminPage() {
 
         {/* Painel Direito: Preview do Smartphone (Apenas Desktop) */}
         {store && (
-          <div className="hidden lg:flex w-[380px] xl:w-[420px] border-l border-zinc-800 bg-zinc-950/40 p-4 flex-col items-center justify-center shrink-0 max-h-[calc(100vh-140px)]">
-            <div className="w-full max-w-[280px] aspect-[9/19.5] rounded-[36px] border-[6px] border-zinc-800 bg-zinc-950 shadow-[0_20px_50px_rgba(0,0,0,0.8)] relative overflow-hidden flex flex-col ring-2 ring-zinc-800/40">
+          <div className="hidden lg:flex w-[280px] xl:w-[300px] border-l border-zinc-800 bg-zinc-950/40 p-4 flex-col items-center justify-center shrink-0 max-h-[calc(100vh-140px)]">
+            <div className="w-full max-w-[220px] aspect-[9/19.5] rounded-[30px] border-[5px] border-zinc-800 bg-zinc-950 shadow-[0_20px_50px_rgba(0,0,0,0.8)] relative overflow-hidden flex flex-col ring-2 ring-zinc-800/40">
               {/* Entalhe da Câmera (iPhone Notch) */}
-              <div className="absolute top-1.5 left-1/2 -translate-x-1/2 w-24 h-3.5 bg-zinc-800 rounded-full z-50 flex items-center justify-center">
-                <div className="w-2 h-2 rounded-full bg-zinc-900 absolute right-3"></div>
+              <div className="absolute top-1 left-1/2 -translate-x-1/2 w-16 h-2.5 bg-zinc-800 rounded-full z-50 flex items-center justify-center">
+                <div className="w-1.5 h-1.5 rounded-full bg-zinc-900 absolute right-2"></div>
               </div>
 
               {/* Status Bar */}
-              <div className="h-5 bg-zinc-950 text-zinc-500 px-6 flex items-center justify-between text-[8px] font-black tracking-wider select-none shrink-0 pt-1">
+              <div className="h-5 bg-zinc-950 text-zinc-500 px-4 flex items-center justify-between text-[8px] font-black tracking-wider select-none shrink-0 pt-1">
                 <span>09:41</span>
                 <span className="flex items-center gap-1">
                   📶 🔋
@@ -434,7 +434,7 @@ function GeneralTab({ lojaId, slug }: { lojaId: string | null; slug?: string }) 
   const [name, setName] = useState("");
   const [fee, setFee] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [autoSaving, setAutoSaving] = useState(false);
 
   async function fetchLocations() {
     setLocLoading(true);
@@ -507,71 +507,91 @@ function GeneralTab({ lojaId, slug }: { lojaId: string | null; slug?: string }) 
     setFee(loc.fee.toString());
   }
 
-  async function handleSaveSettings() {
+  async function autoSave(nextSettings: typeof settings) {
     if (!supabase || !lojaId) return;
-    setSaving(true);
+    setAutoSaving(true);
     try {
       const { error } = await supabase
         .from("lojas")
         .update({
-          nome: settings.storeName,
-          whatsapp: settings.whatsapp,
-          endereco: settings.storeAddress,
-          taxa_entrega: Number(settings.deliveryFee),
-          chave_pix: settings.pixKey,
-          titular_pix: settings.pixName,
-          fidelidade_ativo: settings.loyaltyActive !== false,
+          nome: nextSettings.storeName,
+          whatsapp: nextSettings.whatsapp,
+          endereco: nextSettings.storeAddress,
+          taxa_entrega: Number(nextSettings.deliveryFee),
+          chave_pix: nextSettings.pixKey,
+          titular_pix: nextSettings.pixName,
+          fidelidade_ativo: nextSettings.loyaltyActive !== false,
         })
         .eq("id", lojaId);
 
       if (error) throw error;
-      alert("Configurações salvas no Supabase com sucesso!");
-      
+
       // Recarregar preview
       const iframe = document.getElementById("live-cardapio-preview") as HTMLIFrameElement;
       if (iframe) iframe.src = iframe.src;
     } catch (err: any) {
-      alert("Erro ao salvar no Supabase: " + err.message);
+      console.error("Erro ao salvar automaticamente no Supabase:", err.message);
     } finally {
-      setSaving(false);
+      setTimeout(() => setAutoSaving(false), 800);
     }
   }
 
   return (
     <section className="space-y-4">
-      {/* Botão de Salvar Master */}
-      <div className="p-4 bg-zinc-900 border border-zinc-800 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md">
+      {/* Indicador de Salvamento Automático Premium */}
+      <div className="flex items-center justify-between px-1 py-1">
         <div className="space-y-0.5">
-          <h4 className="font-extrabold text-sm text-white">Salvar Configurações</h4>
-          <p className="text-[11px] text-zinc-400">Sincronize as informações do seu comércio com o Supabase.</p>
+          <h4 className="font-extrabold text-sm text-white">Configurações do Estabelecimento</h4>
+          <p className="text-[11px] text-zinc-400">Gerencie informações, taxas de entrega e pix da sua loja.</p>
         </div>
-        <button
-          onClick={handleSaveSettings}
-          disabled={saving}
-          className="w-full sm:w-auto h-11 px-6 rounded-xl bg-primary text-primary-foreground font-black text-sm active:scale-95 transition flex items-center justify-center gap-1.5 shrink-0"
-        >
-          {saving ? "Salvando..." : "Salvar Configurações 💾"}
-        </button>
+        <div className="flex items-center gap-2 text-xs font-bold shrink-0 bg-zinc-900/60 border border-zinc-800 rounded-xl px-3 py-1.5 shadow-sm">
+          {autoSaving ? (
+            <span className="text-primary flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-ping"></span>
+              Salvando...
+            </span>
+          ) : (
+            <span className="text-emerald-400 flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+              Salvo
+            </span>
+          )}
+        </div>
       </div>
 
       <Card title="Loja">
         <Field label="Nome da lanchonete">
-          <input value={settings.storeName} onChange={(e) => update({ storeName: e.target.value })} className={inputCls} />
+          <input 
+            value={settings.storeName} 
+            onChange={(e) => update({ storeName: e.target.value })} 
+            onBlur={() => autoSave(settings)}
+            className={inputCls} 
+          />
         </Field>
         <Field label="Telefone WhatsApp (com DDI/DDD)">
-          <input value={settings.whatsapp} onChange={(e) => update({ whatsapp: e.target.value.replace(/\D/g, "") })} className={inputCls} />
+          <input 
+            value={settings.whatsapp} 
+            onChange={(e) => update({ whatsapp: e.target.value.replace(/\D/g, "") })} 
+            onBlur={() => autoSave(settings)}
+            className={inputCls} 
+          />
         </Field>
         <Field label="Endereço do comércio">
           <input 
             value={settings.storeAddress || ""} 
             onChange={(e) => update({ storeAddress: e.target.value })} 
+            onBlur={() => autoSave(settings)}
             className={inputCls} 
             placeholder="Ex: Av. Brasil, 1234 - Centro" 
           />
         </Field>
         <Field label="Status da loja">
           <button
-            onClick={() => update({ isOpen: !settings.isOpen })}
+            onClick={() => {
+              const nextVal = !settings.isOpen;
+              update({ isOpen: nextVal });
+              autoSave({ ...settings, isOpen: nextVal });
+            }}
             className={`w-full h-12 rounded-xl font-black text-sm transition-all duration-300 active:scale-[0.98] flex items-center justify-center gap-2 shadow-md ${
               settings.isOpen 
                 ? "bg-emerald-600/15 text-emerald-400 ring-2 ring-emerald-500/30 hover:bg-emerald-600/20" 
@@ -680,7 +700,11 @@ function GeneralTab({ lojaId, slug }: { lojaId: string | null; slug?: string }) 
         <Field label="Habilitar Programa de Fidelidade?">
           <select 
             value={settings.loyaltyActive !== false ? "true" : "false"} 
-            onChange={(e) => update({ loyaltyActive: e.target.value === "true" })} 
+            onChange={(e) => {
+              const nextVal = e.target.value === "true";
+              update({ loyaltyActive: nextVal });
+              autoSave({ ...settings, loyaltyActive: nextVal });
+            }} 
             className={inputCls}
           >
             <option value="true">Sim, oferecer cartão fidelidade aos clientes</option>
@@ -690,13 +714,34 @@ function GeneralTab({ lojaId, slug }: { lojaId: string | null; slug?: string }) 
         {settings.loyaltyActive !== false && (
           <>
             <Field label="Valor mínimo do pedido para pontuar (R$)">
-              <input type="number" step="0.01" value={settings.loyaltyMinOrder} onChange={(e) => update({ loyaltyMinOrder: Number(e.target.value) })} className={inputCls} />
+              <input 
+                type="number" 
+                step="0.01" 
+                value={settings.loyaltyMinOrder} 
+                onChange={(e) => update({ loyaltyMinOrder: Number(e.target.value) })} 
+                onBlur={() => autoSave(settings)}
+                className={inputCls} 
+              />
             </Field>
             <Field label="Quantidade de pontos para ganhar o prêmio">
-              <input type="number" value={settings.loyaltyGoal} onChange={(e) => update({ loyaltyGoal: Number(e.target.value) })} className={inputCls} />
+              <input 
+                type="number" 
+                value={settings.loyaltyGoal} 
+                onChange={(e) => update({ loyaltyGoal: Number(e.target.value) })} 
+                onBlur={() => autoSave(settings)}
+                className={inputCls} 
+              />
             </Field>
             <Field label="Prêmio do Cartão Fidelidade (Item Grátis)">
-              <select value={settings.loyaltyRewardId || ""} onChange={(e) => update({ loyaltyRewardId: e.target.value })} className={inputCls}>
+              <select 
+                value={settings.loyaltyRewardId || ""} 
+                onChange={(e) => {
+                  const nextVal = e.target.value;
+                  update({ loyaltyRewardId: nextVal });
+                  autoSave({ ...settings, loyaltyRewardId: nextVal });
+                }} 
+                className={inputCls}
+              >
                 <option value="">Item mais barato do pedido (Padrão)</option>
                 {(products || []).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
@@ -707,10 +752,22 @@ function GeneralTab({ lojaId, slug }: { lojaId: string | null; slug?: string }) 
 
       <Card title="Pagamento via Pix">
         <Field label="Chave PIX do Estabelecimento">
-          <input value={settings.pixKey} onChange={(e) => update({ pixKey: e.target.value })} className={inputCls} placeholder="ex: 12.345.678/0001-90" />
+          <input 
+            value={settings.pixKey} 
+            onChange={(e) => update({ pixKey: e.target.value })} 
+            onBlur={() => autoSave(settings)}
+            className={inputCls} 
+            placeholder="ex: 12.345.678/0001-90" 
+          />
         </Field>
         <Field label="Nome do Titular do Pix">
-          <input value={settings.pixName} onChange={(e) => update({ pixName: e.target.value })} className={inputCls} placeholder="ex: Insano Lanches LTDA" />
+          <input 
+            value={settings.pixName} 
+            onChange={(e) => update({ pixName: e.target.value })} 
+            onBlur={() => autoSave(settings)}
+            className={inputCls} 
+            placeholder="ex: Insano Lanches LTDA" 
+          />
         </Field>
       </Card>
 
@@ -756,21 +813,6 @@ function GeneralTab({ lojaId, slug }: { lojaId: string | null; slug?: string }) 
           <p className="text-[10px] text-muted-foreground mt-2">🔒 A alteração da senha do painel administrativo foi bloqueada por motivos de segurança.</p>
         </Field>
       </Card>
-      
-      {/* Botão de Salvar Master (Duplicado no rodapé) */}
-      <div className="p-4 bg-zinc-900 border border-zinc-800 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md mt-4">
-        <div className="space-y-0.5">
-          <h4 className="font-extrabold text-sm text-white">Sincronizar Alterações</h4>
-          <p className="text-[11px] text-zinc-400">Garanta que suas configurações estejam salvas e atualizadas.</p>
-        </div>
-        <button
-          onClick={handleSaveSettings}
-          disabled={saving}
-          className="w-full sm:w-auto h-11 px-6 rounded-xl bg-primary text-primary-foreground font-black text-sm active:scale-95 transition flex items-center justify-center gap-1.5 shrink-0"
-        >
-          {saving ? "Salvando..." : "Salvar Configurações 💾"}
-        </button>
-      </div>
     </section>
   );
 }
@@ -874,11 +916,15 @@ function ProductsTab({ lojaId }: { lojaId: string | null }) {
     if (!supabase) return;
     try {
       const nextVal = !p.available;
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("produtos")
         .update({ disponivel: nextVal })
-        .eq("id", p.id);
+        .eq("id", p.id)
+        .select();
       if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error("Não foi possível atualizar o produto. Certifique-se de que está autenticado com a conta correta.");
+      }
 
       const list = products.map((x) => x.id === p.id ? { ...x, available: nextVal } : x);
       storage.setProducts(list);
@@ -895,11 +941,15 @@ function ProductsTab({ lojaId }: { lojaId: string | null }) {
     if (!supabase) return;
     try {
       const nextVal = !p.is_featured;
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("produtos")
         .update({ is_featured: nextVal })
-        .eq("id", p.id);
+        .eq("id", p.id)
+        .select();
       if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error("Não foi possível destacar o produto. Certifique-se de que está autenticado com a conta correta.");
+      }
 
       const list = products.map((x) => x.id === p.id ? { ...x, is_featured: nextVal } : x);
       storage.setProducts(list);

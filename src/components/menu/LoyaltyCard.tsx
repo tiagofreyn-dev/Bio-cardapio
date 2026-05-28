@@ -15,7 +15,7 @@ export function LoyaltyCard() {
     <section className="mx-4 mt-4 rounded-2xl p-4 bg-gradient-to-br from-surface-elevated to-surface ring-1 ring-primary/20">
       <div className="flex items-center justify-between mb-3">
         <div>
-          <h3 className="font-extrabold tracking-tight">🔥 Cartão Fidelidade Insano</h3>
+          <h3 className="font-extrabold tracking-tight">🔥 Cartão Fidelidade</h3>
           <p className="text-[11px] text-muted-foreground mt-0.5">
             A cada {goal} pedidos acima de R$ {settings.loyaltyMinOrder.toFixed(2).replace(".", ",")}, ganhe 1 {rewardName} grátis!
           </p>

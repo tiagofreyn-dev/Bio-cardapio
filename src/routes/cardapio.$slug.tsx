@@ -82,6 +82,7 @@ function DynamicCardapio() {
             available: p.disponivel,
             customizable: p.customizavel,
             adicionais: p.adicionais || [],
+            is_featured: p.is_featured,
           }));
 
           // Mapear configurações da loja
