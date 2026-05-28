@@ -199,13 +199,18 @@ function MasterAdminPage() {
     setUpdatingId(lojaId);
     try {
       const newVal = !currentVal;
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("lojas")
         .update({ cobranca_automatica: newVal })
-        .eq("id", lojaId);
+        .eq("id", lojaId)
+        .select();
 
       if (error) throw error;
       
+      if (!data || data.length === 0) {
+        throw new Error("A alteração foi rejeitada pelo banco de dados (provavelmente bloqueado por RLS). Garanta que executou o SQL de migração no painel do Supabase.");
+      }
+
       // Update local state reactively
       setStores((prev) => 
         prev.map((s) => s.id === lojaId ? { ...s, cobranca_automatica: newVal } : s)
@@ -223,12 +228,17 @@ function MasterAdminPage() {
     setUpdatingId(lojaId);
     try {
       const newStatus = currentStatus === "ativo" ? "pendente" : "ativo";
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("lojas")
         .update({ status_assinatura: newStatus })
-        .eq("id", lojaId);
+        .eq("id", lojaId)
+        .select();
 
       if (error) throw error;
+
+      if (!data || data.length === 0) {
+        throw new Error("A alteração foi rejeitada pelo banco de dados (provavelmente bloqueado por RLS). Garanta que executou o SQL de migração no painel do Supabase.");
+      }
 
       // Update local state reactively
       setStores((prev) => 
@@ -267,12 +277,17 @@ function MasterAdminPage() {
     
     setUpdatingId(lojaId);
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("lojas")
         .delete()
-        .eq("id", lojaId);
+        .eq("id", lojaId)
+        .select();
 
       if (error) throw error;
+      
+      if (!data || data.length === 0) {
+        throw new Error("A exclusão foi rejeitada pelo banco de dados. Certifique-se de que você executou as migrações SQL (Passo 2) no SQL Editor do Supabase e que está logado com seu e-mail master.");
+      }
       
       setStores((prev) => prev.filter((s) => s.id !== lojaId));
       alert(`Comércio "${name}" excluído com sucesso.`);
