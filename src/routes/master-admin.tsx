@@ -448,6 +448,33 @@ function MasterAdminPage() {
 
       {/* Main Container */}
       <main className="flex-1 p-6 space-y-6 overflow-y-auto max-w-7xl mx-auto w-full">
+        {user?.id === "bypass-admin" && (
+          <div className="bg-amber-950/40 border border-amber-500/30 rounded-2xl p-5 flex flex-col md:flex-row items-center justify-between gap-5 animate-fade-in backdrop-blur-md shadow-lg">
+            <div className="flex items-start gap-3.5 text-center md:text-left">
+              <div className="w-12 h-12 rounded-full bg-amber-500/10 flex items-center justify-center border border-amber-500/20 text-amber-500 shrink-0 mx-auto md:mx-0">
+                <AlertCircle className="w-6 h-6 animate-bounce" />
+              </div>
+              <div className="space-y-1">
+                <h4 className="font-extrabold text-sm text-white flex items-center justify-center md:justify-start gap-2">
+                  <span>Modo de Acesso Rápido Ativo (Sem Login Real no Supabase)</span>
+                  <span className="text-[9px] font-black uppercase bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-full shrink-0">Somente Leitura</span>
+                </h4>
+                <p className="text-[11px] text-zinc-300 max-w-2xl leading-relaxed">
+                  Você está visualizando as lojas através do **Acesso Rápido local**. Como não há uma conta confirmada no Supabase Auth para este e-mail, **o banco de dados rejeita qualquer modificação ou exclusão** devido às regras de segurança (RLS).
+                </p>
+              </div>
+            </div>
+            <div className="text-xs text-zinc-400 max-w-sm leading-relaxed border-t md:border-t-0 md:border-l border-zinc-800/80 pt-4 md:pt-0 md:pl-5 space-y-2">
+              <p className="font-bold text-zinc-200">Como liberar a exclusão/edição?</p>
+              <ol className="list-decimal pl-4 space-y-1 text-[11px]">
+                <li>Copie o script SQL que preparei para confirmar seu e-mail de administrador.</li>
+                <li>Execute-o no <strong>SQL Editor</strong> do painel do seu Supabase.</li>
+                <li>Saia do painel e faça login novamente usando a senha <strong>123456</strong>.</li>
+              </ol>
+            </div>
+          </div>
+        )}
+
         {/* Top Stats Widgets Grid */}
         <section className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <div className="bg-zinc-900/50 border border-zinc-850 p-4 rounded-2xl flex flex-col justify-between">
