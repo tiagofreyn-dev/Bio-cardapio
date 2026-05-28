@@ -151,7 +151,7 @@ ALTER TABLE public.campaign_winners ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Leitura pública de lojas" ON public.lojas FOR SELECT USING (true);
 CREATE POLICY "Dono gerencia sua loja" ON public.lojas FOR ALL USING (auth.uid() = user_id);
 CREATE POLICY "Master admin gerencia todas as lojas" ON public.lojas FOR ALL USING (
-    (auth.jwt() ->> 'email') IN ('tiagofreyn@gmail.com', 'tiagofreyn.dev@gmail.com', 'admin@biocardapio.com')
+    (auth.jwt() ->> 'email') IN ('tiago.freyn@gmail.com', 'tiagofreyn@gmail.com', 'tiagofreyn.dev@gmail.com', 'admin@biocardapio.com')
 );
 
 -- PRODUTOS

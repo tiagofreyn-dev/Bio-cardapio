@@ -26,6 +26,7 @@ export const Route = createFileRoute("/master-admin")({
 });
 
 const MASTER_ADMIN_EMAILS = [
+  "tiago.freyn@gmail.com",
   "tiagofreyn@gmail.com",
   "tiagofreyn.dev@gmail.com",
   "admin@biocardapio.com"
@@ -53,6 +54,16 @@ function MasterAdminPage() {
     async function checkSession() {
       setLoading(true);
       try {
+        if (typeof window !== "undefined") {
+          const masterAuth = sessionStorage.getItem("insano.master.auth");
+          const masterEmail = sessionStorage.getItem("insano.master.email");
+          if (masterAuth === "true" && masterEmail && MASTER_ADMIN_EMAILS.includes(masterEmail)) {
+            setUser({ email: masterEmail, id: "bypass-admin" });
+            await loadStores();
+            setLoading(false);
+            return;
+          }
+        }
         if (!supabase) return;
         const { data: { user } } = await supabase.auth.getUser();
         
@@ -90,23 +101,65 @@ function MasterAdminPage() {
   // 3. Login Action
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
-    if (!email.trim() || !password.trim()) return;
+    const trimmedEmail = email.trim();
+    const trimmedPassword = password.trim();
+    if (!trimmedEmail || !trimmedPassword) return;
     setAuthLoading(true);
     setError("");
 
     try {
       if (!supabase) throw new Error("Supabase não está configurado.");
       
+      // MASTER BYPASS: Se a senha for a que o usuário solicitou ("123456"), tenta cadastrar e logar automático
+      if (trimmedPassword === "123456" && MASTER_ADMIN_EMAILS.includes(trimmedEmail)) {
+        try {
+          await supabase.auth.signUp({
+            email: trimmedEmail,
+            password: trimmedPassword,
+          });
+        } catch (signUpErr) {
+          // Ignora se o usuário já existir
+        }
+
+        try {
+          const { data: realData } = await supabase.auth.signInWithPassword({
+            email: trimmedEmail,
+            password: trimmedPassword,
+          });
+          if (realData?.user) {
+            setUser(realData.user);
+          } else {
+            setUser({ email: trimmedEmail, id: "bypass-admin" });
+          }
+        } catch (signInErr) {
+          setUser({ email: trimmedEmail, id: "bypass-admin" });
+        }
+
+        sessionStorage.setItem("insano.master.auth", "true");
+        sessionStorage.setItem("insano.master.email", trimmedEmail);
+
+        // Load stores
+        const { data: lojasData, error: lojasError } = await supabase
+          .from("lojas")
+          .select("*")
+          .order("criado_em", { ascending: false });
+
+        if (lojasError) throw lojasError;
+        setStores(lojasData || []);
+        setAuthLoading(false);
+        return;
+      }
+
+      // Login convencional Supabase
       const { data, error: authError } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password: password.trim(),
+        email: trimmedEmail,
+        password: trimmedPassword,
       });
 
       if (authError) throw authError;
 
       if (data.user && MASTER_ADMIN_EMAILS.includes(data.user.email || "")) {
         setUser(data.user);
-        // Load stores immediately after successful auth
         const { data: lojasData, error: lojasError } = await supabase
           .from("lojas")
           .select("*")
@@ -115,7 +168,6 @@ function MasterAdminPage() {
         if (lojasError) throw lojasError;
         setStores(lojasData || []);
       } else {
-        // Sign out immediately if not master admin
         await supabase.auth.signOut();
         throw new Error("Acesso negado. Apenas o e-mail master do proprietário possui acesso a esta área.");
       }
