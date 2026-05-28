@@ -1067,8 +1067,11 @@ function ProductModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur flex items-end sm:items-center justify-center" onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} className="w-full sm:max-w-md bg-surface rounded-t-3xl sm:rounded-3xl ring-1 ring-border max-h-[95vh] overflow-y-auto p-4 space-y-3">
+    <div 
+      className="fixed inset-0 z-50 bg-black/70 backdrop-blur flex items-end sm:items-center justify-center" 
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="w-full sm:max-w-md bg-surface rounded-t-3xl sm:rounded-3xl ring-1 ring-border max-h-[95vh] overflow-y-auto p-4 space-y-3">
         <h3 className="font-extrabold text-lg">{isNew ? "Novo produto" : "Editar produto"}</h3>
         <Field label="Nome"><input value={p.name} onChange={(e) => setP({ ...p, name: e.target.value })} className={inputCls} /></Field>
         <Field label="Descrição"><textarea value={p.description} onChange={(e) => setP({ ...p, description: e.target.value })} className={`${inputCls} h-20 py-2`} /></Field>
