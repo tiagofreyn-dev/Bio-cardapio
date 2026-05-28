@@ -284,18 +284,6 @@ function CadastroPage() {
             </label>
 
             <label className={labelCls}>
-              <span>WhatsApp Comercial</span>
-              <input
-                type="text"
-                value={whatsapp}
-                onChange={(e) => setWhatsapp(e.target.value)}
-                placeholder="DDD + Número (Ex: 35999999999)"
-                className={inputCls}
-                required
-              />
-            </label>
-
-            <label className={labelCls}>
               <span>Endereço Comercial</span>
               <input
                 type="text"
