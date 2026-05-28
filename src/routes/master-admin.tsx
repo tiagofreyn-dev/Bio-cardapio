@@ -54,6 +54,16 @@ function MasterAdminPage() {
     async function checkSession() {
       setLoading(true);
       try {
+        if (supabase) {
+          const { data: { user: realUser } } = await supabase.auth.getUser();
+          if (realUser && MASTER_ADMIN_EMAILS.includes(realUser.email || "")) {
+            setUser(realUser);
+            await loadStores();
+            setLoading(false);
+            return;
+          }
+        }
+
         if (typeof window !== "undefined") {
           const masterAuth = sessionStorage.getItem("insano.master.auth");
           const masterEmail = sessionStorage.getItem("insano.master.email");
@@ -64,15 +74,8 @@ function MasterAdminPage() {
             return;
           }
         }
-        if (!supabase) return;
-        const { data: { user } } = await supabase.auth.getUser();
         
-        if (user && MASTER_ADMIN_EMAILS.includes(user.email || "")) {
-          setUser(user);
-          await loadStores();
-        } else {
-          setUser(null);
-        }
+        setUser(null);
       } catch (err) {
         console.error("Erro ao validar sessão:", err);
       } finally {
@@ -181,6 +184,10 @@ function MasterAdminPage() {
   // 4. Logout Action
   async function handleLogout() {
     try {
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem("insano.master.auth");
+        sessionStorage.removeItem("insano.master.email");
+      }
       if (supabase) {
         await supabase.auth.signOut();
       }
