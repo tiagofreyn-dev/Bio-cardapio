@@ -43,6 +43,7 @@ export interface Settings {
   billingLink?: string;
   storeAddress?: string;
   loyaltyActive?: boolean;
+  cobranca_automatica?: boolean;
 }
 
 export interface CustomerLoyalty {
@@ -120,5 +121,6 @@ export interface Loja {
   chave_pix?: string;
   titular_pix?: string;
   criado_em?: string;
+  cobranca_automatica?: boolean;
 }
 

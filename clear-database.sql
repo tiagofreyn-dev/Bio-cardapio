@@ -32,6 +32,7 @@ CREATE TABLE public.lojas (
     taxa_entrega NUMERIC(10,2) DEFAULT 0.00,
     chave_pix TEXT,
     titular_pix TEXT,
+    cobranca_automatica BOOLEAN DEFAULT true NOT NULL,
     criado_em TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -149,6 +150,9 @@ ALTER TABLE public.campaign_winners ENABLE ROW LEVEL SECURITY;
 -- LOJAS
 CREATE POLICY "Leitura pública de lojas" ON public.lojas FOR SELECT USING (true);
 CREATE POLICY "Dono gerencia sua loja" ON public.lojas FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "Master admin gerencia todas as lojas" ON public.lojas FOR ALL USING (
+    (auth.jwt() ->> 'email') IN ('tiagofreyn@gmail.com', 'tiagofreyn.dev@gmail.com', 'admin@biocardapio.com')
+);
 
 -- PRODUTOS
 CREATE POLICY "Leitura pública de produtos" ON public.produtos FOR SELECT USING (true);

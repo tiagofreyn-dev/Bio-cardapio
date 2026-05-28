@@ -4,7 +4,7 @@ import { storage } from "@/lib/storage";
 import { useStorageSync } from "@/hooks/use-storage";
 import type { Product, Category, CustomerLoyalty, Campaign, CampaignWinner, Participant, OrderHistory, DeliveryLocation } from "@/lib/types";
 import { brl } from "@/lib/format";
-import { ArrowLeft, Plus, Pencil, Trash2, Search, Gift, Trophy, Download, DollarSign, TrendingUp, ShoppingCart, Truck, Lock, RefreshCw } from "lucide-react";
+import { ArrowLeft, Plus, Pencil, Trash2, Search, Gift, Trophy, Download, DollarSign, TrendingUp, ShoppingCart, Truck, Lock, RefreshCw, Check } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/admin")({
@@ -381,8 +381,8 @@ function AdminPage() {
         </div>
       </header>
 
-      {/* Paywall Banner se pendente */}
-      {store?.status_assinatura === "pendente" && (
+      {/* Paywall Banner se pendente e cobrança automática ativa */}
+      {store?.status_assinatura === "pendente" && store?.cobranca_automatica !== false && (
         <div className="bg-gradient-to-r from-amber-950/70 via-amber-900/60 to-amber-950/70 border-b border-amber-500/30 px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left relative overflow-hidden backdrop-blur shadow-lg shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center border border-amber-500/20 text-amber-500 shrink-0">
@@ -400,6 +400,34 @@ function AdminPage() {
           >
             {paywallSimulating ? "Ativando plano..." : "Ativar Plano (R$ 99,90/mês) 🚀"}
           </button>
+        </div>
+      )}
+
+      {/* Banner Informativo de Cobrança Manual Liberada */}
+      {store?.cobranca_automatica === false && (
+        <div className="bg-gradient-to-r from-emerald-950/60 via-teal-900/50 to-emerald-950/60 border-b border-emerald-500/30 px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left relative overflow-hidden backdrop-blur shadow-lg shrink-0 animate-fade-in">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20 text-emerald-400 shrink-0">
+              <Check className="w-5 h-5 animate-bounce" />
+            </div>
+            <div>
+              <h4 className="font-extrabold text-sm text-white flex items-center gap-1.5">
+                <span>Link de Cardápio Ativo & Liberado</span>
+                <span className="text-[9px] font-black uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full shrink-0">Cobrança Manual</span>
+              </h4>
+              <p className="text-[11px] text-zinc-300">
+                Seu comércio está configurado no modo de **Cobrança Manual**. O seu cardápio público está 100% online para receber pedidos!
+              </p>
+            </div>
+          </div>
+          <a
+            href={store.slug === "insano-lanches" ? "/" : `/cardapio/${store.slug}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="h-10 px-5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold text-xs shadow-md transition active:scale-95 shrink-0 flex items-center justify-center gap-1.5 hover:scale-[1.02]"
+          >
+            Visualizar Cardápio Público 🌐
+          </a>
         </div>
       )}
 

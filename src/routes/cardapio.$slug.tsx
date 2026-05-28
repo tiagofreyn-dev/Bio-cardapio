@@ -61,8 +61,8 @@ function DynamicCardapio() {
 
         setStore(storeData);
 
-        // Se o cardápio estiver ativo, sincroniza os produtos e configurações
-        if (storeData.status_assinatura === "ativo") {
+        // Se o cardápio estiver ativo ou cobrança automática estiver desabilitada, sincroniza os produtos e configurações
+        if (storeData.status_assinatura === "ativo" || storeData.cobranca_automatica === false) {
           // Buscar produtos reais da loja
           const { data: productsData, error: productsError } = await supabase
             .from("produtos")
@@ -218,8 +218,8 @@ function DynamicCardapio() {
     );
   }
 
-  // TRAVA DE PAYWALL: Se status_assinatura for 'pendente'
-  if (store.status_assinatura === "pendente") {
+  // TRAVA DE PAYWALL: Se status_assinatura for 'pendente' e cobrança automática estiver ativa
+  if (store.status_assinatura === "pendente" && store.cobranca_automatica !== false) {
     return (
       <div className="min-h-screen bg-zinc-950 text-white flex flex-col items-center justify-center p-6 text-center space-y-6">
         <div className="w-20 h-20 rounded-full bg-amber-500/10 flex items-center justify-center border border-amber-500/20 text-amber-500 animate-pulse">
