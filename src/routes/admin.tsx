@@ -698,7 +698,7 @@ function GeneralTab({ lojaId, slug }: { lojaId: string | null; slug?: string }) 
             <Field label="Prêmio do Cartão Fidelidade (Item Grátis)">
               <select value={settings.loyaltyRewardId || ""} onChange={(e) => update({ loyaltyRewardId: e.target.value })} className={inputCls}>
                 <option value="">Item mais barato do pedido (Padrão)</option>
-                {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                {(products || []).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
             </Field>
           </>
@@ -937,7 +937,7 @@ function ProductsTab({ lojaId }: { lojaId: string | null }) {
       </button>
 
       <ul className="space-y-2">
-        {products.map((p) => (
+        {(products || []).map((p) => (
           <li key={p.id} className="p-3 rounded-xl bg-surface ring-1 ring-border flex items-center gap-3">
             <div className="w-12 h-12 rounded-lg bg-surface-elevated flex items-center justify-center overflow-hidden text-2xl shrink-0">
               {(p.image.startsWith('http') || p.image.startsWith('/')) ? <img src={p.image} className="w-full h-full object-cover" /> : p.image}
@@ -1080,54 +1080,19 @@ function ProductModal({
           <div className="flex gap-3 items-center mb-3">
             {p.image && (p.image.startsWith('http') || p.image.startsWith('/')) ? (
               <img src={p.image} className="w-14 h-14 object-cover rounded-xl ring-1 ring-border" />
-            ) : p.image ? (
-              <div className="w-14 h-14 text-2xl flex items-center justify-center bg-surface-elevated rounded-xl ring-1 ring-border">{p.image}</div>
             ) : (
-              <div className="w-14 h-14 text-2xl flex items-center justify-center bg-surface-elevated rounded-xl ring-1 ring-border">❓</div>
+              <div className="w-14 h-14 text-2xl flex items-center justify-center bg-surface-elevated rounded-xl ring-1 ring-border text-zinc-500 font-bold">📷</div>
             )}
             <div className="flex-1 space-y-1">
               <span className="text-xs font-semibold text-muted-foreground block">Foto Selecionada</span>
-              <span className="text-[10px] text-zinc-400 block truncate">{p.image && (p.image.startsWith('http') || p.image.startsWith('/')) ? "Foto Customizada" : `Ícone: ${p.image || "Nenhum"}`}</span>
-            </div>
-          </div>
-
-          {/* Grade de Escolha Rápida */}
-          <div className="space-y-1.5 mb-3">
-            <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block">Escolha rápida de ícone:</span>
-            <div className="grid grid-cols-6 gap-2">
-              {[
-                { emoji: "🍔", label: "Hambúrguer" },
-                { emoji: "🍟", label: "Batata Frita" },
-                { emoji: "🍕", label: "Pizza" },
-                { emoji: "🌭", label: "Cachorro Quente" },
-                { emoji: "🥤", label: "Refrigerante" },
-                { emoji: "🍺", label: "Cerveja" },
-                { emoji: "🍦", label: "Sorvete" },
-                { emoji: "🍰", label: "Sobremesa" },
-                { emoji: "🍩", label: "Donuts" },
-                { emoji: "🍗", label: "Frango Frito" },
-                { emoji: "🥓", label: "Bacon" },
-                { emoji: "🥗", label: "Salada" }
-              ].map((item) => (
-                <button
-                  key={item.emoji}
-                  type="button"
-                  onClick={() => setP({ ...p, image: item.emoji })}
-                  title={item.label}
-                  className={`h-10 text-xl flex items-center justify-center rounded-xl bg-surface-elevated ring-1 transition active:scale-95 ${
-                    p.image === item.emoji ? "ring-primary bg-primary/10" : "ring-border hover:bg-zinc-800"
-                  }`}
-                >
-                  {item.emoji}
-                </button>
-              ))}
+              <span className="text-[10px] text-zinc-400 block truncate">{p.image && (p.image.startsWith('http') || p.image.startsWith('/')) ? "Imagem Personalizada Carregada" : "Nenhuma foto selecionada"}</span>
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block">Ou envie uma foto personalizada:</span>
-            <input type="file" accept="image/*" onChange={handleUpload} disabled={uploading} className="text-sm w-full file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20" />
-            {uploading && <p className="text-xs text-primary font-bold mt-1">Enviando imagem...</p>}
+            <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block">Selecione a foto do produto:</span>
+            <input type="file" accept="image/*" onChange={handleUpload} disabled={uploading} className="text-sm w-full file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer" />
+            {uploading && <p className="text-xs text-primary font-bold mt-1 animate-pulse">Enviando imagem para o Supabase...</p>}
           </div>
         </Field>
         
@@ -1160,9 +1125,14 @@ function ProductModal({
           </div>
         </Field>
 
-        <div className="space-y-3 p-3 rounded-2xl bg-zinc-900 border border-zinc-800">
-          <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block">Adicionais do Produto (Opcionais):</span>
+        <div className="space-y-3 p-3.5 rounded-2xl bg-zinc-900 border border-zinc-800">
+          <span className="text-[10px] uppercase font-black text-primary tracking-wider block">Adicionais do Produto (Opcionais):</span>
           
+          <p className="text-[10px] text-zinc-400 leading-normal">
+            Cadastre os itens opcionais que seu cliente pode incluir no lanche (ex: Cheddar extra, Bacon, Ovo). 
+            Deixe o preço em <strong>R$ 0,00</strong> se o opcional for gratuito.
+          </p>
+
           <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
             {(p.adicionais || []).map((addon, index) => (
               <div key={index} className="flex items-center justify-between p-2.5 rounded-xl bg-surface-elevated ring-1 ring-border text-xs">
@@ -1180,40 +1150,49 @@ function ProductModal({
               </div>
             ))}
             {(p.adicionais || []).length === 0 && (
-              <p className="text-[10px] text-zinc-500 italic text-center py-2">Nenhum adicional configurado para este produto.</p>
+              <p className="text-[10px] text-zinc-500 italic text-center py-2">Nenhum opcional configurado ainda.</p>
             )}
           </div>
 
           <div className="h-px bg-zinc-800 my-2" />
 
-          <div className="flex gap-2 items-center">
-            <input
-              placeholder="Nome (Ex: Cheddar, Morango)"
-              value={newAddonName}
-              onChange={(e) => setNewAddonName(e.target.value)}
-              className={`${inputCls} h-10 text-xs flex-1`}
-            />
-            <input
-              type="number"
-              step="0.01"
-              placeholder="Preço (R$)"
-              value={newAddonPrice}
-              onChange={(e) => setNewAddonPrice(e.target.value)}
-              className={`${inputCls} h-10 text-xs w-20`}
-            />
+          {/* Form de Cadastro de Adicional - Stacked Vertical e Super Explicado */}
+          <div className="space-y-3 pt-1">
+            <div className="space-y-1">
+              <label className="text-[9px] uppercase font-bold text-zinc-400 tracking-wider block pl-1">1. Nome do Opcional:</label>
+              <input
+                placeholder="Ex: Cheddar Extra, Bacon Fatiado, Duplo Hamburguer"
+                value={newAddonName}
+                onChange={(e) => setNewAddonName(e.target.value)}
+                className={`${inputCls} h-10 text-xs`}
+              />
+            </div>
+            
+            <div className="space-y-1">
+              <label className="text-[9px] uppercase font-bold text-zinc-400 tracking-wider block pl-1">2. Preço Adicional (R$):</label>
+              <input
+                type="number"
+                step="0.01"
+                placeholder="Ex: 4.50 (ou 0.00 para opcional grátis)"
+                value={newAddonPrice}
+                onChange={(e) => setNewAddonPrice(e.target.value)}
+                className={`${inputCls} h-10 text-xs`}
+              />
+            </div>
+
             <button
               type="button"
               onClick={() => {
-                if (!newAddonName.trim()) return alert("Digite o nome do adicional");
+                if (!newAddonName.trim()) return alert("Por favor, digite o nome do opcional.");
                 const priceNum = parseFloat(newAddonPrice) || 0;
                 const list = [...(p.adicionais || []), { nome: newAddonName.trim(), preco: priceNum }];
                 setP({ ...p, adicionais: list, customizable: true });
                 setNewAddonName("");
                 setNewAddonPrice("");
               }}
-              className="h-10 px-3 bg-primary hover:bg-primary/95 text-primary-foreground font-black text-xs rounded-xl active:scale-95 transition shrink-0"
+              className="w-full h-10 bg-primary hover:bg-primary/95 text-primary-foreground font-black text-xs rounded-xl active:scale-95 transition flex items-center justify-center gap-1 shadow-md"
             >
-              Adicionar
+              + Salvar Adicional na Lista
             </button>
           </div>
         </div>

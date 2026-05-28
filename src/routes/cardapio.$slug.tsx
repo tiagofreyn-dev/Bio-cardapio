@@ -162,15 +162,20 @@ function DynamicCardapio() {
   }, [cart]);
 
   const categoriesList = useMemo(() => {
-    return Array.from(new Set(products.map((p) => p.category))).filter(Boolean);
+    const list = products || [];
+    return Array.from(new Set(list.map((p) => p.category))).filter(Boolean);
   }, [products]);
 
   const filtered = useMemo(() => {
+    const list = products || [];
     return category === "todos"
-      ? products
-      : products.filter((p) => p.category === category);
+      ? list
+      : list.filter((p) => p.category === category);
   }, [products, category]);
-  const featured = useMemo(() => products.filter((p) => p.is_featured), [products]);
+  const featured = useMemo(() => {
+    const list = products || [];
+    return list.filter((p) => p.is_featured);
+  }, [products]);
   const count = cart.reduce((s, i) => s + i.qty, 0);
   const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
 
