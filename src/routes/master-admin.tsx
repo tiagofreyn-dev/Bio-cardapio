@@ -44,6 +44,7 @@ function MasterAdminPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [authErrorDetail, setAuthErrorDetail] = useState<string | null>(null);
   
   // Action States
   const [updatingId, setUpdatingId] = useState<string | null>(null);
@@ -125,17 +126,22 @@ function MasterAdminPage() {
         }
 
         try {
-          const { data: realData } = await supabase.auth.signInWithPassword({
+          const { data: realData, error: signInError } = await supabase.auth.signInWithPassword({
             email: trimmedEmail,
             password: trimmedPassword,
           });
+          if (signInError) throw signInError;
           if (realData?.user) {
             setUser(realData.user);
+            setAuthErrorDetail(null);
           } else {
             setUser({ email: trimmedEmail, id: "bypass-admin" });
+            setAuthErrorDetail("Nenhum usuário retornado no login.");
           }
-        } catch (signInErr) {
+        } catch (signInErr: any) {
+          console.error("Erro ao autenticar no Supabase Auth:", signInErr);
           setUser({ email: trimmedEmail, id: "bypass-admin" });
+          setAuthErrorDetail(signInErr.message || String(signInErr));
         }
 
         sessionStorage.setItem("insano.master.auth", "true");
@@ -469,6 +475,11 @@ function MasterAdminPage() {
                 <p className="text-[11px] text-zinc-300 max-w-2xl leading-relaxed">
                   Você está visualizando as lojas através do **Acesso Rápido local**. Como não há uma conta confirmada no Supabase Auth para este e-mail, **o banco de dados rejeita qualquer modificação ou exclusão** devido às regras de segurança (RLS).
                 </p>
+                {authErrorDetail && (
+                  <div className="mt-2 text-[10px] font-mono text-amber-400 bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-xl text-left max-w-2xl">
+                    🚨 <strong>Mensagem do Supabase:</strong> {authErrorDetail}
+                  </div>
+                )}
               </div>
             </div>
             <div className="text-xs text-zinc-400 max-w-sm leading-relaxed border-t md:border-t-0 md:border-l border-zinc-800/80 pt-4 md:pt-0 md:pl-5 space-y-2">
