@@ -283,18 +283,6 @@ function CadastroPage() {
               </select>
             </label>
 
-            <label className={labelCls}>
-              <span>Endereço Comercial</span>
-              <input
-                type="text"
-                value={endereco}
-                onChange={(e) => setEndereco(e.target.value)}
-                placeholder="Rua, Número - Bairro"
-                className={inputCls}
-                required
-              />
-            </label>
-
             <button
               type="submit"
               disabled={loading}
