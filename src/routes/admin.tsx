@@ -374,32 +374,41 @@ function AdminPage() {
 
         {/* Painel Direito: Preview do Smartphone (Apenas Desktop) */}
         {store && (
-          <div className="hidden lg:flex w-[280px] xl:w-[300px] border-l border-zinc-800 bg-zinc-950/40 p-4 flex-col items-center justify-center shrink-0 max-h-[calc(100vh-140px)]">
-            <div className="w-full max-w-[220px] aspect-[9/19.5] rounded-[30px] border-[5px] border-zinc-800 bg-zinc-950 shadow-[0_20px_50px_rgba(0,0,0,0.8)] relative overflow-hidden flex flex-col ring-2 ring-zinc-800/40">
+          <div className="hidden lg:flex w-[290px] xl:w-[310px] border-l border-zinc-800 bg-zinc-950/40 p-4 flex-col items-center justify-center shrink-0 max-h-[calc(100vh-140px)]">
+            <div className="w-full max-w-[250px] aspect-[375/812] rounded-[36px] border-[6px] border-zinc-800 bg-zinc-950 shadow-[0_20px_50px_rgba(0,0,0,0.8)] relative overflow-hidden flex flex-col ring-2 ring-zinc-800/40">
               {/* Entalhe da Câmera (iPhone Notch) */}
-              <div className="absolute top-1 left-1/2 -translate-x-1/2 w-16 h-2.5 bg-zinc-800 rounded-full z-50 flex items-center justify-center">
-                <div className="w-1.5 h-1.5 rounded-full bg-zinc-900 absolute right-2"></div>
+              <div className="absolute top-1.5 left-1/2 -translate-x-1/2 w-20 h-3 bg-zinc-800 rounded-full z-50 flex items-center justify-center">
+                <div className="w-1.5 h-1.5 rounded-full bg-zinc-900 absolute right-3"></div>
               </div>
 
               {/* Status Bar */}
-              <div className="h-5 bg-zinc-950 text-zinc-500 px-4 flex items-center justify-between text-[8px] font-black tracking-wider select-none shrink-0 pt-1">
+              <div className="h-5 bg-zinc-950 text-zinc-500 px-6 flex items-center justify-between text-[8px] font-black tracking-wider select-none shrink-0 pt-1 z-40">
                 <span>09:41</span>
                 <span className="flex items-center gap-1">
                   📶 🔋
                 </span>
               </div>
 
-              {/* Iframe do Cardápio */}
-              <iframe
-                id="live-cardapio-preview"
-                src={
-                  lojaId === "d3b07384-d113-4ec5-a55d-e0c157855d01"
-                    ? `${window.location.origin}/`
-                    : `${window.location.origin}/cardapio/${store.slug}`
-                }
-                className="w-full flex-1 border-0 rounded-b-[28px] bg-zinc-950"
-                title="Preview Cardápio Digital"
-              />
+              {/* Iframe Wrapper (Scaled 2/3 to render beautiful 375px mobile view) */}
+              <div className="w-full flex-1 relative overflow-hidden bg-zinc-950 rounded-b-[30px]">
+                <iframe
+                  id="live-cardapio-preview"
+                  src={
+                    lojaId === "d3b07384-d113-4ec5-a55d-e0c157855d01"
+                      ? `${window.location.origin}/`
+                      : `${window.location.origin}/cardapio/${store.slug}`
+                  }
+                  style={{
+                    width: "375px",
+                    height: "150%",
+                    transform: "scale(0.6666)",
+                    transformOrigin: "top left",
+                    border: "none",
+                  }}
+                  className="absolute top-0 left-0 bg-zinc-950"
+                  title="Preview Cardápio Digital"
+                />
+              </div>
             </div>
             
             <div className="mt-3 flex items-center gap-2">
