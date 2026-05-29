@@ -145,27 +145,69 @@ function CadastroPage() {
       // Verificar se já existe slug
       const { data: existingLoja } = await supabase
         .from("lojas")
-        .select("id")
+        .select("id, user_id")
         .eq("slug", generatedSlug)
         .neq("id", createdLojaId)
         .maybeSingle();
 
-      const finalSlug = existingLoja 
-        ? `${generatedSlug}-${Math.floor(Math.random() * 1000)}` 
-        : generatedSlug;
+      let targetLojaId = createdLojaId;
+      let finalSlug = generatedSlug;
 
-      const { error: updateError } = await supabase
-        .from("lojas")
-        .update({
-          nome: nome.trim(),
-          slug: finalSlug,
-          tipo: tipo,
-          whatsapp: whatsapp.trim().replace(/\D/g, ""),
-          endereco: endereco.trim(),
-        })
-        .eq("id", createdLojaId);
+      if (existingLoja) {
+        // Se a loja encontrada tiver user_id nulo, ela foi pré-criada pelo desenvolvedor/master-admin
+        // e podemos associar diretamente ao usuário atual, dando total autonomia a ele!
+        if (!existingLoja.user_id && createdUserId) {
+          const { error: claimError } = await supabase
+            .from("lojas")
+            .update({
+              user_id: createdUserId,
+              nome: nome.trim(),
+              tipo: tipo,
+              whatsapp: whatsapp.trim().replace(/\D/g, ""),
+              endereco: endereco.trim(),
+            })
+            .eq("id", existingLoja.id);
+          
+          if (claimError) throw claimError;
 
-      if (updateError) throw updateError;
+          // Deletar a loja rascunho temporária do Passo 1 para evitar registros fantasmas
+          await supabase
+            .from("lojas")
+            .delete()
+            .eq("id", createdLojaId);
+          
+          targetLojaId = existingLoja.id;
+          setCreatedLojaId(existingLoja.id);
+        } else {
+          // Se já pertence a outro usuário, geramos um slug com sufixo numérico
+          finalSlug = `${generatedSlug}-${Math.floor(Math.random() * 1000)}`;
+          const { error: updateError } = await supabase
+            .from("lojas")
+            .update({
+              nome: nome.trim(),
+              slug: finalSlug,
+              tipo: tipo,
+              whatsapp: whatsapp.trim().replace(/\D/g, ""),
+              endereco: endereco.trim(),
+            })
+            .eq("id", createdLojaId);
+
+          if (updateError) throw updateError;
+        }
+      } else {
+        const { error: updateError } = await supabase
+          .from("lojas")
+          .update({
+            nome: nome.trim(),
+            slug: finalSlug,
+            tipo: tipo,
+            whatsapp: whatsapp.trim().replace(/\D/g, ""),
+            endereco: endereco.trim(),
+          })
+          .eq("id", createdLojaId);
+
+        if (updateError) throw updateError;
+      }
       setStep(3);
     } catch (err: any) {
       console.error(err);
