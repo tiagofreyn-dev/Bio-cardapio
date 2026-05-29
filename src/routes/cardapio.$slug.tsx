@@ -67,7 +67,8 @@ function DynamicCardapio() {
           const { data: productsData, error: productsError } = await supabase
             .from("produtos")
             .select("*")
-            .eq("loja_id", storeData.id);
+            .eq("loja_id", storeData.id)
+            .order("preco", { ascending: true });
 
           if (productsError) throw productsError;
 
