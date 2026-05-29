@@ -67,16 +67,29 @@ function AdminPage() {
   }, []);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const auth = sessionStorage.getItem("insano.admin.auth");
-      const savedLojaId = sessionStorage.getItem("insano.admin.lojaId");
-      const savedAuthType = sessionStorage.getItem("insano.admin.authType");
-      if (auth === "true" && savedLojaId) {
-        setIsAuthenticated(true);
-        setLojaId(savedLojaId);
-        setAuthType(savedAuthType as "pin" | "email");
+    async function verifySession() {
+      if (typeof window !== "undefined") {
+        const auth = sessionStorage.getItem("insano.admin.auth");
+        const savedLojaId = sessionStorage.getItem("insano.admin.lojaId");
+        const savedAuthType = sessionStorage.getItem("insano.admin.authType");
+        if (auth === "true" && savedLojaId) {
+          // Se for login por e-mail, garanta que o Supabase realmente tem uma sessão ativa para que o RLS funcione
+          if (supabase && savedAuthType === "email") {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) {
+              console.warn("Sessão do Supabase expirada ou nula. Redirecionando para login.");
+              sessionStorage.clear();
+              setIsAuthenticated(false);
+              return;
+            }
+          }
+          setIsAuthenticated(true);
+          setLojaId(savedLojaId);
+          setAuthType(savedAuthType as "pin" | "email");
+        }
       }
     }
+    verifySession();
   }, []);
 
   // Fetch Store and Products scoped to active lojaId
@@ -135,6 +148,7 @@ function AdminPage() {
             pixKey: storeData.chave_pix || "",
             pixName: storeData.titular_pix || "",
             storeAddress: storeData.endereco || "",
+            logoUrl: storeData.logo_url || "",
           };
 
           // Store in localStorage cache
@@ -667,6 +681,7 @@ function GeneralTab({ lojaId, slug }: { lojaId: string | null; slug?: string }) 
           chave_pix: nextSettings.pixKey,
           titular_pix: nextSettings.pixName,
           fidelidade_ativo: nextSettings.loyaltyActive !== false,
+          logo_url: nextSettings.logoUrl,
         })
         .eq("id", lojaId);
 
@@ -706,12 +721,21 @@ function GeneralTab({ lojaId, slug }: { lojaId: string | null; slug?: string }) 
       </div>
 
       <Card title="Loja">
-        <Field label="Nome da lanchonete">
+        <Field label="Nome do Estabelecimento">
           <input 
             value={settings.storeName} 
             onChange={(e) => update({ storeName: e.target.value })} 
             onBlur={() => autoSave(settings)}
             className={inputCls} 
+          />
+        </Field>
+        <Field label="Link do Logo / Imagem da Loja (URL)">
+          <input 
+            value={settings.logoUrl || ""} 
+            onChange={(e) => update({ logoUrl: e.target.value })} 
+            onBlur={() => autoSave(settings)}
+            className={inputCls} 
+            placeholder="Ex: https://link-da-imagem.com/logo.png"
           />
         </Field>
         <Field label="Telefone WhatsApp (com DDI/DDD)">

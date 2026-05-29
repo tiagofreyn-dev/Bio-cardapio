@@ -23,7 +23,9 @@ export function MenuHeader({
   return (
     <header className="sticky top-0 z-30 bg-background/95 backdrop-blur border-b border-border">
       <div className="flex items-center gap-3 px-4 py-3">
-        {isLegacy ? (
+        {settings.logoUrl ? (
+          <img src={settings.logoUrl} alt={displayName} className="w-12 h-12 rounded-full ring-2 ring-primary/50 object-cover shrink-0" />
+        ) : isLegacy ? (
           <img src={logo} alt="Insano Lanches" className="w-12 h-12 rounded-full ring-2 ring-primary/50 object-cover shrink-0" />
         ) : (
           <div className="w-12 h-12 rounded-full bg-primary text-primary-foreground font-black text-sm flex items-center justify-center ring-2 ring-primary/50 shrink-0 select-none shadow-md">
