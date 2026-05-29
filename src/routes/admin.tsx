@@ -4,7 +4,7 @@ import { storage } from "@/lib/storage";
 import { useStorageSync } from "@/hooks/use-storage";
 import type { Product, Category, CustomerLoyalty, Campaign, CampaignWinner, Participant, OrderHistory, DeliveryLocation } from "@/lib/types";
 import { brl } from "@/lib/format";
-import { ArrowLeft, Plus, Pencil, Trash2, Search, Gift, Trophy, Download, DollarSign, TrendingUp, ShoppingCart, Truck, Lock, RefreshCw, Check } from "lucide-react";
+import { ArrowLeft, Plus, Pencil, Trash2, Search, Gift, Trophy, Download, DollarSign, TrendingUp, ShoppingCart, Truck, Lock, RefreshCw, Check, ShieldCheck } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/admin")({
@@ -32,6 +32,26 @@ function AdminPage() {
   const [error, setError] = useState("");
 
   const [stripeStatus, setStripeStatus] = useState<"sucesso" | "cancelado" | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function checkAuthUser() {
+      if (supabase) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          setUserEmail(user.email || null);
+          return;
+        }
+      }
+      if (typeof window !== "undefined") {
+        const masterEmail = sessionStorage.getItem("insano.master.email");
+        if (masterEmail) {
+          setUserEmail(masterEmail);
+        }
+      }
+    }
+    checkAuthUser();
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -167,6 +187,7 @@ function AdminPage() {
       setLojaId(storeData.id);
       setStore(storeData);
       setAuthType("email");
+      setUserEmail(data.user.email || null);
       setIsAuthenticated(true);
       sessionStorage.setItem("insano.admin.auth", "true");
       sessionStorage.setItem("insano.admin.lojaId", storeData.id);
@@ -302,12 +323,28 @@ function AdminPage() {
               <h1 className="font-extrabold text-sm sm:text-base">{store?.nome || "Carregando..."}</h1>
             </div>
           </div>
-          <button
-            onClick={handleLogout}
-            className="h-9 px-3 rounded-lg bg-zinc-800 hover:bg-red-950/40 text-zinc-400 hover:text-red-400 text-xs font-bold transition active:scale-95 flex items-center gap-1.5"
-          >
-            Sair do Painel
-          </button>
+          <div className="flex items-center gap-2">
+            {userEmail && [
+              "tiago.freyn@gmail.com",
+              "tiagofreyn@gmail.com",
+              "tiagofreyn.dev@gmail.com",
+              "admin@biocardapio.com"
+            ].includes(userEmail) && (
+              <Link
+                to="/master-admin"
+                className="h-9 px-3 rounded-lg bg-indigo-950/40 border border-indigo-900/30 hover:bg-indigo-500 hover:text-black text-indigo-400 font-extrabold text-xs flex items-center justify-center gap-1.5 transition duration-150"
+              >
+                <ShieldCheck className="w-4 h-4" />
+                <span>Painel Master</span>
+              </Link>
+            )}
+            <button
+              onClick={handleLogout}
+              className="h-9 px-3 rounded-lg bg-zinc-800 hover:bg-red-950/40 text-zinc-400 hover:text-red-400 text-xs font-bold transition active:scale-95 flex items-center gap-1.5"
+            >
+              Sair do Painel
+            </button>
+          </div>
         </div>
         
         {/* Navigation Tabs */}
