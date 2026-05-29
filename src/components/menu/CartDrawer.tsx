@@ -57,7 +57,7 @@ export function CartDrawer({
   }
 
   function handleCopyPix() {
-    if (!settings.pixKey) return;
+    if (!settings?.pixKey) return;
     navigator.clipboard.writeText(settings.pixKey);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -139,8 +139,8 @@ export function CartDrawer({
   const cheapest = useMemo(() => (items.length ? Math.min(...items.map((i) => i.price)) : 0), [items]);
 
   const rewardProd = useMemo(() => {
-    return settings.loyaltyRewardId ? products.find((p) => p.id === settings.loyaltyRewardId) : null;
-  }, [settings.loyaltyRewardId, products]);
+    return (settings?.loyaltyRewardId && Array.isArray(products)) ? products.find((p) => p.id === settings.loyaltyRewardId) : null;
+  }, [settings?.loyaltyRewardId, products]);
 
   const hasRewardInCart = useMemo(() => {
     return rewardProd ? items.some((i) => i.productId === rewardProd.id) : false;
@@ -164,7 +164,8 @@ export function CartDrawer({
       lines.push("🚨🚨 ATENÇÃO: PEDIDO COM RESGATE DE LANCHE GRÁTIS! O CARTÃO FIDELIDADE DESTE CLIENTE FOI ZERADO NO SISTEMA! 🚨🚨");
       lines.push("");
     }
-    lines.push(`🛍️ *NOVO PEDIDO - ${settings.storeName.toUpperCase()}* 🛍️`);
+    const storeName = settings?.storeName || "Comércio";
+    lines.push(`🛍️ *NOVO PEDIDO - ${storeName.toUpperCase()}* 🛍️`);
     lines.push("");
     lines.push(`*Cliente:* ${name}`);
     lines.push("");
@@ -187,7 +188,7 @@ export function CartDrawer({
     lines.push("");
     lines.push("💰 *PAGAMENTO:*");
     lines.push(`*Forma:* ${payment}${payment === "Dinheiro" && change ? ` (Troco para ${change})` : ""}`);
-    if (payment === "Pix" && settings.pixKey) {
+    if (payment === "Pix" && settings?.pixKey) {
       lines.push(`*Chave PIX:* ${settings.pixKey}`);
       lines.push(`*Titular:* ${settings.pixName}`);
     }
@@ -221,7 +222,7 @@ export function CartDrawer({
   }
 
   async function handleSend() {
-    if (!settings.isOpen) {
+    if (settings && !settings.isOpen) {
       alert("A loja está fechada no momento.");
       return;
     }
@@ -247,12 +248,15 @@ export function CartDrawer({
       }
     } catch {}
 
+    const lojaId = typeof window !== "undefined" ? localStorage.getItem("insano.tenant.activeId") : null;
+
     // Salvar pedido no histórico geral para o Dashboard Financeiro
     if (supabase) {
       try {
         const itemsSummary = items.map(i => `${i.qty}x ${i.name}`).join(", ") + 
           (observation.trim() ? ` (Obs: ${observation.trim()})` : "");
         const { error } = await supabase.from("orders_history").insert({
+          loja_id: lojaId,
           client_name: name.trim(),
           payment_method: payment,
           delivery_type: delivery === "entrega" ? "Entrega" : "Retirada",
