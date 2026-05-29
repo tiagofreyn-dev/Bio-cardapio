@@ -33,7 +33,7 @@ function DynamicCardapio() {
   // Estados locais do menu
   const products = useStorageSync(() => storage.getProducts());
   const settings = useStorageSync(() => storage.getSettings());
-  const [category, setCategory] = useState<Category>("todos");
+  const [category, setCategory] = useState<Category>("");
   const [customizing, setCustomizing] = useState<Product | null>(null);
   const [cartOpen, setCartOpen] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -165,15 +165,37 @@ function DynamicCardapio() {
 
   const categoriesList = useMemo(() => {
     const list = products || [];
-    return Array.from(new Set(list.map((p) => p.category))).filter(Boolean);
+    const uniqueCats = Array.from(new Set(list.map((p) => p.category))).filter(Boolean);
+    
+    // Ordenar categorias colocando "Açaí" em primeiro, "Sorvetes & Picolés" em segundo e as demais em ordem alfabética
+    return uniqueCats.sort((a, b) => {
+      const order = ["Açaí", "Sorvetes & Picolés"];
+      const indexA = order.indexOf(a);
+      const indexB = order.indexOf(b);
+      
+      if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+      if (indexA !== -1) return -1;
+      if (indexB !== -1) return 1;
+      return a.localeCompare(b);
+    });
   }, [products]);
+
+  // Selecionar automaticamente a primeira categoria ao carregar
+  useEffect(() => {
+    if (categoriesList.length > 0 && (!category || category === "todos")) {
+      setCategory(categoriesList[0]);
+    }
+  }, [categoriesList, category]);
 
   const filtered = useMemo(() => {
     const list = products || [];
-    return category === "todos"
-      ? list
-      : list.filter((p) => p.category === category);
-  }, [products, category]);
+    const activeCategory = category && category !== "todos"
+      ? category
+      : (categoriesList.length > 0 ? categoriesList[0] : "");
+    return activeCategory
+      ? list.filter((p) => p.category === activeCategory)
+      : list;
+  }, [products, category, categoriesList]);
   const featured = useMemo(() => {
     const list = products || [];
     return list.filter((p) => p.is_featured);
