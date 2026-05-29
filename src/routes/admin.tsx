@@ -180,19 +180,39 @@ function AdminPage() {
         .maybeSingle();
 
       if (storeError) throw storeError;
-      if (!storeData) {
-        throw new Error("Nenhum comércio cadastrado para esta conta. Crie um cardápio primeiro!");
+      let finalStore = storeData;
+
+      if (!finalStore) {
+        // Criar automaticamente um registro rascunho de loja para que o usuário não fique preso
+        const slug = `loja-${Math.random().toString(36).substring(2, 8)}`;
+        const { data: newStore, error: insertError } = await supabase
+          .from("lojas")
+          .insert({
+            user_id: userId,
+            nome: "Minha Nova Loja",
+            slug: slug,
+            tipo: "Lanchonete",
+            cor_tema: "Vermelho",
+            status_assinatura: "pendente",
+          })
+          .select()
+          .single();
+
+        if (insertError) {
+          throw new Error("Nenhum comércio cadastrado para esta conta. Tentamos criar um automático mas houve um erro: " + insertError.message);
+        }
+        finalStore = newStore;
       }
 
-      setLojaId(storeData.id);
-      setStore(storeData);
+      setLojaId(finalStore.id);
+      setStore(finalStore);
       setAuthType("email");
       setUserEmail(data.user.email || null);
       setIsAuthenticated(true);
       sessionStorage.setItem("insano.admin.auth", "true");
-      sessionStorage.setItem("insano.admin.lojaId", storeData.id);
+      sessionStorage.setItem("insano.admin.lojaId", finalStore.id);
       sessionStorage.setItem("insano.admin.authType", "email");
-      localStorage.setItem("insano.tenant.activeId", storeData.id);
+      localStorage.setItem("insano.tenant.activeId", finalStore.id);
     } catch (err: any) {
       setError(err.message || "Erro ao realizar login.");
     } finally {

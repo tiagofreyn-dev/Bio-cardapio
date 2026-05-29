@@ -53,38 +53,68 @@ function CadastroPage() {
         throw new Error("Conexão do Supabase não configurada no cliente.");
       }
 
-      // 1. SignUp no Supabase
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: email.trim(),
-        password: password.trim(),
-      });
+      // 1. SignUp ou SignIn caso já cadastrado
+      let authData;
+      try {
+        const signupRes = await supabase.auth.signUp({
+          email: email.trim(),
+          password: password.trim(),
+        });
+        if (signupRes.error) throw signupRes.error;
+        authData = signupRes.data;
+      } catch (signUpErr: any) {
+        if (signUpErr.message?.includes("already registered") || signUpErr.status === 422) {
+          // Tentar fazer login diretamente com as mesmas credenciais fornecidas
+          const loginRes = await supabase.auth.signInWithPassword({
+            email: email.trim(),
+            password: password.trim(),
+          });
+          if (loginRes.error) {
+            throw new Error("Este e-mail já está cadastrado. Se for o seu, insira a senha correta para prosseguir.");
+          }
+          authData = loginRes.data;
+        } else {
+          throw signUpErr;
+        }
+      }
 
-      if (authError) throw authError;
-      if (!authData.user) {
-        throw new Error("Erro ao registrar o usuário. Verifique suas credenciais.");
+      if (!authData?.user) {
+        throw new Error("Erro ao autenticar o usuário. Verifique suas credenciais.");
       }
 
       const userId = authData.user.id;
-      const slug = `loja-${Math.random().toString(36).substring(2, 8)}`;
 
-      // 2. Criar registro rascunho na tabela lojas
-      const { data: storeData, error: storeError } = await supabase
+      // Buscar se já tem alguma loja vinculada a este user_id
+      const { data: existingStore } = await supabase
         .from("lojas")
-        .insert({
-          user_id: userId,
-          nome: "Meu Novo Comércio",
-          slug: slug,
-          tipo: "Outros",
-          cor_tema: "Vermelho",
-          status_assinatura: "pendente",
-        })
-        .select()
-        .single();
+        .select("id")
+        .eq("user_id", userId)
+        .maybeSingle();
 
-      if (storeError) throw storeError;
+      let storeId = existingStore?.id;
+
+      if (!storeId) {
+        const slug = `loja-${Math.random().toString(36).substring(2, 8)}`;
+        // 2. Criar registro rascunho na tabela lojas caso não exista
+        const { data: storeData, error: storeError } = await supabase
+          .from("lojas")
+          .insert({
+            user_id: userId,
+            nome: "Meu Novo Comércio",
+            slug: slug,
+            tipo: "Outros",
+            cor_tema: "Vermelho",
+            status_assinatura: "pendente",
+          })
+          .select()
+          .single();
+
+        if (storeError) throw storeError;
+        storeId = storeData.id;
+      }
 
       setCreatedUserId(userId);
-      setCreatedLojaId(storeData.id);
+      setCreatedLojaId(storeId);
       setStep(2);
     } catch (err: any) {
       console.error(err);
