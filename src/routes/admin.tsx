@@ -1450,6 +1450,15 @@ function ProductModal({
             <div className="flex-1 space-y-1">
               <span className="text-xs font-semibold text-muted-foreground block">Foto Selecionada</span>
               <span className="text-[10px] text-zinc-400 block truncate">{p.image && (p.image.startsWith('http') || p.image.startsWith('/')) ? "Imagem Personalizada Carregada" : "Nenhuma foto selecionada"}</span>
+              {p.image && (p.image.startsWith('http') || p.image.startsWith('/')) && (
+                <button
+                  type="button"
+                  onClick={() => setP({ ...p, image: "🍨" })}
+                  className="text-[10px] font-bold text-rose-400 hover:text-rose-350 transition-colors flex items-center gap-1 mt-1"
+                >
+                  Remover Imagem
+                </button>
+              )}
             </div>
           </div>
 
