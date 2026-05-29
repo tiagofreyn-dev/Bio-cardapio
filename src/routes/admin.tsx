@@ -151,6 +151,25 @@ function AdminPage() {
     verifySession();
   }, []);
 
+  // Simulação / Teste: Auto-liberar o plano ativando no banco se retornou de sucesso
+  useEffect(() => {
+    if (!lojaId || !supabase) return;
+    if (typeof window !== "undefined") {
+      const searchParams = new URLSearchParams(window.location.search);
+      if (searchParams.get("sucesso") === "true") {
+        supabase
+          .from("lojas")
+          .update({ status_assinatura: "ativo" })
+          .eq("id", lojaId)
+          .then(({ error }) => {
+            if (!error) {
+              setStore((prev) => prev ? { ...prev, status_assinatura: "ativo" } : null);
+            }
+          });
+      }
+    }
+  }, [lojaId]);
+
   // Fetch Store and Products scoped to active lojaId
   useEffect(() => {
     if (!isAuthenticated || !lojaId) return;
