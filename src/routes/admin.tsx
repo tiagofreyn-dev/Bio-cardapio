@@ -8,7 +8,7 @@ import { ArrowLeft, Plus, Pencil, Trash2, Search, Gift, Trophy, Download, Dollar
 import { supabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/admin")({
-  head: () => ({ meta: [{ title: "Painel — Insano Lanches" }] }),
+  head: () => ({ meta: [{ title: "Painel Administrativo — Bio-Cardápio" }] }),
   component: AdminPage,
 });
 

@@ -91,7 +91,7 @@ function LandingPage() {
         <div className="lg:col-span-7 space-y-6 text-center lg:text-left">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/25 text-[10px] font-black uppercase tracking-wider animate-pulse mx-auto lg:mx-0">
             <Sparkles className="w-3 h-3" />
-            <span>SaaS Multi-tenant Genérico</span>
+            <span>Cardápio Digital Profissional</span>
           </div>
 
           <h2 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-[1.1] text-white">
@@ -127,7 +127,7 @@ function LandingPage() {
               to="/cadastro"
               className="w-full sm:w-auto h-13 px-8 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-violet-500 hover:from-indigo-400 hover:to-violet-400 text-white font-extrabold text-sm flex items-center justify-center gap-2 transition active:scale-[0.98] shadow-lg shadow-indigo-500/15"
             >
-              <span>Começar Agora — R$ 99,90/mês</span>
+              <span>Começar Agora</span>
               <ArrowRight className="w-4 h-4" />
             </Link>
 
@@ -325,11 +325,11 @@ function LandingPage() {
 
           <div className="space-y-2 max-w-xl mx-auto">
             <span className="text-[10px] uppercase font-black tracking-widest text-indigo-400 bg-indigo-500/10 px-3 py-1 rounded-full border border-indigo-500/25">
-              Valor Fixo & Transparente
+              Crie Sua Conta
             </span>
-            <h3 className="text-3xl sm:text-4xl font-black tracking-tight pt-2">Apenas R$ 99,90/mês</h3>
+            <h3 className="text-3xl sm:text-4xl font-black tracking-tight pt-2">Comece a Vender no WhatsApp</h3>
             <p className="text-xs sm:text-sm text-zinc-400 leading-relaxed">
-              Sem taxas escondidas. Sem comissão por pedidos. Setup em menos de 3 minutos. Crie sua conta e comece a vender ainda hoje!
+              Sem comissão por pedidos. Setup em menos de 3 minutos. Crie sua conta e comece a receber pedidos organizados hoje mesmo!
             </p>
           </div>
 
@@ -354,7 +354,7 @@ function LandingPage() {
 
       {/* Footer */}
       <footer className="border-t border-zinc-900 py-8 text-center text-xs text-zinc-500 space-y-2 relative z-10 max-w-7xl mx-auto w-full px-6">
-        <p>© 2026 Bio-Cardápio SaaS — O melhor e mais leve cardápio digital multi-tenant do mercado.</p>
+        <p>© 2026 Bio-Cardápio — O melhor e mais leve cardápio digital do mercado.</p>
         <div className="flex items-center justify-center gap-4 text-[10px] text-zinc-600">
           <Link to="/admin" className="hover:text-zinc-400 transition font-semibold">Painel Administrativo</Link>
           <span>•</span>
