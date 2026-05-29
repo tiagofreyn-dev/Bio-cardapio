@@ -7,6 +7,65 @@ import { brl } from "@/lib/format";
 import { ArrowLeft, Plus, Pencil, Trash2, Search, Gift, Trophy, Download, DollarSign, TrendingUp, ShoppingCart, Truck, Lock, RefreshCw, Check, ShieldCheck } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
+async function compressImage(file: File, maxWidth = 800, maxHeight = 800, quality = 0.75): Promise<File> {
+  return new Promise((resolve) => {
+    if (!file.type.startsWith('image/')) {
+      resolve(file);
+      return;
+    }
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(file);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              resolve(file);
+              return;
+            }
+            const compressedFile = new File([blob], file.name.replace(/\.[^/.]+$/, "") + ".jpg", {
+              type: 'image/jpeg',
+              lastModified: Date.now(),
+            });
+            resolve(compressedFile);
+          },
+          'image/jpeg',
+          quality
+        );
+      };
+      img.onerror = () => resolve(file);
+    };
+    reader.onerror = () => resolve(file);
+  });
+}
+
 export const Route = createFileRoute("/admin")({
   head: () => ({ meta: [{ title: "Painel Administrativo — Bio-Cardápio" }] }),
   component: AdminPage,
@@ -595,6 +654,34 @@ function GeneralTab({ lojaId, slug }: { lojaId: string | null; slug?: string }) 
   const [fee, setFee] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [autoSaving, setAutoSaving] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [showManualUrl, setShowManualUrl] = useState(false);
+
+  async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLogoUploading(true);
+    try {
+      const { supabase } = await import('@/lib/supabase');
+      if (!supabase) {
+        throw new Error("Supabase não está configurado.");
+      }
+      const compressed = await compressImage(file);
+      const ext = compressed.name.split('.').pop();
+      const fileName = `logo-${lojaId || 'store'}-${Date.now()}.${ext}`;
+      const { data, error } = await supabase.storage.from('products-images').upload(fileName, compressed);
+      if (error) throw error;
+      const { data: { publicUrl } } = supabase.storage.from('products-images').getPublicUrl(data.path);
+      
+      const updatedSettings = { ...settings, logoUrl: publicUrl };
+      update({ logoUrl: publicUrl });
+      await autoSave(updatedSettings);
+    } catch (err: any) {
+      alert("Erro ao enviar imagem do logo: " + err.message);
+    } finally {
+      setLogoUploading(false);
+    }
+  }
 
   async function fetchLocations() {
     setLocLoading(true);
@@ -729,14 +816,70 @@ function GeneralTab({ lojaId, slug }: { lojaId: string | null; slug?: string }) 
             className={inputCls} 
           />
         </Field>
-        <Field label="Link do Logo / Imagem da Loja (URL)">
-          <input 
-            value={settings.logoUrl || ""} 
-            onChange={(e) => update({ logoUrl: e.target.value })} 
-            onBlur={() => autoSave(settings)}
-            className={inputCls} 
-            placeholder="Ex: https://link-da-imagem.com/logo.png"
-          />
+        <Field label="Logo / Imagem do Estabelecimento">
+          <div className="space-y-4">
+            <div className="flex gap-4 items-center p-3 rounded-2xl bg-zinc-900/40 ring-1 ring-border shadow-inner">
+              {settings.logoUrl && (settings.logoUrl.startsWith('http') || settings.logoUrl.startsWith('/')) ? (
+                <img src={settings.logoUrl} className="w-16 h-16 object-cover rounded-2xl ring-2 ring-primary/20 shadow-md shrink-0 animate-fade-in" />
+              ) : (
+                <div className="w-16 h-16 text-3xl flex items-center justify-center bg-primary/10 text-primary rounded-2xl ring-2 ring-primary/20 font-black shadow-md shrink-0">
+                  {settings.storeName ? settings.storeName.substring(0, 2).toUpperCase() : "AC"}
+                </div>
+              )}
+              <div className="flex-1 space-y-1">
+                <span className="text-xs font-bold text-white block">Logotipo Personalizado</span>
+                <span className="text-[10px] text-zinc-400 block max-w-[200px] truncate">
+                  {settings.logoUrl || "Nenhuma imagem personalizada"}
+                </span>
+                {settings.logoUrl && (
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      update({ logoUrl: "" });
+                      autoSave({ ...settings, logoUrl: "" });
+                    }}
+                    className="text-[10px] font-bold text-rose-400 hover:text-rose-350 transition-colors flex items-center gap-1 mt-1"
+                  >
+                    <Trash2 className="w-3 h-3" /> Remover Logo
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block">Escolha uma nova imagem para o logo:</span>
+                <button 
+                  type="button" 
+                  onClick={() => setShowManualUrl(!showManualUrl)}
+                  className="text-[10px] font-bold text-primary hover:underline"
+                >
+                  {showManualUrl ? "Upload de Arquivo" : "Inserir via Link URL"}
+                </button>
+              </div>
+              
+              {showManualUrl ? (
+                <input 
+                  value={settings.logoUrl || ""} 
+                  onChange={(e) => update({ logoUrl: e.target.value })} 
+                  onBlur={() => autoSave(settings)}
+                  className={inputCls} 
+                  placeholder="Ex: https://link-da-imagem.com/logo.png"
+                />
+              ) : (
+                <div className="relative group">
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    onChange={handleLogoUpload} 
+                    disabled={logoUploading} 
+                    className="text-xs w-full file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-extrabold file:bg-primary file:text-primary-foreground hover:file:opacity-90 file:cursor-pointer disabled:opacity-50" 
+                  />
+                </div>
+              )}
+              {logoUploading && <p className="text-xs text-primary font-bold mt-1 animate-pulse">Comprimindo e enviando logo para o Supabase...</p>}
+            </div>
+          </div>
         </Field>
         <Field label="Telefone WhatsApp (com DDI/DDD)">
           <input 
@@ -1272,9 +1415,10 @@ function ProductModal({
       if (!supabase) {
         throw new Error("Supabase não está configurado. Insira VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY no seu ambiente.");
       }
-      const ext = file.name.split('.').pop();
+      const compressed = await compressImage(file);
+      const ext = compressed.name.split('.').pop();
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${ext}`;
-      const { data, error } = await supabase.storage.from('products-images').upload(fileName, file);
+      const { data, error } = await supabase.storage.from('products-images').upload(fileName, compressed);
       if (error) throw error;
       const { data: { publicUrl } } = supabase.storage.from('products-images').getPublicUrl(data.path);
       setP({ ...p, image: publicUrl });
@@ -1584,9 +1728,10 @@ function CampaignsTab() {
       if (!supabase) {
         throw new Error("Supabase não está configurado.");
       }
-      const ext = file.name.split('.').pop();
+      const compressed = await compressImage(file);
+      const ext = compressed.name.split('.').pop();
       const fileName = `campaign-${Date.now()}-${Math.random().toString(36).substring(2)}.${ext}`;
-      const { data, error } = await supabase.storage.from('products-images').upload(fileName, file);
+      const { data, error } = await supabase.storage.from('products-images').upload(fileName, compressed);
       if (error) throw error;
       const { data: { publicUrl } } = supabase.storage.from('products-images').getPublicUrl(data.path);
       setCampaignImage(publicUrl);

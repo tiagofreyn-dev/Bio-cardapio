@@ -167,15 +167,20 @@ function DynamicCardapio() {
     const list = products || [];
     const uniqueCats = Array.from(new Set(list.map((p) => p.category))).filter(Boolean);
     
-    // Ordenar categorias colocando "Açaí" em primeiro, "Sorvetes & Picolés" em segundo e as demais em ordem alfabética
     return uniqueCats.sort((a, b) => {
-      const order = ["Açaí", "Sorvetes & Picolés"];
-      const indexA = order.indexOf(a);
-      const indexB = order.indexOf(b);
+      const normA = a.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+      const normB = b.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
       
-      if (indexA !== -1 && indexB !== -1) return indexA - indexB;
-      if (indexA !== -1) return -1;
-      if (indexB !== -1) return 1;
+      const isAcaiA = normA.includes("acai");
+      const isAcaiB = normB.includes("acai");
+      if (isAcaiA && !isAcaiB) return -1;
+      if (!isAcaiA && isAcaiB) return 1;
+
+      const isSorveteA = normA.includes("sorvete");
+      const isSorveteB = normB.includes("sorvete");
+      if (isSorveteA && !isSorveteB) return -1;
+      if (!isSorveteA && isSorveteB) return 1;
+
       return a.localeCompare(b);
     });
   }, [products]);
