@@ -9,6 +9,13 @@ import { supabase } from "@/lib/supabase";
 type Delivery = "retirada" | "entrega";
 type Payment = "Pix" | "Cartão" | "Dinheiro";
 
+function safeUUID() {
+  if (typeof window !== "undefined" && window.crypto && typeof window.crypto.randomUUID === "function") {
+    return window.crypto.randomUUID();
+  }
+  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+}
+
 export function CartDrawer({
   items,
   onClose,
@@ -297,7 +304,7 @@ export function CartDrawer({
       
       const redeemedItem = rewardProd || items.reduce((prev, curr) => (prev.price < curr.price ? prev : curr), items[0]);
       storage.addRedemption({
-        id: crypto.randomUUID(),
+        id: safeUUID(),
         date: new Date().toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }),
         name: name.trim(),
         item: redeemedItem ? redeemedItem.name : "Lanche Grátis",
@@ -313,10 +320,15 @@ export function CartDrawer({
         setIsRescuing(false);
         setIsRedirecting(true);
         
-        try {
-          window.location.href = url;
-        } catch (err) {
+        const isIframe = typeof window !== "undefined" && window.self !== window.top;
+        if (isIframe) {
           window.open(url, "_blank");
+        } else {
+          try {
+            window.location.href = url;
+          } catch (err) {
+            window.open(url, "_blank");
+          }
         }
       }, 2000);
       return;
@@ -331,10 +343,15 @@ export function CartDrawer({
     setRedirectUrl(url);
     setIsRedirecting(true);
     
-    try {
-      window.location.href = url;
-    } catch (err) {
+    const isIframe = typeof window !== "undefined" && window.self !== window.top;
+    if (isIframe) {
       window.open(url, "_blank");
+    } else {
+      try {
+        window.location.href = url;
+      } catch (err) {
+        window.open(url, "_blank");
+      }
     }
   }
 
@@ -427,10 +444,10 @@ export function CartDrawer({
                   <div className="flex justify-between items-start gap-2">
                     <div className="flex-1 min-w-0">
                       <p className="font-bold text-sm">{i.name}</p>
-                      {i.adicionaisSelecionados && i.adicionaisSelecionados.length > 0 && (
+                      {i.adicionaisSelecionados && Array.isArray(i.adicionaisSelecionados) && i.adicionaisSelecionados.length > 0 && (
                         <div className="mt-1 text-[11px] text-muted-foreground space-y-0.5">
                           {i.adicionaisSelecionados.map((addon) => (
-                            <p key={addon.nome}>• + {addon.nome} ({brl(addon.preco)})</p>
+                            <p key={addon?.nome || "Opcional"}>• + {addon?.nome || "Opcional"} ({brl(addon?.preco)})</p>
                           ))}
                         </div>
                       )}
@@ -593,10 +610,6 @@ export function CartDrawer({
                   </div>
                 )}
               </section>
-
-              <div className="rounded-xl border border-red-500/50 bg-red-500/10 p-3 text-center">
-                <p className="text-xs font-semibold text-red-500">🍟 Todos os lanches acompanham mini porção de batata e maionese caseira!</p>
-              </div>
 
               <section className="rounded-xl bg-surface ring-1 ring-border p-3 space-y-1 text-sm">
                 <Row label="Subtotal" value={brl(subtotal)} />

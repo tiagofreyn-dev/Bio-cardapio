@@ -42,8 +42,8 @@ export const Route = createFileRoute("/api/checkout")({
                 price_data: {
                   currency: "brl",
                   product_data: {
-                    name: "Plano Mensal — Cardápio Digital",
-                    description: "Acesso completo e ilimitado ao seu cardápio digital",
+                    name: "Plano Mensal — Rango Click",
+                    description: "Acesso completo e ilimitado ao seu cardápio digital (7 dias de teste grátis)",
                   },
                   unit_amount: 9990, // R$ 99,90
                   recurring: {
@@ -54,6 +54,9 @@ export const Route = createFileRoute("/api/checkout")({
               },
             ],
             mode: "subscription",
+            subscription_data: {
+              trial_period_days: 7,
+            },
             metadata: {
               loja_id: lojaId,
             },

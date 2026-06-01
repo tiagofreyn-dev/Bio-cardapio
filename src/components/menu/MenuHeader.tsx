@@ -46,7 +46,7 @@ export function MenuHeader({
               <span className={`w-1.5 h-1.5 rounded-full ${settings.isOpen ? "bg-success animate-pulse" : "bg-destructive"}`} />
               {settings.isOpen ? "Aberto agora" : "Fechado"}
             </span>
-            <span className="text-[11px] text-muted-foreground">Entrega 30-60 min</span>
+            <span className="text-[11px] text-muted-foreground">Entrega {settings.deliveryTime || "30-60"} min</span>
             {settings.storeAddress && (
               <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground max-w-full">
                 <span className="text-muted-foreground/30">•</span>

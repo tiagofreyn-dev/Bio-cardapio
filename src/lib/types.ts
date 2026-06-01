@@ -13,6 +13,7 @@ export interface Product {
   hasKetchupOption?: boolean;
   hasMayoOption?: boolean;
   is_featured?: boolean;
+  is_lancamento?: boolean;
   adicionais?: { nome: string; preco: number }[];
 }
 
@@ -44,6 +45,8 @@ export interface Settings {
   storeAddress?: string;
   loyaltyActive?: boolean;
   cobranca_automatica?: boolean;
+  logoUrl?: string;
+  deliveryTime?: string;
 }
 
 export interface CustomerLoyalty {

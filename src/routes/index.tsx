@@ -1,19 +1,13 @@
 import { useState, useEffect } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { 
-  Store, 
-  DollarSign, 
-  Gift, 
-  Trophy, 
-  ShieldCheck, 
-  TrendingUp, 
   Check, 
   ArrowRight, 
   Sparkles, 
-  Smartphone, 
-  ShoppingBag,
-  ExternalLink,
-  MessageSquare
+  Clock,
+  Percent,
+  Smartphone,
+  ChevronDown
 } from "lucide-react";
 
 export const Route = createFileRoute("/")({
@@ -39,22 +33,17 @@ function LandingPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white font-sans overflow-x-hidden selection:bg-indigo-500/35 selection:text-white relative">
+    <div className="min-h-screen bg-zinc-950 text-white font-sans overflow-x-hidden selection:bg-teal-500/35 selection:text-white relative">
       {/* Dynamic colorful blur backgrounds */}
-      <div className="absolute top-0 left-1/4 -translate-x-1/2 w-[500px] h-[500px] rounded-full bg-indigo-500/10 blur-[120px] pointer-events-none z-0" />
-      <div className="absolute top-[40vh] right-1/4 translate-x-1/2 w-[400px] h-[400px] rounded-full bg-violet-600/10 blur-[100px] pointer-events-none z-0" />
-      <div className="absolute bottom-10 left-1/3 w-[450px] h-[450px] rounded-full bg-purple-500/5 blur-[120px] pointer-events-none z-0" />
+      <div className="absolute top-0 left-1/4 -translate-x-1/2 w-[500px] h-[500px] rounded-full bg-teal-500/10 blur-[120px] pointer-events-none z-0" />
+      <div className="absolute top-[40vh] right-1/4 translate-x-1/2 w-[400px] h-[400px] rounded-full bg-emerald-600/10 blur-[100px] pointer-events-none z-0" />
+      <div className="absolute bottom-10 left-1/3 w-[450px] h-[450px] rounded-full bg-cyan-500/5 blur-[120px] pointer-events-none z-0" />
 
       {/* Header / Navigation Bar */}
       <header className="sticky top-0 z-40 bg-zinc-950/60 border-b border-zinc-900/80 backdrop-blur-md px-6 py-4 flex items-center justify-between max-w-7xl mx-auto w-full">
-        <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-500 to-violet-500 flex items-center justify-center border border-indigo-400/20 text-white shadow-lg shadow-indigo-500/10">
-            <Store className="w-5 h-5" />
-          </div>
-          <span className="font-extrabold text-sm tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white via-zinc-200 to-zinc-400">
-            Bio-Cardápio
-          </span>
-        </div>
+        <Link to="/" className="flex items-center gap-2.5 hover:opacity-90 transition">
+          <img src="/logo-completa.png" alt="RangoClick Logo" className="h-10 sm:h-12 w-auto object-contain" />
+        </Link>
 
         <nav className="flex items-center gap-4">
           <Link
@@ -66,303 +55,262 @@ function LandingPage() {
 
           <Link
             to="/cadastro"
-            className="h-9 px-4 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-400 hover:to-violet-400 text-white font-black text-xs flex items-center justify-center gap-1.5 transition active:scale-95 shadow-md shadow-indigo-500/10"
+            className="h-9 px-4 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-white font-black text-xs flex items-center justify-center gap-1.5 transition active:scale-95 shadow-md shadow-teal-500/10"
           >
             <span>Criar Meu Cardápio</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </Link>
-
-          {isMasterLoggedIn && (
-            <Link
-              to="/master-admin"
-              className="h-9 px-3.5 rounded-xl bg-red-950/30 border border-red-900/30 hover:bg-red-500 hover:text-black text-red-400 font-extrabold text-xs flex items-center justify-center gap-1 transition duration-150"
-              title="Acesso Rápido Dono da Plataforma"
-            >
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Painel Master</span>
-            </Link>
-          )}
         </nav>
       </header>
 
-      {/* Hero Section */}
+      {/* BLOCO 1: DOBRA PRINCIPAL - O TOPO DA PÁGINA */}
       <section className="relative z-10 max-w-7xl mx-auto w-full px-6 pt-12 pb-20 grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
         {/* Hero Left Content */}
         <div className="lg:col-span-7 space-y-6 text-center lg:text-left">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/25 text-[10px] font-black uppercase tracking-wider animate-pulse mx-auto lg:mx-0">
-            <Sparkles className="w-3 h-3" />
-            <span>Cardápio Digital Profissional</span>
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-500/10 text-teal-400 border border-teal-500/25 text-[10px] font-black uppercase tracking-wider animate-pulse mx-auto lg:mx-0">
+            <Sparkles className="w-3 h-3 animate-spin" />
+            <span>Modernize seu delivery hoje mesmo.</span>
           </div>
 
           <h2 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-[1.1] text-white">
-            Tenha seu próprio <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-purple-400 to-violet-400">Cardápio Digital</span> no WhatsApp!
+            Transforme o Instagram e o WhatsApp do seu restaurante em uma <span className="bg-clip-text text-transparent bg-gradient-to-r from-teal-400 via-emerald-400 to-cyan-400">máquina de vendas</span> com um Cardápio Digital Ultra-Moderno.
           </h2>
 
           <p className="text-sm sm:text-base text-zinc-400 max-w-2xl leading-relaxed">
-            Esqueça taxas abusivas de aplicativos de entrega! Crie um catálogo profissional para o seu negócio, personalize as cores do seu tema e receba pedidos organizados de forma instantânea diretamente no WhatsApp.
+            Esqueça PDFs pesados e sistemas lentos. Tenha um site rápido, com fotos em altíssima resolução, sorteios integrados e controle total do seu faturamento.
           </p>
-
-          {/* Highlights Checklist */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-xl text-left pt-2 mx-auto lg:mx-0">
-            {[
-              "Sem comissões por pedido",
-              "Taxas de entrega por região",
-              "Programa de Fidelidade integrado",
-              "Sorteios e campanhas de cupons",
-              "Açaí, pizzaria, hambúrguer e outros",
-              "Recebimento de PIX na hora"
-            ].map((feature) => (
-              <div key={feature} className="flex items-center gap-2.5 text-xs font-semibold text-zinc-300">
-                <div className="w-5 h-5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0">
-                  <Check className="w-3 h-3 stroke-[3]" />
-                </div>
-                <span>{feature}</span>
-              </div>
-            ))}
-          </div>
 
           {/* Actions */}
           <div className="flex flex-col sm:flex-row items-center gap-4 pt-4 justify-center lg:justify-start">
             <Link
               to="/cadastro"
-              className="w-full sm:w-auto h-13 px-8 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-violet-500 hover:from-indigo-400 hover:to-violet-400 text-white font-extrabold text-sm flex items-center justify-center gap-2 transition active:scale-[0.98] shadow-lg shadow-indigo-500/15"
+              className="w-full sm:w-auto h-13 px-8 rounded-2xl bg-gradient-to-r from-teal-500 via-emerald-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-white font-black text-sm flex items-center justify-center gap-2 transition active:scale-[0.98] shadow-lg shadow-teal-500/15"
             >
-              <span>Começar Agora</span>
+              <span>👉 QUERO CRIAR MEU CARDÁPIO GRÁTIS</span>
               <ArrowRight className="w-4 h-4" />
             </Link>
-
-            <Link
-              to="/cardapio/insano-lanches"
-              className="w-full sm:w-auto h-13 px-6 rounded-xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-850 text-zinc-300 hover:text-white font-extrabold text-sm flex items-center justify-center gap-2 transition active:scale-[0.98]"
-            >
-              <span>Visualizar Demonstração</span>
-              <ExternalLink className="w-4 h-4 text-zinc-500" />
-            </Link>
           </div>
-        </div>
 
-        {/* Hero Right: Pure Tailwind CSS Mobile Smartphone Mockup */}
-        <div className="lg:col-span-5 flex items-center justify-center relative select-none">
-          {/* Subtle neon drop shadow behind phone */}
-          <div className="absolute inset-0 bg-indigo-500/5 blur-[80px] rounded-full pointer-events-none" />
-
-          {/* Phone chassis */}
-          <div className="w-[280px] h-[550px] rounded-[42px] border-[7px] border-zinc-800 bg-zinc-950 shadow-2xl relative flex flex-col ring-4 ring-zinc-800/20 shrink-0">
-            {/* Phone Notch/Island */}
-            <div className="absolute top-1.5 left-1/2 -translate-x-1/2 w-20 h-3 bg-zinc-800 rounded-full z-30" />
-
-            {/* Mock Screen Content */}
-            <div className="flex-1 flex flex-col rounded-[35px] overflow-hidden bg-zinc-950 text-[10px] text-zinc-100 relative">
-              {/* Mock Status Bar */}
-              <div className="h-5 bg-zinc-950 text-zinc-500 px-5 flex items-center justify-between text-[7px] font-black tracking-wider select-none shrink-0 pt-1">
-                <span>09:41</span>
-                <span>📶 🔋</span>
-              </div>
-
-              {/* Mock Store Header Banner */}
-              <div className="h-16 bg-gradient-to-r from-violet-950/80 to-indigo-950/80 relative flex items-end p-2 border-b border-zinc-900/60 shrink-0">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-zinc-900 border border-violet-500/40 flex items-center justify-center shrink-0 text-xs">
-                    🍨
-                  </div>
-                  <div>
-                    <span className="font-extrabold text-white text-[9px] block">Açaí Tropical Delivery</span>
-                    <span className="text-[7px] text-emerald-400 block font-bold">🟢 Aberto Agora</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Mock Promo Message */}
-              <div className="bg-violet-500/10 border-b border-violet-500/20 text-center py-1 text-[7px] font-bold text-violet-400">
-                ✨ Cupom GANHE10 ativo: 10% Off acima de R$ 50,00!
-              </div>
-
-              {/* Mock Content Body */}
-              <div className="flex-1 p-3 space-y-3 overflow-hidden select-none">
-                {/* Mock Stamp Loyalty Program Card */}
-                <div className="bg-zinc-900/80 border border-zinc-850 p-2.5 rounded-xl space-y-1">
-                  <div className="flex justify-between items-center text-[7px] font-bold">
-                    <span className="text-indigo-400">Cartão Fidelidade Açaí</span>
-                    <span className="text-zinc-400">4/10</span>
-                  </div>
-                  <div className="flex justify-between gap-1 pt-1">
-                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((stamp) => (
-                      <div 
-                        key={stamp} 
-                        className={`w-4 h-4 rounded-full border flex items-center justify-center text-[6px] ${
-                          stamp <= 4 
-                            ? "bg-gradient-to-tr from-indigo-500 to-violet-500 border-indigo-400/20 text-white font-black" 
-                            : "bg-zinc-950 border-zinc-850 text-zinc-600"
-                        }`}
-                      >
-                        {stamp <= 4 ? "✓" : stamp}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Mock Categories Filter */}
-                <div className="flex gap-1.5">
-                  <span className="bg-indigo-600 text-white px-2 py-0.5 rounded-full font-bold text-[7px]">🍧 Açaí</span>
-                  <span className="bg-zinc-900 text-zinc-500 px-2 py-0.5 rounded-full font-bold text-[7px] border border-zinc-850">🥤 Bebidas</span>
-                  <span className="bg-zinc-900 text-zinc-500 px-2 py-0.5 rounded-full font-bold text-[7px] border border-zinc-850">🍧 Adicionais</span>
-                </div>
-
-                {/* Mock Product Card */}
-                <div className="bg-zinc-900/40 border border-zinc-850/60 p-2 rounded-xl flex items-center gap-2">
-                  <div className="w-10 h-10 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center text-base shrink-0">
-                    🍧
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <span className="font-extrabold text-[8px] text-zinc-100 block">Açaí Premium 500ml</span>
-                    <span className="text-[6px] text-zinc-400 block line-clamp-1">Granola, leite condensado, morango e banana...</span>
-                    <span className="text-indigo-400 font-black mt-0.5 block">R$ 22,00</span>
-                  </div>
-                </div>
-
-                {/* Mock Product Card 2 */}
-                <div className="bg-zinc-900/40 border border-zinc-850/60 p-2 rounded-xl flex items-center gap-2">
-                  <div className="w-10 h-10 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center text-base shrink-0">
-                    🍧
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <span className="font-extrabold text-[8px] text-zinc-100 block">Barca de Açaí Especial</span>
-                    <span className="text-[6px] text-zinc-400 block line-clamp-1">Barca completa com kiwi, uva, morango e creme.</span>
-                    <span className="text-indigo-400 font-black mt-0.5 block">R$ 45,00</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Mock Cart Drawer Floating Overlay */}
-              <div className="absolute inset-x-2 bottom-2 bg-gradient-to-r from-indigo-500 to-violet-500 rounded-xl p-2 flex items-center justify-between text-[7px] font-black shadow-md border border-indigo-400/20">
-                <div className="flex items-center gap-1">
-                  <ShoppingBag className="w-3.5 h-3.5 text-white" />
-                  <span className="text-zinc-200">1 item selecionado</span>
-                </div>
-                <span className="text-white text-[8px] bg-black/20 px-2.5 py-0.5 rounded-lg">R$ 22,00 &rarr;</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Features Section */}
-      <section className="relative z-10 max-w-7xl mx-auto w-full px-6 py-20 border-t border-zinc-900">
-        <div className="text-center space-y-3 max-w-xl mx-auto mb-16">
-          <h3 className="text-2xl sm:text-3xl font-black tracking-tight">Recursos Completos para o seu Crescimento</h3>
-          <p className="text-xs sm:text-sm text-zinc-400">
-            Tudo o que sua lanchonete, pizzaria ou comércio precisa em um só lugar.
+          <p className="text-xs text-zinc-500 font-semibold pt-1">
+            🔒 Teste grátis por 7 dias • Não pede cartão de crédito • Pronto em 10 minutos.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          <div className="bg-zinc-900/40 border border-zinc-850 p-6 rounded-2xl space-y-4 hover:border-indigo-500/20 transition duration-200 group">
-            <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center group-hover:bg-indigo-500 group-hover:text-black transition">
-              <MessageSquare className="w-5 h-5" />
+        {/* Hero Right: iPhone Mockup with User Screenshot */}
+        <div className="lg:col-span-5 flex flex-col items-center justify-center relative select-none">
+          <div className="absolute inset-0 bg-teal-550/5 blur-[80px] rounded-full pointer-events-none" />
+
+          {/* Phone chassis */}
+          <div className="w-[300px] h-[600px] rounded-[48px] border-[10px] border-zinc-800 bg-zinc-950 shadow-2xl relative flex flex-col ring-4 ring-zinc-800/20 shrink-0 overflow-hidden text-left font-sans group">
+            {/* Phone Notch/Island */}
+            <div className="absolute top-2 left-1/2 -translate-x-1/2 w-24 h-4 bg-zinc-850 rounded-full z-30 flex items-center justify-center">
+              <div className="w-2 h-2 rounded-full bg-zinc-900 border border-zinc-800/80 mr-2" />
+              <div className="w-1 h-1 rounded-full bg-zinc-900 border border-zinc-800/80" />
             </div>
-            <h4 className="font-extrabold text-sm text-white">Pedidos Scoped no WhatsApp</h4>
+
+            {/* Real Screenshot Preview Rendering inside phone chassis */}
+            <div className="flex-1 rounded-[38px] overflow-hidden bg-zinc-950 relative z-10 border-t border-zinc-900 flex flex-col text-white">
+              <img 
+                src="/preview-real.jpg" 
+                alt="RangoClick Real Mockup Preview" 
+                className="w-full h-full object-cover object-top select-none pointer-events-none group-hover:scale-105 transition-transform duration-500" 
+              />
+            </div>
+          </div>
+          
+          {/* Action indicator for mobile screen */}
+          <span className="text-[10px] text-zinc-500 font-extrabold mt-3 tracking-wide bg-zinc-900/60 border border-zinc-800/60 px-3 py-1 rounded-full flex items-center gap-1.5 shadow-md">
+            📱 Exemplo de Cardápio Digital (Demonstração Real)
+          </span>
+        </div>
+      </section>
+
+      {/* BLOCO 2: A QUEBRA DE OBJEÇÃO IMEDIATA (ÍCONES) */}
+      <section className="relative z-10 max-w-7xl mx-auto w-full px-6 py-12 border-t border-b border-zinc-900/80 bg-zinc-900/10">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-teal-500/10 text-teal-400 flex items-center justify-center shrink-0 border border-teal-500/20">
+              <Clock className="w-6 h-6" />
+            </div>
+            <div>
+              <h4 className="font-extrabold text-sm text-white">⚡ Carregamento Ultra-Rápido</h4>
+              <p className="text-xs text-zinc-400 mt-1 leading-relaxed">Seu cliente não perde tempo esperando o cardápio abrir.</p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-teal-500/10 text-teal-400 flex items-center justify-center shrink-0 border border-teal-500/20">
+              <Percent className="w-6 h-6" />
+            </div>
+            <div>
+              <h4 className="font-extrabold text-sm text-white">🚫 Zero Taxas por Pedido</h4>
+              <p className="text-xs text-zinc-400 mt-1 leading-relaxed">O lucro do seu restaurante é 100% seu, sem comissões.</p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-teal-500/10 text-teal-400 flex items-center justify-center shrink-0 border border-teal-500/20">
+              <Smartphone className="w-6 h-6" />
+            </div>
+            <div>
+              <h4 className="font-extrabold text-sm text-white">📱 Direto no Navegador</h4>
+              <p className="text-xs text-zinc-400 mt-1 leading-relaxed">O cliente não precisa baixar nenhum aplicativo para pedir.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* BLOCO 3: OS DIFERENCIAIS QUE NENHUM CONCORRENTE TEM */}
+      <section className="relative z-10 max-w-7xl mx-auto w-full px-6 py-20">
+        <div className="text-center space-y-3 max-w-2xl mx-auto mb-16">
+          <h3 className="text-3xl font-black tracking-tight text-white">Por que os restaurantes mais modernos estão mudando para a nossa plataforma?</h3>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="bg-zinc-900/30 border border-zinc-850 p-6 rounded-2xl space-y-3 hover:border-teal-500/20 transition duration-200">
+            <span className="text-3xl">📸</span>
+            <h4 className="font-extrabold text-base text-white">Item 1: Fotos em Altíssima Resolução (Sem travar)</h4>
             <p className="text-xs text-zinc-400 leading-relaxed">
-              Os clientes escolhem produtos e adicionais no cardápio interativo e mandam o carrinho já somado e formatado no seu WhatsApp.
+              O cliente come com os olhos. Nosso sistema foi desenhado para suportar fotos pesadas e profissionais em alta definição. Elas carregam instantaneamente, abrindo o apetite do seu cliente sem travar o celular dele.
             </p>
           </div>
 
-          <div className="bg-zinc-900/40 border border-zinc-850 p-6 rounded-2xl space-y-4 hover:border-indigo-500/20 transition duration-200 group">
-            <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center group-hover:bg-indigo-500 group-hover:text-black transition">
-              <DollarSign className="w-5 h-5" />
-            </div>
-            <h4 className="font-extrabold text-sm text-white">PIX Direto & Sem Taxas</h4>
+          <div className="bg-zinc-900/30 border border-zinc-850 p-6 rounded-2xl space-y-3 hover:border-teal-500/20 transition duration-200">
+            <span className="text-3xl">🎉</span>
+            <h4 className="font-extrabold text-base text-white">Item 2: Sorteios Automáticos Integrados</h4>
             <p className="text-xs text-zinc-400 leading-relaxed">
-              Insira a chave PIX do seu comércio e o cliente visualizará a chave copia-e-cola na finalização do pedido. O dinheiro cai direto na sua conta!
+              Fidelize seus clientes sem gastar com outros apps. Faça sorteios e promoções diretamente dentro do seu próprio site cardápio. É a ferramenta perfeita para bombar o seu Instagram e fazer o cliente voltar a comprar toda semana.
             </p>
           </div>
 
-          <div className="bg-zinc-900/40 border border-zinc-850 p-6 rounded-2xl space-y-4 hover:border-indigo-500/20 transition duration-200 group">
-            <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center group-hover:bg-indigo-500 group-hover:text-black transition">
-              <TrendingUp className="w-5 h-5" />
-            </div>
-            <h4 className="font-extrabold text-sm text-white">Faturamento & Métricas</h4>
+          <div className="bg-zinc-900/30 border border-zinc-850 p-6 rounded-2xl space-y-3 hover:border-teal-500/20 transition duration-200">
+            <span className="text-3xl">📊</span>
+            <h4 className="font-extrabold text-base text-white">Item 3: Painel de Faturamento Inteligente</h4>
             <p className="text-xs text-zinc-400 leading-relaxed">
-              Dashboard administrativa robusta com gráficos de desempenho diários e mensais para acompanhar seus ganhos em tempo real.
+              Chega de planilhas bagunçadas. Saiba exatamente quanto o seu restaurante faturou no dia, na semana ou no mês com gráficos simples e limpos. Tenha o controle total do seu negócio na palma da mão.
             </p>
           </div>
 
-          <div className="bg-zinc-900/40 border border-zinc-850 p-6 rounded-2xl space-y-4 hover:border-indigo-500/20 transition duration-200 group">
-            <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center group-hover:bg-indigo-500 group-hover:text-black transition">
-              <Trophy className="w-5 h-5" />
-            </div>
-            <h4 className="font-extrabold text-sm text-white">Fidelidade Liga/Desliga</h4>
+          <div className="bg-zinc-900/30 border border-zinc-850 p-6 rounded-2xl space-y-3 hover:border-teal-500/20 transition duration-200">
+            <span className="text-3xl">🔗</span>
+            <h4 className="font-extrabold text-base text-white">Item 4: Link 100% Personalizado</h4>
             <p className="text-xs text-zinc-400 leading-relaxed">
-              Dê prêmios por carimbos recorrentes acumulados. Se preferir não oferecer fidelidade, desative nas configurações com um só clique.
-            </p>
-          </div>
-
-          <div className="bg-zinc-900/40 border border-zinc-850 p-6 rounded-2xl space-y-4 hover:border-indigo-500/20 transition duration-200 group">
-            <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center group-hover:bg-indigo-500 group-hover:text-black transition">
-              <Gift className="w-5 h-5" />
-            </div>
-            <h4 className="font-extrabold text-sm text-white">Campanhas & Sorteios</h4>
-            <p className="text-xs text-zinc-400 leading-relaxed">
-              Crie sorteios com prêmios cadastrados. O sistema gera automaticamente Números da Sorte para clientes que compram acima de um valor mínimo.
-            </p>
-          </div>
-
-          <div className="bg-zinc-900/40 border border-zinc-850 p-6 rounded-2xl space-y-4 hover:border-indigo-500/20 transition duration-200 group">
-            <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center group-hover:bg-indigo-500 group-hover:text-black transition">
-              <ShieldCheck className="w-5 h-5" />
-            </div>
-            <h4 className="font-extrabold text-sm text-white">Cobrança Flexível Master</h4>
-            <p className="text-xs text-zinc-400 leading-relaxed">
-              Sistema inteligente de paywall. O administrador master da plataforma decide reativamente se a cobrança é automática (SaaS) ou manual.
+              Passe autoridade. O link do seu delivery será limpo e profissional: <span className="text-teal-400 font-bold">meudelivery.com/NomeDoSeuNegocio</span>. Esqueça aqueles links gigantes e feios que afastam os clientes.
             </p>
           </div>
         </div>
       </section>
 
-      {/* Pricing / Call-to-action */}
-      <section className="relative z-10 max-w-5xl mx-auto w-full px-6 py-20">
-        <div className="bg-gradient-to-r from-zinc-900 via-indigo-950/20 to-zinc-900 border border-indigo-500/20 rounded-3xl p-8 md:p-12 text-center space-y-6 relative overflow-hidden shadow-xl">
-          <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-48 h-48 rounded-full bg-indigo-500/10 blur-3xl pointer-events-none" />
+      {/* BLOCO 4: SEÇÃO DE PREÇO TRANSPARENTE */}
+      <section className="relative z-10 max-w-4xl mx-auto w-full px-6 py-16 border-t border-zinc-900">
+        <div className="text-center space-y-3 max-w-xl mx-auto mb-12">
+          <h3 className="text-2xl sm:text-3xl font-black tracking-tight text-white">Quanto custa ter o delivery mais moderno da sua região?</h3>
+          <p className="text-xs sm:text-sm text-zinc-450 font-semibold">Sem pegadinhas, sem contratos de fidelidade e sem letras miúdas.</p>
+        </div>
 
-          <div className="space-y-2 max-w-xl mx-auto">
-            <span className="text-[10px] uppercase font-black tracking-widest text-indigo-400 bg-indigo-500/10 px-3 py-1 rounded-full border border-indigo-500/25">
-              Crie Sua Conta
-            </span>
-            <h3 className="text-3xl sm:text-4xl font-black tracking-tight pt-2">Comece a Vender no WhatsApp</h3>
-            <p className="text-xs sm:text-sm text-zinc-400 leading-relaxed">
-              Sem comissão por pedidos. Setup em menos de 3 minutos. Crie sua conta e comece a receber pedidos organizados hoje mesmo!
-            </p>
+        <div className="bg-gradient-to-r from-zinc-900 via-teal-950/20 to-zinc-900 border border-teal-500/30 rounded-3xl p-8 md:p-12 text-center space-y-6 shadow-2xl relative overflow-hidden">
+          <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-48 h-48 rounded-full bg-teal-500/10 blur-3xl pointer-events-none" />
+
+          <div className="space-y-2">
+            <h4 className="font-black text-xl text-teal-400 uppercase tracking-widest">Plano Completo</h4>
+            <div className="py-2">
+              <span className="text-zinc-400 text-sm block font-semibold line-through">De R$ 149/mês</span>
+              <span className="text-2xl md:text-3xl font-extrabold block text-white mt-1">R$ 0 nos primeiros 7 dias</span>
+              <span className="text-4xl md:text-5xl font-black block text-teal-400 mt-2">Depois, apenas R$ 99 / mês</span>
+              <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mt-1 block">(Equivale a menos de R$ 3,30 por dia!)</span>
+            </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+          <div className="max-w-md mx-auto grid grid-cols-1 sm:grid-cols-2 gap-3 text-left pt-4 border-t border-zinc-800/80">
+            {[
+              "Pedidos ilimitados via WhatsApp",
+              "Cadastro de produtos e fotos em alta resolução",
+              "Ferramenta de Sorteios Internos",
+              "Painel de Faturamento e Relatórios",
+              "Suporte prioritário",
+              "Cancelamento fácil a qualquer momento"
+            ].map((benefit) => (
+              <div key={benefit} className="flex items-center gap-2 text-xs font-semibold text-zinc-300">
+                <span className="text-teal-400 font-extrabold">✓</span>
+                <span>{benefit}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="pt-4 flex justify-center">
             <Link
               to="/cadastro"
-              className="w-full sm:w-auto h-12 px-8 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-400 hover:to-violet-400 text-white font-black text-xs flex items-center justify-center gap-1.5 transition active:scale-[0.98] shadow-md shadow-indigo-500/15"
+              className="w-full sm:w-auto h-13 px-8 rounded-2xl bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-white font-black text-xs flex items-center justify-center gap-1.5 transition active:scale-[0.98] shadow-md shadow-teal-500/15"
             >
-              <span>Criar Meu Cardápio Grátis</span>
+              <span>👉 COMEÇAR MEU TESTE GRATUITO AGORA</span>
               <ArrowRight className="w-4 h-4" />
-            </Link>
-
-            <Link
-              to="/admin"
-              className="w-full sm:w-auto h-12 px-6 rounded-xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-850 text-zinc-300 hover:text-white font-black text-xs flex items-center justify-center gap-1.5 transition active:scale-[0.98]"
-            >
-              <span>Acessar Meu Painel</span>
             </Link>
           </div>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t border-zinc-900 py-8 text-center text-xs text-zinc-500 space-y-2 relative z-10 max-w-7xl mx-auto w-full px-6">
-        <p>© 2026 Bio-Cardápio — O melhor e mais leve cardápio digital do mercado.</p>
+      {/* BLOCO 5: PERGUNTAS FREQUENTES (FAQ) */}
+      <section className="relative z-10 max-w-4xl mx-auto w-full px-6 py-12 border-t border-zinc-900">
+        <div className="text-center space-y-3 max-w-xl mx-auto mb-12">
+          <h3 className="text-2xl sm:text-3xl font-black tracking-tight text-white">Dúvidas Frequentes</h3>
+        </div>
+
+        <div className="space-y-3">
+          {[
+            {
+              q: "Pergunta 1: Preciso colocar meu cartão de crédito para testar?",
+              a: "Resposta: Não! O teste de 7 dias é totalmente gratuito e livre de compromisso. Você só insere uma forma de pagamento se usar, aprovar e decidir continuar com o sistema após o período de teste."
+            },
+            {
+              q: "Pergunta 2: É muito difícil de configurar o cardápio?",
+              a: "Resposta: De forma alguma. O sistema é totalmente intuitivo e moderno. Em menos de 10 minutos você consegue colocar suas fotos, preços, horários de funcionamento e já começar a vender."
+            },
+            {
+              q: "Pergunta 3: Meus clientes precisam baixar algum aplicativo no celular?",
+              a: "Resposta: Não. O seu cardápio funciona como um site moderno. O cliente clica no link (no Instagram ou no WhatsApp) e o cardápio abre na hora, direto no navegador do celular ou computador."
+            },
+            {
+              q: "Pergunta 4: Como eu recebo o dinheiro das vendas?",
+              a: "Resposta: O pagamento vai direto para você. O sistema organiza o pedido perfeitamente e envia para o seu painel ou WhatsApp, e você recebe do cliente via Pix, cartão ou dinheiro na entrega."
+            }
+          ].map((item, idx) => (
+            <FaqItem key={idx} q={item.q} a={item.a} />
+          ))}
+        </div>
+      </section>
+
+      {/* BLOCO 6: RODAPÉ (FOOTER) */}
+      <footer className="border-t border-zinc-900 py-8 text-center text-xs text-zinc-550 space-y-2 relative z-10 max-w-7xl mx-auto w-full px-6">
+        <p>© 2026 RangoClick. Todos os direitos reservados.</p>
         <div className="flex items-center justify-center gap-4 text-[10px] text-zinc-600">
-          <Link to="/admin" className="hover:text-zinc-400 transition font-semibold">Painel Administrativo</Link>
+          <Link to="/admin" className="hover:text-zinc-400 transition font-semibold">Termos de Uso</Link>
           <span>•</span>
-          <Link to="/cadastro" className="hover:text-zinc-400 transition font-semibold">Criar Conta</Link>
-          <span>•</span>
-          <Link to="/cardapio/insano-lanches" className="hover:text-zinc-400 transition font-semibold">Demonstração</Link>
+          <Link to="/cadastro" className="hover:text-zinc-400 transition font-semibold">Política de Privacidade</Link>
         </div>
       </footer>
+    </div>
+  );
+}
+
+// Collapsible FAQ Item Component
+function FaqItem({ q, a }: { q: string; a: string }) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <div className="bg-zinc-900/20 border border-zinc-850 rounded-2xl overflow-hidden transition-all duration-200">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full p-5 text-left font-extrabold text-sm sm:text-base flex items-center justify-between text-white hover:text-teal-400 transition"
+      >
+        <span>{q}</span>
+        <ChevronDown className={`w-5 h-5 text-teal-400 transform transition-transform duration-200 shrink-0 ml-4 ${isOpen ? "rotate-180" : ""}`} />
+      </button>
+      
+      <div className={`overflow-hidden transition-all duration-350 ${isOpen ? "max-h-[300px] border-t border-zinc-900/60" : "max-h-0"}`}>
+        <p className="p-5 text-xs sm:text-sm text-zinc-400 leading-relaxed text-left">
+          {a}
+        </p>
+      </div>
     </div>
   );
 }

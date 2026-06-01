@@ -71,7 +71,14 @@ export const Route = createFileRoute("/admin")({
   component: AdminPage,
 });
 
-type Tab = "geral" | "fidelidade" | "produtos" | "sorteios" | "faturamento";
+type Tab = "geral" | "fidelidade" | "produtos" | "sorteios" | "faturamento" | "tutorial";
+
+function safeUUID() {
+  if (typeof window !== "undefined" && window.crypto && typeof window.crypto.randomUUID === "function") {
+    return window.crypto.randomUUID();
+  }
+  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+}
 
 function AdminPage() {
   const [tab, setTab] = useState<Tab>("geral");
@@ -92,6 +99,15 @@ function AdminPage() {
 
   const [stripeStatus, setStripeStatus] = useState<"sucesso" | "cancelado" | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+
+  const trialDaysLeft = (() => {
+    if (!store?.criado_em) return 0;
+    const createdDate = new Date(store.criado_em).getTime();
+    const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000;
+    const diff = createdDate + sevenDaysInMs - Date.now();
+    return Math.max(0, Math.ceil(diff / (24 * 60 * 60 * 1000)));
+  })();
+  const isTrialActive = trialDaysLeft > 0;
 
   useEffect(() => {
     async function checkAuthUser() {
@@ -117,7 +133,6 @@ function AdminPage() {
       const searchParams = new URLSearchParams(window.location.search);
       if (searchParams.get("sucesso") === "true") {
         setStripeStatus("sucesso");
-        window.history.replaceState({}, document.title, window.location.pathname);
       } else if (searchParams.get("cancelado") === "true") {
         setStripeStatus("cancelado");
         window.history.replaceState({}, document.title, window.location.pathname);
@@ -153,22 +168,20 @@ function AdminPage() {
 
   // Simulação / Teste: Auto-liberar o plano ativando no banco se retornou de sucesso
   useEffect(() => {
-    if (!lojaId || !supabase) return;
-    if (typeof window !== "undefined") {
-      const searchParams = new URLSearchParams(window.location.search);
-      if (searchParams.get("sucesso") === "true") {
-        supabase
-          .from("lojas")
-          .update({ status_assinatura: "ativo" })
-          .eq("id", lojaId)
-          .then(({ error }) => {
-            if (!error) {
-              setStore((prev) => prev ? { ...prev, status_assinatura: "ativo" } : null);
-            }
-          });
-      }
-    }
-  }, [lojaId]);
+    if (!lojaId || !supabase || stripeStatus !== "sucesso") return;
+    supabase
+      .from("lojas")
+      .update({ status_assinatura: "ativo" })
+      .eq("id", lojaId)
+      .then(({ error }) => {
+        if (!error) {
+          setStore((prev) => prev ? { ...prev, status_assinatura: "ativo" } : null);
+          if (typeof window !== "undefined") {
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }
+        }
+      });
+  }, [lojaId, stripeStatus]);
 
   // Fetch Store and Products scoped to active lojaId
   useEffect(() => {
@@ -213,13 +226,25 @@ function AdminPage() {
             hasKetchupOption: p.has_ketchup_option,
             hasMayoOption: p.has_mayo_option,
             is_featured: p.is_featured,
+            is_lancamento: p.is_lancamento,
+            adicionais: (() => {
+              try {
+                if (typeof p.adicionais === "string") {
+                  return JSON.parse(p.adicionais);
+                }
+                return p.adicionais || [];
+              } catch (e) {
+                console.error("Erro ao parsear adicionais:", e);
+                return [];
+              }
+            })(),
           }));
 
           // Map settings
           const mappedSettings = {
             storeName: storeData.nome,
             whatsapp: storeData.whatsapp || "5546999999999",
-            isOpen: true,
+            isOpen: storeData.esta_aberta !== false,
             loyaltyMinOrder: 30,
             loyaltyGoal: 10,
             deliveryFee: Number(storeData.taxa_entrega) || 0,
@@ -227,6 +252,7 @@ function AdminPage() {
             pixName: storeData.titular_pix || "",
             storeAddress: storeData.endereco || "",
             logoUrl: storeData.logo_url || "",
+            deliveryTime: storeData.tempo_entrega || "30-60",
           };
 
           // Store in localStorage cache
@@ -317,27 +343,12 @@ function AdminPage() {
     if (!lojaId) return;
     setPaywallSimulating(true);
     try {
-      const response = await fetch("/api/checkout", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ lojaId }),
-      });
-
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error || "Erro ao processar checkout do Stripe");
-      }
-
-      const data = await response.json();
-      if (data.url) {
-        window.location.href = data.url;
-      } else {
-        throw new Error("URL de Checkout não retornada pelo servidor");
-      }
+      // Redireciona diretamente para o link de assinatura recorrente da plataforma Cakto (Cactus)
+      // Passamos a lojaId na query string para que o webhook possa identificar quem pagou!
+      const checkoutUrl = `https://pay.cakto.com.br/n6v7x8p_908076?ref=${lojaId}&ext=${lojaId}`;
+      window.location.href = checkoutUrl;
     } catch (err: any) {
-      alert("Erro ao iniciar pagamento no Stripe: " + err.message);
+      alert("Erro ao redirecionar para o pagamento: " + err.message);
     } finally {
       setPaywallSimulating(false);
     }
@@ -425,7 +436,7 @@ function AdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white font-sans flex flex-col">
+    <div className="h-screen bg-zinc-950 text-white font-sans flex flex-col overflow-hidden">
       {/* Sticky Header */}
       <header className="sticky top-0 z-30 bg-zinc-900/90 backdrop-blur-md border-b border-zinc-800 shrink-0">
         <div className="flex items-center justify-between px-4 py-3">
@@ -462,7 +473,7 @@ function AdminPage() {
         
         {/* Navigation Tabs */}
         <div className="flex gap-2 px-4 pb-3 overflow-x-auto no-scrollbar">
-          {([["geral", "⚙️ Geral"], ["fidelidade", "🎁 Fidelidade"], ["produtos", "🍔 Produtos"], ["sorteios", "🏆 Sorteios"], ["faturamento", "📊 Faturamento"]] as [Tab, string][]).map(([id, label]) => (
+          {([["geral", "⚙️ Geral"], ["fidelidade", "🎁 Fidelidade"], ["produtos", "🍔 Produtos"], ["sorteios", "🏆 Sorteios"], ["faturamento", "📊 Faturamento"], ["tutorial", "📚 Como Usar"]] as [Tab, string][]).map(([id, label]) => (
             <button
               key={id}
               onClick={() => setTab(id)}
@@ -509,16 +520,54 @@ function AdminPage() {
         </div>
       )}
 
-      {/* Paywall Banner se pendente e cobrança automática ativa */}
-      {store?.status_assinatura === "pendente" && store?.cobranca_automatica !== false && (
+      {/* Trial Active Banner se pendente, cobrança ativa e teste de 7 dias ativo */}
+      {store?.status_assinatura === "pendente" && store?.cobranca_automatica !== false && isTrialActive && (
+        <div className="bg-gradient-to-r from-teal-950/70 via-teal-900/60 to-teal-950/70 border-b border-teal-500/30 px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left relative overflow-hidden backdrop-blur shadow-lg shrink-0 animate-fade-in">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-teal-500/10 flex items-center justify-center border border-teal-500/20 text-teal-400 shrink-0">
+              <Gift className="w-5 h-5 animate-pulse" />
+            </div>
+            <div>
+              <h4 className="font-extrabold text-sm text-white">Seu período de Teste Grátis de 7 dias está ativo! 🎁</h4>
+              <p className="text-[11px] text-zinc-300">Seu cardápio público está liberado. Você tem mais <span className="font-bold text-teal-400">{trialDaysLeft} {trialDaysLeft === 1 ? "dia" : "dias"}</span> de acesso livre para receber pedidos!</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 w-full sm:w-auto items-center justify-center sm:justify-end shrink-0">
+            <input 
+              readOnly 
+              value={`${window.location.origin}/cardapio/${store.slug}`}
+              className="px-3 h-9 rounded-xl bg-zinc-950 text-zinc-300 text-xs font-bold ring-1 ring-zinc-800 focus:outline-none w-full sm:w-44 truncate"
+            />
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(`${window.location.origin}/cardapio/${store.slug}`);
+                alert("Link do cardápio copiado!");
+              }}
+              className="h-9 px-4 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-extrabold text-xs transition active:scale-95 shrink-0"
+            >
+              Copiar Link 🔗
+            </button>
+            <button
+              onClick={handleActivateSubscription}
+              disabled={paywallSimulating}
+              className="h-9 px-4 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-extrabold text-xs transition active:scale-95 shrink-0"
+            >
+              {paywallSimulating ? "..." : "Ativar Plano 🚀"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Paywall Banner se pendente e teste grátis expirou */}
+      {store?.status_assinatura === "pendente" && store?.cobranca_automatica !== false && !isTrialActive && (
         <div className="bg-gradient-to-r from-amber-950/70 via-amber-900/60 to-amber-950/70 border-b border-amber-500/30 px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left relative overflow-hidden backdrop-blur shadow-lg shrink-0 animate-fade-in">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center border border-amber-500/20 text-amber-500 shrink-0">
               <Lock className="w-5 h-5" />
             </div>
             <div>
-              <h4 className="font-extrabold text-sm text-white">Seu cardápio está em modo rascunho (Acesso Restrito)</h4>
-              <p className="text-[11px] text-zinc-300">Seus clientes não conseguem ver o cardápio público. Ative agora o seu plano por apenas **R$ 99,90/mês** no Stripe para liberar!</p>
+              <h4 className="font-extrabold text-sm text-white">Seu período de teste grátis expirou (Acesso Restrito)</h4>
+              <p className="text-[11px] text-zinc-300">Seus clientes não conseguem mais ver o seu cardápio. Ative agora o seu plano por apenas **R$ 99,90/mês** no Stripe para liberar!</p>
             </div>
           </div>
           <button
@@ -593,17 +642,18 @@ function AdminPage() {
       {/* Grid Principal de 2 Colunas */}
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
         {/* Painel Esquerdo: Tabs de Gerenciamento */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 max-h-[calc(100vh-140px)] no-scrollbar">
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {tab === "geral" && <GeneralTab lojaId={lojaId} slug={store?.slug} />}
           {tab === "fidelidade" && <LoyaltyTab />}
           {tab === "produtos" && <ProductsTab products={products} lojaId={lojaId} />}
           {tab === "sorteios" && <CampaignsTab />}
           {tab === "faturamento" && <FaturamentoTab lojaId={lojaId} />}
+          {tab === "tutorial" && <TutorialTab />}
         </div>
 
         {/* Painel Direito: Preview do Smartphone (Apenas Desktop) */}
         {store && (
-          <div className="hidden lg:flex w-[290px] xl:w-[310px] border-l border-zinc-800 bg-zinc-950/40 p-4 flex-col items-center justify-center shrink-0 max-h-[calc(100vh-140px)]">
+          <div className="hidden lg:flex w-[290px] xl:w-[310px] border-l border-zinc-800 bg-zinc-950/40 p-4 flex-col items-center justify-center shrink-0">
             <div className="w-full max-w-[250px] aspect-[375/812] rounded-[36px] border-[6px] border-zinc-800 bg-zinc-950 shadow-[0_20px_50px_rgba(0,0,0,0.8)] relative overflow-hidden flex flex-col ring-2 ring-zinc-800/40">
               {/* Entalhe da Câmera (iPhone Notch) */}
               <div className="absolute top-1.5 left-1/2 -translate-x-1/2 w-20 h-3 bg-zinc-800 rounded-full z-50 flex items-center justify-center">
@@ -624,8 +674,8 @@ function AdminPage() {
                   id="live-cardapio-preview"
                   src={
                     lojaId === "d3b07384-d113-4ec5-a55d-e0c157855d01"
-                      ? `${window.location.origin}/`
-                      : `${window.location.origin}/cardapio/${store.slug}`
+                      ? `${window.location.origin}/?preview=true`
+                      : `${window.location.origin}/cardapio/${store.slug}?preview=true`
                   }
                   style={{
                     width: "375px",
@@ -788,6 +838,8 @@ function GeneralTab({ lojaId, slug }: { lojaId: string | null; slug?: string }) 
           titular_pix: nextSettings.pixName,
           fidelidade_ativo: nextSettings.loyaltyActive !== false,
           logo_url: nextSettings.logoUrl,
+          esta_aberta: nextSettings.isOpen !== false,
+          tempo_entrega: nextSettings.deliveryTime || "30-60",
         })
         .eq("id", lojaId);
 
@@ -899,6 +951,15 @@ function GeneralTab({ lojaId, slug }: { lojaId: string | null; slug?: string }) 
               {logoUploading && <p className="text-xs text-primary font-bold mt-1 animate-pulse">Comprimindo e enviando logo para o Supabase...</p>}
             </div>
           </div>
+        </Field>
+        <Field label="Tempo Estimado de Entrega (Minutos)">
+          <input 
+            value={settings.deliveryTime || ""} 
+            onChange={(e) => update({ deliveryTime: e.target.value })} 
+            onBlur={() => autoSave(settings)}
+            className={inputCls} 
+            placeholder="Ex: 30-60, 40-50, 45..." 
+          />
         </Field>
         <Field label="Telefone WhatsApp (com DDI/DDD)">
           <input 
@@ -1205,6 +1266,7 @@ function ProductsTab({ lojaId }: { lojaId: string | null }) {
         disponivel: p.available,
         customizavel: (p.adicionais || []).length > 0,
         is_featured: p.is_featured,
+        is_lancamento: p.is_lancamento || false,
         adicionais: p.adicionais || [],
         loja_id: lojaId,
       };
@@ -1294,13 +1356,38 @@ function ProductsTab({ lojaId }: { lojaId: string | null }) {
     }
   }
 
+  async function toggleLancamento(p: Product) {
+    if (!supabase) return;
+    try {
+      const nextVal = !p.is_lancamento;
+      const { data, error } = await supabase
+        .from("produtos")
+        .update({ is_lancamento: nextVal })
+        .eq("id", p.id)
+        .select();
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error("Não foi possível alternar lançamento. Certifique-se de que está autenticado com a conta correta.");
+      }
+
+      const list = products.map((x) => x.id === p.id ? { ...x, is_lancamento: nextVal } : x);
+      storage.setProducts(list);
+      
+      // Reload preview
+      const iframe = document.getElementById("live-cardapio-preview") as HTMLIFrameElement;
+      if (iframe) iframe.src = iframe.src;
+    } catch (err: any) {
+      alert("Erro ao alternar lançamento: " + err.message + "\n\nSe necessário, execute no Supabase SQL Editor:\nALTER TABLE public.produtos ADD COLUMN is_lancamento BOOLEAN DEFAULT false;");
+    }
+  }
+
   return (
     <section className="space-y-3">
       <button
         onClick={() => {
           setIsNew(true);
           setEditing({ 
-            id: crypto.randomUUID(), 
+            id: safeUUID(), 
             name: "", 
             description: "", 
             price: 0, 
@@ -1331,6 +1418,10 @@ function ProductsTab({ lojaId }: { lojaId: string | null }) {
             <label className="flex flex-col items-center justify-center gap-1 cursor-pointer mx-1 shrink-0">
               <span className="text-[9px] font-bold uppercase text-muted-foreground">Destaque</span>
               <input type="checkbox" checked={!!p.is_featured} onChange={() => toggleFeatured(p)} className="w-4 h-4 accent-primary" />
+            </label>
+            <label className="flex flex-col items-center justify-center gap-1 cursor-pointer mx-1 shrink-0">
+              <span className="text-[9px] font-bold uppercase text-muted-foreground">Lançamento</span>
+              <input type="checkbox" checked={!!p.is_lancamento} onChange={() => toggleLancamento(p)} className="w-4 h-4 accent-primary" />
             </label>
             <button 
               type="button"
@@ -2340,6 +2431,40 @@ function FaturamentoTab({ lojaId }: { lojaId: string | null }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  function deduplicateOrders(rawOrders: OrderHistory[]): { cleanOrders: OrderHistory[]; duplicatesToDelete: string[] } {
+    if (!rawOrders || rawOrders.length === 0) return { cleanOrders: [], duplicatesToDelete: [] };
+
+    // Sort by created_at descending (newest first)
+    const sorted = [...rawOrders].sort((a, b) => {
+      const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+      return timeB - timeA;
+    });
+
+    const cleanOrders: OrderHistory[] = [];
+    const duplicatesToDelete: string[] = [];
+
+    for (const order of sorted) {
+      const timeOrder = order.created_at ? new Date(order.created_at).getTime() : 0;
+      
+      // Check if there is already a newer order with the same client_name and time diff < 5 mins
+      const isDuplicate = cleanOrders.some((existing) => {
+        const timeExisting = existing.created_at ? new Date(existing.created_at).getTime() : 0;
+        const isSameName = existing.client_name.trim().toLowerCase() === order.client_name.trim().toLowerCase();
+        const timeDiff = Math.abs(timeExisting - timeOrder);
+        return isSameName && timeDiff <= 5 * 60 * 1000;
+      });
+
+      if (isDuplicate) {
+        duplicatesToDelete.push(order.id);
+      } else {
+        cleanOrders.push(order);
+      }
+    }
+
+    return { cleanOrders, duplicatesToDelete };
+  }
+
   async function fetchOrders(selectedPeriod: Period = period) {
     try {
       if (!supabase) return;
@@ -2363,7 +2488,21 @@ function FaturamentoTab({ lojaId }: { lojaId: string | null }) {
       const { data, error } = await query.order("created_at", { ascending: false });
 
       if (error) throw error;
-      setOrders(data || []);
+
+      const { cleanOrders, duplicatesToDelete } = deduplicateOrders(data || []);
+      setOrders(cleanOrders);
+
+      // Background deletion of duplicates from Supabase
+      if (duplicatesToDelete.length > 0 && supabase) {
+        supabase
+          .from("orders_history")
+          .delete()
+          .in("id", duplicatesToDelete)
+          .then(({ error: delErr }) => {
+            if (delErr) console.error("Erro ao deletar pedidos duplicados em segundo plano:", delErr);
+            else console.log("Duplicações limpas em segundo plano:", duplicatesToDelete);
+          });
+      }
     } catch (err) {
       console.error("Erro ao buscar histórico de pedidos:", err);
     } finally {
@@ -2656,3 +2795,77 @@ function FaturamentoTab({ lojaId }: { lojaId: string | null }) {
     </section>
   );
 }
+
+function TutorialTab() {
+  return (
+    <section className="space-y-6">
+      <div className="space-y-0.5">
+        <h4 className="font-extrabold text-sm text-white">📚 Guia Completo do RangoClick</h4>
+        <p className="text-[11px] text-zinc-400">Aprenda a configurar e usar todo o potencial do seu cardápio digital.</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Passo 1 */}
+        <div className="bg-surface ring-1 ring-border rounded-2xl p-5 space-y-3">
+          <div className="w-8 h-8 rounded-xl bg-teal-500/10 text-teal-400 flex items-center justify-center font-black text-sm">1</div>
+          <h5 className="font-bold text-sm text-white">Configurar sua Loja</h5>
+          <p className="text-xs text-zinc-400 leading-relaxed">
+            Na aba <strong>Geral</strong>, defina o nome do seu negócio, WhatsApp para receber os pedidos (com DDI e DDD, ex: 5546999999999), tempo de entrega estimado e o endereço para retirada física.
+          </p>
+        </div>
+
+        {/* Passo 2 */}
+        <div className="bg-surface ring-1 ring-border rounded-2xl p-5 space-y-3">
+          <div className="w-8 h-8 rounded-xl bg-teal-500/10 text-teal-400 flex items-center justify-center font-black text-sm">2</div>
+          <h5 className="font-bold text-sm text-white">Cadastrar Seus Produtos</h5>
+          <p className="text-xs text-zinc-400 leading-relaxed">
+            Na aba <strong>Produtos</strong>, crie categorias (Hambúrgueres, Pizzas, Bebidas, etc.) e adicione seus produtos com fotos ou emojis, descrição caprichada e opções de adicionais (ex: queijo extra, molhos).
+          </p>
+        </div>
+
+        {/* Passo 3 */}
+        <div className="bg-surface ring-1 ring-border rounded-2xl p-5 space-y-3">
+          <div className="w-8 h-8 rounded-xl bg-teal-500/10 text-teal-400 flex items-center justify-center font-black text-sm">3</div>
+          <h5 className="font-bold text-sm text-white">Taxas de Entrega e Pix</h5>
+          <p className="text-xs text-zinc-400 leading-relaxed">
+            Cadastre os bairros que você atende com suas respectivas taxas de entrega. Configure sua chave Pix copia-e-cola para que os clientes paguem antes do pedido ser enviado ao WhatsApp.
+          </p>
+        </div>
+
+        {/* Passo 4 */}
+        <div className="bg-surface ring-1 ring-border rounded-2xl p-5 space-y-3">
+          <div className="w-8 h-8 rounded-xl bg-teal-500/10 text-teal-400 flex items-center justify-center font-black text-sm">4</div>
+          <h5 className="font-bold text-sm text-white">Fidelizar com Cupons e Sorteios</h5>
+          <p className="text-xs text-zinc-400 leading-relaxed">
+            Ative o <strong>Cartão Fidelidade</strong> para dar prêmios a clientes recorrentes. Crie <strong>Sorteios</strong> automáticos para compras acima de um valor mínimo para turbinar suas vendas da semana.
+          </p>
+        </div>
+      </div>
+
+      {/* Dúvidas Frequentes */}
+      <div className="bg-zinc-900/40 border border-zinc-850 rounded-2xl p-5 space-y-4">
+        <h5 className="font-extrabold text-sm text-white flex items-center gap-1.5">
+          <span>💡 Dúvidas Frequentes (FAQ)</span>
+        </h5>
+        
+        <div className="space-y-3 divide-y divide-zinc-800/60 text-xs">
+          <div className="pt-3 first:pt-0 space-y-1">
+            <p className="font-bold text-white">Como eu recebo as notificações de novos pedidos?</p>
+            <p className="text-zinc-400 leading-relaxed">Os pedidos são montados no cardápio digital e chegam formatados, detalhados e somados diretamente na janela de conversa do WhatsApp da sua loja.</p>
+          </div>
+
+          <div className="pt-3 space-y-1">
+            <p className="font-bold text-white">Como divulgar o meu cardápio digital?</p>
+            <p className="text-zinc-400 leading-relaxed">Copie o link do seu cardápio gerado na aba Geral e cole na biografia do seu Instagram, envie em mensagens de saudação no WhatsApp Business e publique nos seus stories.</p>
+          </div>
+
+          <div className="pt-3 space-y-1">
+            <p className="font-bold text-white">Os clientes podem fazer pedidos com a loja fechada?</p>
+            <p className="text-zinc-400 leading-relaxed">Não. Se você desativar o status de funcionamento na aba Geral, o cardápio público continuará visível para visualização, mas a sacola e os botões de adicionar serão bloqueados, impedindo novos envios.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+

@@ -15,7 +15,7 @@ export function ProductCard({ product, onAdd, disabled }: { product: Product; on
       </div>
       <div className="flex-1 min-w-0">
         <h4 className="font-bold text-sm leading-tight">{product.name}</h4>
-        <p className="text-[11px] text-muted-foreground mt-1 line-clamp-2">{product.description}</p>
+        <p className="text-[11px] text-muted-foreground mt-1 whitespace-pre-wrap break-words">{product.description}</p>
         <div className="flex items-center justify-between mt-2">
           <span className="text-primary font-extrabold">{brl(product.price)}</span>
           <button

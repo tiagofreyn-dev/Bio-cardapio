@@ -24,8 +24,17 @@ export const Route = createFileRoute("/cardapio/$slug")({
   component: DynamicCardapio,
 });
 
+function safeUUID() {
+  if (typeof window !== "undefined" && window.crypto && typeof window.crypto.randomUUID === "function") {
+    return window.crypto.randomUUID();
+  }
+  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+}
+
 function DynamicCardapio() {
   const { slug } = Route.useParams();
+  const isPreview = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("preview") === "true";
+  const isDemo = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("demo") === "true";
   const [store, setStore] = useState<Loja | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeCampaign, setActiveCampaign] = useState<Campaign | null>(null);
@@ -61,8 +70,15 @@ function DynamicCardapio() {
 
         setStore(storeData);
 
-        // Se o cardápio estiver ativo ou cobrança automática estiver desabilitada, sincroniza os produtos e configurações
-        if (storeData.status_assinatura === "ativo" || storeData.cobranca_automatica === false) {
+        const isTrialActive = (() => {
+          if (!storeData.criado_em) return false;
+          const createdDate = new Date(storeData.criado_em).getTime();
+          const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000;
+          return (Date.now() - createdDate) < sevenDaysInMs;
+        })();
+
+        // Se o cardápio estiver ativo ou cobrança automática estiver desabilitada, ou no teste de 7 dias ativo, sincroniza os produtos
+        if (storeData.status_assinatura === "ativo" || storeData.cobranca_automatica === false || isPreview || isTrialActive) {
           // Buscar produtos reais da loja
           const { data: productsData, error: productsError } = await supabase
             .from("produtos")
@@ -82,22 +98,34 @@ function DynamicCardapio() {
             category: p.category || "hamburgueres",
             available: p.disponivel,
             customizable: p.customizavel,
-            adicionais: p.adicionais || [],
+            adicionais: (() => {
+              try {
+                if (typeof p.adicionais === "string") {
+                  return JSON.parse(p.adicionais);
+                }
+                return p.adicionais || [];
+              } catch (e) {
+                console.error("Erro ao parsear adicionais:", e);
+                return [];
+              }
+            })(),
             is_featured: p.is_featured,
+            is_lancamento: p.is_lancamento,
           }));
 
-          // Mapear configurações da loja
           const mappedSettings = {
             storeName: storeData.nome,
-            whatsapp: storeData.whatsapp || "5546999999999",
-            isOpen: true,
+            whatsapp: isDemo ? "5546999999999" : (storeData.whatsapp || "5546999999999"),
+            isOpen: storeData.esta_aberta !== false,
             loyaltyMinOrder: 30,
             loyaltyGoal: 10,
             deliveryFee: Number(storeData.taxa_entrega) || 0,
-            pixKey: storeData.chave_pix || "",
-            pixName: storeData.titular_pix || "",
+            pixKey: isDemo ? "demo-pix-key@saas.com" : (storeData.chave_pix || ""),
+            pixName: isDemo ? "Demonstração Cardápio Digital" : (storeData.titular_pix || ""),
             storeAddress: storeData.endereco || "",
             loyaltyActive: storeData.fidelidade_ativo !== false,
+            logoUrl: storeData.logo_url || "",
+            deliveryTime: storeData.tempo_entrega || "30-60",
           };
 
           // Salvar no localStorage temporário do cliente para reatividade dos componentes locais
@@ -187,8 +215,10 @@ function DynamicCardapio() {
 
   // Selecionar automaticamente a primeira categoria ao carregar
   useEffect(() => {
-    if (categoriesList.length > 0 && (!category || category === "todos")) {
-      setCategory(categoriesList[0]);
+    if (categoriesList.length > 0) {
+      if (!category || category === "todos" || !categoriesList.includes(category)) {
+        setCategory(categoriesList[0]);
+      }
     }
   }, [categoriesList, category]);
 
@@ -205,6 +235,10 @@ function DynamicCardapio() {
     const list = products || [];
     return list.filter((p) => p.is_featured);
   }, [products]);
+  const lancamentos = useMemo(() => {
+    const list = products || [];
+    return list.filter((p) => p.is_lancamento);
+  }, [products]);
   const count = cart.reduce((s, i) => s + i.qty, 0);
   const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
 
@@ -216,7 +250,7 @@ function DynamicCardapio() {
     if (p.customizable) {
       setCustomizing(p);
     } else {
-      setCart((c) => [...c, { id: crypto.randomUUID(), productId: p.id, name: p.name, price: p.price, qty: 1 }]);
+      setCart((c) => [...c, { id: safeUUID(), productId: p.id, name: p.name, price: p.price, qty: 1 }]);
     }
   }
 
@@ -252,8 +286,15 @@ function DynamicCardapio() {
     );
   }
 
-  // TRAVA DE PAYWALL: Se status_assinatura for 'pendente' e cobrança automática estiver ativa
-  if (store.status_assinatura === "pendente" && store.cobranca_automatica !== false) {
+  const isTrialActive = (() => {
+    if (!store.criado_em) return false;
+    const createdDate = new Date(store.criado_em).getTime();
+    const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000;
+    return (Date.now() - createdDate) < sevenDaysInMs;
+  })();
+
+  // TRAVA DE PAYWALL: Se status_assinatura for 'pendente', cobrança automática ativa e teste grátis expirou
+  if (store.status_assinatura === "pendente" && store.cobranca_automatica !== false && !isPreview && !isTrialActive) {
     return (
       <div className="min-h-screen bg-zinc-950 text-white flex flex-col items-center justify-center p-6 text-center space-y-6">
         <div className="w-20 h-20 rounded-full bg-amber-500/10 flex items-center justify-center border border-amber-500/20 text-amber-500 animate-pulse">
@@ -265,12 +306,12 @@ function DynamicCardapio() {
           </span>
           <h2 className="text-3xl font-black tracking-tight pt-2">Acesso Restrito</h2>
           <p className="text-sm text-zinc-400 leading-relaxed">
-            Olá! O cardápio digital do estabelecimento **{store.nome}** está sendo configurado e logo estará disponível para novos pedidos!
+            Olá! O período de testes grátis do estabelecimento **{store.nome}** expirou.
           </p>
         </div>
         <div className="p-4 bg-zinc-900 ring-1 ring-border rounded-2xl max-w-sm text-xs text-zinc-400 leading-relaxed">
           <p className="font-bold text-white mb-1">Dono do Estabelecimento?</p>
-          Acesse a Dashboard Administrativa agora mesmo para configurar seus produtos, visualizar o preview e assinar o plano SaaS por R$ 99,90/mês para liberar o acesso!
+          Acesse a Dashboard Administrativa agora mesmo para assinar o plano SaaS por R$ 99,90/mês para liberar o acesso e continuar vendendo muito no WhatsApp!
         </div>
         <Link
           to="/admin"
@@ -344,6 +385,40 @@ function DynamicCardapio() {
           </div>
         </section>
       )}
+      {lancamentos.length > 0 && (
+        <section className="pt-2 pb-2">
+          <h2 className="px-4 font-extrabold text-lg mb-3" translate="no">🚀 Lançamentos da Semana</h2>
+          <div className="flex gap-3 overflow-x-auto px-4 pb-4 no-scrollbar snap-x">
+            {lancamentos.map((p) => {
+              const out = !p.available;
+              return (
+                <article key={p.id} className={`w-[160px] sm:w-[180px] shrink-0 snap-start flex flex-col p-3 rounded-2xl bg-surface ring-1 ring-border ${out ? "opacity-60" : ""} h-[240px]`}>
+                  <div className="w-full h-28 rounded-xl bg-gradient-to-br from-primary/20 to-surface-elevated flex items-center justify-center overflow-hidden text-5xl mb-3 shrink-0">
+                    {p.image && (p.image.startsWith('http') || p.image.startsWith('/')) ? (
+                      <img src={p.image} alt={p.name} className="w-full h-full object-cover" />
+                    ) : (
+                      p.image
+                    )}
+                  </div>
+                  <div className="flex-1 flex flex-col min-w-0">
+                    <h4 className="font-bold text-sm leading-tight line-clamp-2">{p.name}</h4>
+                    <div className="mt-auto pt-2 flex items-center justify-between">
+                      <span className="text-primary font-extrabold text-sm">{brl(p.price)}</span>
+                      <button
+                        disabled={out}
+                        onClick={() => handleAdd(p)}
+                        className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground disabled:bg-muted disabled:text-muted-foreground shadow-md active:scale-95 transition"
+                      >
+                        {out ? "✕" : "+"}
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {settings.loyaltyActive !== false && <LoyaltyCard />}
       <CategoryBar value={category} onChange={setCategory} categories={categoriesList} />
@@ -365,26 +440,36 @@ function DynamicCardapio() {
           product={customizing} 
           onClose={() => setCustomizing(null)} 
           onConfirm={(selectedAdditions) => {
-            const additionsText = selectedAdditions.length > 0 
-              ? ` (+ ${selectedAdditions.map(a => a.nome).join(", ")})` 
-              : "";
-            const namePlus = customizing.name + additionsText;
-            const extraPrice = selectedAdditions.reduce((sum, a) => sum + a.preco, 0);
-            
-            setCart((c) => [...c, {
-              id: crypto.randomUUID(),
-              productId: customizing.id,
-              name: namePlus,
-              price: customizing.price + extraPrice,
-              qty: 1,
-              adicionaisSelecionados: selectedAdditions,
-            }]);
-            setCustomizing(null);
+            try {
+              const validatedAdditions = (selectedAdditions || []).map(a => ({
+                nome: String(a?.nome || ""),
+                preco: Number(a?.preco || 0),
+              }));
+              const additionsText = validatedAdditions.length > 0 
+                ? ` (+ ${validatedAdditions.map(a => a.nome).join(", ")})` 
+                : "";
+              const namePlus = (customizing.name || "Item") + additionsText;
+              const extraPrice = validatedAdditions.reduce((sum, a) => sum + a.preco, 0);
+              
+              setCart((c) => [...c, {
+                id: safeUUID(),
+                productId: customizing.id,
+                name: namePlus,
+                price: Number(customizing.price || 0) + extraPrice,
+                qty: 1,
+                adicionaisSelecionados: validatedAdditions,
+              }]);
+              setCustomizing(null);
+            } catch (err) {
+              console.error("ERRO COMPLETO NO CARRINHO:", err);
+              alert("Erro ao adicionar item ao carrinho. Detalhes salvos no console.");
+              setCustomizing(null);
+            }
           }} 
         />
       )}
 
-      {count > 0 && <CartFooter qty={count} total={subtotal} onClick={() => setCartOpen(true)} />}
+      {count > 0 && <CartFooter count={count} subtotal={subtotal} onOpen={() => setCartOpen(true)} />}
 
       {cartOpen && (
         <CartDrawer

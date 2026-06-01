@@ -24,6 +24,8 @@ const DEFAULT_SETTINGS: Settings = {
   adminPassword: "1234",
   mayoPrice: 2,
   storeAddress: "",
+  logoUrl: "",
+  deliveryTime: "30-60",
 };
 
 const DEFAULT_PRODUCTS: Product[] = [
