@@ -110,11 +110,7 @@ function LandingPage() {
 
             {/* Real Screenshot Preview Rendering inside phone chassis */}
             <div className="flex-1 rounded-[38px] overflow-hidden bg-zinc-950 relative z-10 border-t border-zinc-900 flex flex-col text-white">
-              <img 
-                src="/preview-real.jpg" 
-                alt="RangoClick Real Mockup Preview" 
-                className="w-full h-full object-cover object-top select-none pointer-events-none group-hover:scale-105 transition-transform duration-500" 
-              />
+              <InteractiveDemoCardapio />
             </div>
           </div>
           
@@ -305,6 +301,385 @@ function LandingPage() {
           <Link to="/cadastro" className="hover:text-zinc-400 transition font-semibold">Política de Privacidade</Link>
         </div>
       </footer>
+    </div>
+  );
+}
+
+// Fully Interactive Demo Cardapio Component
+interface CartItem {
+  id: string;
+  nome: string;
+  preco: number;
+  quantidade: number;
+}
+
+function InteractiveDemoCardapio() {
+  const [activeCategory, setActiveCategory] = useState("hamburgueres");
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [isCartOpen, setIsCartOpen] = useState(false);
+  const [fidelityPoints, setFidelityPoints] = useState(1);
+  const [orderSuccess, setOrderSuccess] = useState(false);
+
+  const DEMO_PRODUCTS = [
+    {
+      id: "1",
+      nome: "X Monster Proteín",
+      categoria: "hamburgueres",
+      descricao: "Pão, maionese, ketchup, milho, 2 hambúrgueres artesanais de 150g, ovo, filé de frango, queijo duplo e presunto.",
+      preco: 33.00,
+      imagem: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400&q=80",
+      novo: true,
+      destaque: true
+    },
+    {
+      id: "2",
+      nome: "X Insano Fit",
+      categoria: "hamburgueres",
+      descricao: "Pão integral, maionese light, ketchup, milho, cebola caramelizada, hambúrguer de frango fit e rúcula.",
+      preco: 30.00,
+      imagem: "https://images.unsplash.com/photo-1586190848861-99aa4a171e90?w=400&q=80",
+      novo: true,
+      destaque: true
+    },
+    {
+      id: "3",
+      nome: "X-Burguer",
+      categoria: "hamburgueres",
+      descricao: "Pão brioche, hambúrguer artesanal 150g, maionese da casa, ketchup, queijo e presunto.",
+      preco: 14.00,
+      imagem: "https://images.unsplash.com/photo-1550547660-d9450f859349?w=400&q=80"
+    },
+    {
+      id: "4",
+      nome: "Batata Especial",
+      categoria: "porcoes",
+      descricao: "Porção de batatas fritas super crocantes com muito cheddar cremoso e bacon crocante.",
+      preco: 22.00,
+      imagem: "https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=400&q=80"
+    },
+    {
+      id: "5",
+      nome: "Coca-Cola Lata",
+      categoria: "bebidas",
+      descricao: "Refrigerante Coca-Cola original lata de 350ml trincando de gelada.",
+      preco: 6.00,
+      imagem: "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=400&q=80"
+    }
+  ];
+
+  const addToCart = (product: typeof DEMO_PRODUCTS[0]) => {
+    setCart(prev => {
+      const existing = prev.find(item => item.id === product.id);
+      if (existing) {
+        return prev.map(item => item.id === product.id ? { ...item, quantidade: item.quantidade + 1 } : item);
+      }
+      return [...prev, { id: product.id, nome: product.nome, preco: product.preco, quantidade: 1 }];
+    });
+  };
+
+  const updateQuantity = (id: string, delta: number) => {
+    setCart(prev => {
+      return prev.map(item => {
+        if (item.id === id) {
+          const newQty = item.quantidade + delta;
+          return newQty > 0 ? { ...item, quantidade: newQty } : null;
+        }
+        return item;
+      }).filter(Boolean) as CartItem[];
+    });
+  };
+
+  const totalItems = cart.reduce((sum, item) => sum + item.quantidade, 0);
+  const subtotal = cart.reduce((sum, item) => sum + item.preco * item.quantidade, 0);
+  const taxaEntrega = 5.00;
+  const total = subtotal + taxaEntrega;
+
+  const handleFinalize = () => {
+    setOrderSuccess(true);
+    setCart([]);
+    setIsCartOpen(false);
+    setFidelityPoints(prev => Math.min(prev + 1, 10));
+  };
+
+  const filteredProducts = DEMO_PRODUCTS.filter(p => p.categoria === activeCategory && !p.destaque);
+  const highlights = DEMO_PRODUCTS.filter(p => p.destaque);
+
+  return (
+    <div className="w-full h-full flex flex-col bg-zinc-950 text-white font-sans text-xs relative select-none overflow-hidden">
+      {/* Scrollable Container */}
+      <div className="flex-1 overflow-y-auto pb-16 scrollbar-none flex flex-col">
+        {/* Banner / Store Header Info */}
+        <div className="bg-zinc-900/60 p-3 flex flex-col gap-1.5 shrink-0">
+          <div className="flex items-center gap-2">
+            {/* Store Logo Avatar */}
+            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-amber-500 to-red-500 flex items-center justify-center text-base shadow-inner shrink-0">
+              🍔
+            </div>
+            
+            <div className="flex flex-col min-w-0">
+              <span className="font-extrabold text-[11px] text-white tracking-wide truncate">Insano Lanches</span>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                <span className="text-[9px] text-emerald-400 font-extrabold uppercase">Aberto agora</span>
+                <span className="text-[8px] text-zinc-500">•</span>
+                <span className="text-[9px] text-zinc-400 font-medium">Entrega 30-60 min</span>
+              </div>
+            </div>
+          </div>
+
+          <span className="text-[8px] text-zinc-500 leading-tight truncate">
+            📍 Rua Edivino Fritz, Nº 8, Capitão Leônidas Marques, PR
+          </span>
+        </div>
+
+        {/* Highlight Section: Lançamentos Imperdíveis */}
+        {activeCategory === "hamburgueres" && (
+          <div className="py-2.5 flex flex-col gap-2 shrink-0 border-b border-zinc-900/40">
+            <span className="px-3 font-black text-[10px] text-zinc-400 uppercase tracking-widest flex items-center gap-1">
+              🚀 Lançamentos Imperdíveis
+            </span>
+            
+            <div className="flex overflow-x-auto gap-2.5 px-3 pb-1.5 scrollbar-none snap-x snap-mandatory">
+              {highlights.map(p => {
+                const cartQty = cart.find(c => c.id === p.id)?.quantidade || 0;
+                return (
+                  <div key={p.id} className="w-[145px] shrink-0 bg-zinc-900/40 border border-zinc-850 rounded-2xl p-2 flex flex-col gap-1.5 snap-start relative hover:border-teal-500/20 transition">
+                    <div className="w-full h-18 rounded-lg overflow-hidden relative shrink-0">
+                      <img src={p.imagem} alt={p.nome} className="w-full h-full object-cover select-none pointer-events-none" />
+                      <span className="absolute top-1 left-1 bg-red-650 text-white font-black text-[6px] uppercase px-1 py-0.5 rounded-full tracking-wider shadow">
+                        NOVO
+                      </span>
+                    </div>
+
+                    <div className="flex flex-col min-w-0">
+                      <span className="font-extrabold text-[10px] text-white truncate leading-tight">{p.nome}</span>
+                      <span className="text-[8px] text-zinc-500 line-clamp-2 mt-0.5 leading-snug">{p.descricao}</span>
+                    </div>
+
+                    <div className="flex items-center justify-between mt-0.5 pt-1.5 border-t border-zinc-900/60">
+                      <span className="font-black text-[10px] text-teal-400">R$ {p.preco.toFixed(2)}</span>
+                      
+                      {cartQty > 0 ? (
+                        <div className="flex items-center bg-zinc-800 rounded-full h-6 border border-zinc-700 overflow-hidden shrink-0">
+                          <button onClick={() => updateQuantity(p.id, -1)} className="w-5 h-full text-zinc-400 font-extrabold hover:text-white transition active:bg-zinc-700 flex items-center justify-center text-[10px]">-</button>
+                          <span className="text-[9px] font-black text-white px-1 min-w-[12px] text-center">{cartQty}</span>
+                          <button onClick={() => addToCart(p)} className="w-5 h-full text-teal-400 font-extrabold hover:text-white transition active:bg-zinc-700 flex items-center justify-center text-[10px]">+</button>
+                        </div>
+                      ) : (
+                        <button 
+                          onClick={() => addToCart(p)}
+                          className="w-6 h-6 rounded-full bg-teal-550 hover:bg-teal-400 text-white flex items-center justify-center shadow transition active:scale-90 shrink-0 font-extrabold text-xs"
+                        >
+                          +
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Fidelity Progress Card */}
+        {activeCategory === "hamburgueres" && (
+          <div className="px-3 py-2 shrink-0">
+            <div className="bg-zinc-900/40 border border-zinc-850 p-2.5 rounded-xl flex flex-col gap-1.5 relative overflow-hidden shadow-inner">
+              <div className="flex items-center justify-between">
+                <span className="font-black text-[9px] text-zinc-400 uppercase tracking-widest flex items-center gap-1">
+                  🔥 Cartão Fidelidade Insano
+                </span>
+                <span className="text-[8px] font-black text-teal-400 bg-teal-500/10 px-1 py-0.5 rounded-full">
+                  {fidelityPoints}/10
+                </span>
+              </div>
+              <p className="text-[8px] text-zinc-500 leading-normal">
+                A cada 10 pedidos acima de R$ 30,00, ganhe 1 X-Insano grátis!
+              </p>
+
+              <div className="flex items-center justify-between gap-1 pt-1">
+                {Array.from({ length: 10 }).map((_, i) => (
+                  <div 
+                    key={i} 
+                    className={`w-4.5 h-4.5 rounded-full border flex items-center justify-center text-[9px] transition shrink-0 ${
+                      i < fidelityPoints 
+                        ? "bg-teal-500/10 border-teal-500/40 text-teal-400" 
+                        : "bg-zinc-950 border-zinc-850 text-zinc-700"
+                    }`}
+                  >
+                    {i < fidelityPoints ? "🍔" : "•"}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Navigation Category Pills */}
+        <div className="flex items-center gap-1.5 px-3 py-2 sticky top-0 bg-zinc-950/95 backdrop-blur z-20 shrink-0 border-b border-zinc-900/50">
+          {[
+            { id: "hamburgueres", label: "Hambúrgueres", emoji: "🍔" },
+            { id: "porcoes", label: "Porções", emoji: "🍟" },
+            { id: "bebidas", label: "Bebidas", emoji: "🥤" }
+          ].map(cat => (
+            <button
+              key={cat.id}
+              onClick={() => setActiveCategory(cat.id)}
+              className={`px-2.5 py-1 rounded-lg font-extrabold text-[9px] flex items-center gap-1 transition active:scale-95 shrink-0 ${
+                activeCategory === cat.id 
+                  ? "bg-teal-500 text-white shadow" 
+                  : "bg-zinc-900 border border-zinc-850 text-zinc-400 hover:text-white"
+              }`}
+            >
+              <span>{cat.emoji}</span>
+              <span>{cat.label}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Products List under selected Category */}
+        <div className="flex flex-col gap-2.5 px-3 pt-1.5 flex-1">
+          {filteredProducts.map(p => {
+            const cartQty = cart.find(c => c.id === p.id)?.quantidade || 0;
+            return (
+              <div key={p.id} className="flex gap-2.5 bg-zinc-900/10 border border-zinc-900 p-2 rounded-xl hover:border-teal-500/10 transition shrink-0">
+                <div className="w-14 h-14 rounded-lg overflow-hidden bg-zinc-900 shrink-0 relative">
+                  <img src={p.imagem} alt={p.nome} className="w-full h-full object-cover select-none pointer-events-none" />
+                </div>
+                
+                <div className="flex-1 flex flex-col justify-between min-w-0">
+                  <div className="flex flex-col">
+                    <span className="font-extrabold text-[10px] text-white truncate leading-tight">{p.nome}</span>
+                    <span className="text-[8px] text-zinc-500 line-clamp-2 mt-0.5 leading-normal">{p.descricao}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between mt-1">
+                    <span className="font-black text-[10px] text-teal-400">R$ {p.preco.toFixed(2)}</span>
+                    
+                    {cartQty > 0 ? (
+                      <div className="flex items-center bg-zinc-850 rounded-full h-6 border border-zinc-800 overflow-hidden shrink-0">
+                        <button onClick={() => updateQuantity(p.id, -1)} className="w-5 h-full text-zinc-400 font-extrabold hover:text-white transition active:bg-zinc-700 flex items-center justify-center text-[10px]">-</button>
+                        <span className="text-[9px] font-black text-white px-1 min-w-[12px] text-center">{cartQty}</span>
+                        <button onClick={() => addToCart(p)} className="w-5 h-full text-teal-400 font-extrabold hover:text-white transition active:bg-zinc-700 flex items-center justify-center text-[10px]">+</button>
+                      </div>
+                    ) : (
+                      <button 
+                        onClick={() => addToCart(p)}
+                        className="w-6 h-6 rounded-full bg-teal-550 hover:bg-teal-400 text-white flex items-center justify-center shadow transition active:scale-90 shrink-0 font-extrabold text-xs"
+                      >
+                        +
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Pulsing Floating Sacola Bar */}
+      {totalItems > 0 && !isCartOpen && (
+        <button
+          onClick={() => setIsCartOpen(true)}
+          className="absolute bottom-2.5 left-2.5 right-2.5 h-9 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-500 text-white font-extrabold flex items-center justify-between px-3 shadow shadow-teal-550/15 active:scale-95 transition z-30 select-none"
+        >
+          <div className="flex items-center gap-1.5 text-[9px]">
+            <span>🛍️ Sacola</span>
+            <span className="bg-white/20 px-1 py-0.5 rounded-full font-black text-[8px]">{totalItems}</span>
+          </div>
+          <div className="flex items-center gap-1 font-black text-[9px]">
+            <span>Ver Sacola</span>
+            <span>•</span>
+            <span>R$ {subtotal.toFixed(2)}</span>
+          </div>
+        </button>
+      )}
+
+      {/* Sliding SAC CART Drawer Overlay (inside mock phone screen) */}
+      {isCartOpen && (
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-xs z-40 flex flex-col justify-end">
+          <div className="w-full bg-zinc-900 border-t border-zinc-800 rounded-t-xl p-3 flex flex-col max-h-[85%] overflow-hidden animate-in slide-in-from-bottom duration-200 select-none">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-2 border-b border-zinc-800 shrink-0">
+              <span className="font-black text-[9px] text-zinc-300 uppercase tracking-widest flex items-center gap-1">
+                🛍️ Meu Carrinho
+              </span>
+              <button 
+                onClick={() => setIsCartOpen(false)}
+                className="text-[9px] font-extrabold text-zinc-400 hover:text-white px-2 py-0.5 rounded bg-zinc-800 transition"
+              >
+                Voltar
+              </button>
+            </div>
+
+            {/* List */}
+            <div className="flex-1 overflow-y-auto py-2.5 space-y-2.5 scrollbar-none">
+              {cart.map(item => (
+                <div key={item.id} className="flex items-center justify-between min-w-0">
+                  <div className="flex flex-col min-w-0 pr-2">
+                    <span className="font-extrabold text-[10px] text-white truncate leading-tight">{item.nome}</span>
+                    <span className="text-[9px] text-teal-400 font-bold mt-0.5">R$ {item.preco.toFixed(2)}</span>
+                  </div>
+                  
+                  <div className="flex items-center bg-zinc-850 rounded-full h-6 border border-zinc-800 overflow-hidden shrink-0">
+                    <button onClick={() => updateQuantity(item.id, -1)} className="w-5 h-full text-zinc-400 font-extrabold hover:text-white transition active:bg-zinc-700 flex items-center justify-center text-[10px]">-</button>
+                    <span className="text-[9px] font-black text-white px-1 min-w-[12px] text-center">{item.quantidade}</span>
+                    <button onClick={() => updateQuantity(item.id, 1)} className="w-5 h-full text-teal-400 font-extrabold hover:text-white transition active:bg-zinc-700 flex items-center justify-center text-[10px]">+</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Total prices & action */}
+            <div className="border-t border-zinc-800 pt-2.5 space-y-1.5 shrink-0">
+              <div className="flex items-center justify-between text-[8px] text-zinc-400">
+                <span>Subtotal</span>
+                <span>R$ {subtotal.toFixed(2)}</span>
+              </div>
+              <div className="flex items-center justify-between text-[8px] text-zinc-400">
+                <span>Taxa de Entrega</span>
+                <span className="text-emerald-400 font-bold">R$ 5,00</span>
+              </div>
+              <div className="flex items-center justify-between text-[9px] font-extrabold text-white pt-0.5">
+                <span>Total</span>
+                <span className="text-teal-400 font-black">R$ {total.toFixed(2)}</span>
+              </div>
+
+              <button
+                onClick={handleFinalize}
+                className="w-full h-8.5 mt-1.5 bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-white font-black rounded-lg flex items-center justify-center gap-1 shadow active:scale-95 transition text-[9px]"
+              >
+                <span>👉 FINALIZAR PEDIDO (TESTAR)</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Success Modal Overlay (within phone canvas screen) */}
+      {orderSuccess && (
+        <div className="absolute inset-0 bg-zinc-950/95 z-55 flex flex-col items-center justify-center p-4.5 text-center select-none animate-in fade-in duration-200">
+          <div className="w-11 h-11 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-xl text-emerald-400 shrink-0">
+            ✓
+          </div>
+          
+          <span className="font-black text-xs text-white mt-3 uppercase tracking-wider">
+            🎉 Pedido Recebido!
+          </span>
+          
+          <p className="text-[8.5px] text-zinc-400 mt-2 leading-relaxed max-w-[200px]">
+            <strong>Este é um exemplo de cardápio digital funcional.</strong> No sistema real, esse pedido seria enviado formatado para o seu <strong>WhatsApp</strong> e painel de controle em menos de 3 segundos!
+          </p>
+
+          <button
+            onClick={() => setOrderSuccess(false)}
+            className="mt-5 px-4 py-2 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-teal-400 font-black hover:text-white transition active:scale-95 text-[9px]"
+          >
+            Voltar a Testar 🍔
+          </button>
+        </div>
+      )}
     </div>
   );
 }
