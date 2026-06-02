@@ -156,6 +156,78 @@ function LandingPage() {
         </div>
       </section>
 
+      {/* SEÇÃO DE NICHOS: FEITO PARA O SEU DELIVERY */}
+      <section className="relative z-10 max-w-7xl mx-auto w-full px-6 py-12 border-t border-zinc-900/60">
+        <div className="text-center space-y-3 max-w-2xl mx-auto mb-12">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-500/10 text-teal-400 border border-teal-500/25 text-[10px] font-black uppercase tracking-wider mx-auto">
+            <span>Segmentos Atendidos</span>
+          </div>
+          <h3 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
+            Um cardápio moderno, feito sob medida para o seu nicho
+          </h3>
+          <p className="text-xs sm:text-sm text-zinc-400">
+            Seja qual for a sua especialidade, nosso sistema foi planejado para encantar o seu cliente e aumentar as vendas.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          {[
+            {
+              title: "Hamburguerias & Lanches",
+              desc: "Controle de adicionais ilimitados, escolha do ponto da carne, combos promocionais e bebidas organizados por etapas.",
+              img: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=600&q=80",
+              tag: "🍔 Lanches & Burgers"
+            },
+            {
+              title: "Pizzarias & Massas",
+              desc: "Venda pizzas meio a meio de forma intuitiva, ofereça bordas recheadas e tamanhos diferentes sem complicação.",
+              img: "https://images.unsplash.com/photo-1513104890138-7c749659a591?w=600&q=80",
+              tag: "🍕 Pizzarias"
+            },
+            {
+              title: "Açaiterias & Sorveterias",
+              desc: "Monte o açaí ideal com adicionais, caldas, frutas e coberturas divididos de forma clara para o seu cliente.",
+              img: "https://images.unsplash.com/photo-1590301157890-4810ed352733?w=600&q=80",
+              tag: "🍧 Açaí & Sorvetes"
+            },
+            {
+              title: "Restaurantes & Marmitas",
+              desc: "Exiba o prato do dia, ofereça escolhas de acompanhamentos e saladas, e controle o estoque diário de refeições.",
+              img: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&q=80",
+              tag: "🍱 Pratos & Marmitas"
+            }
+          ].map((nicho) => (
+            <div 
+              key={nicho.title} 
+              className="group relative h-72 rounded-2xl overflow-hidden border border-zinc-850 bg-zinc-900/30 hover:border-teal-500/20 transition duration-300 shadow-xl"
+            >
+              {/* Background Image */}
+              <div className="absolute inset-0 z-0">
+                <img 
+                  src={nicho.img} 
+                  alt={nicho.title} 
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-50 group-hover:opacity-60"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/40 to-transparent z-10" />
+              </div>
+
+              {/* Content */}
+              <div className="absolute inset-0 z-20 p-5 flex flex-col justify-end gap-2 text-left">
+                <span className="text-[9px] bg-teal-500/20 text-teal-400 border border-teal-500/30 font-extrabold px-2 py-0.5 rounded-full w-fit tracking-wider uppercase">
+                  {nicho.tag}
+                </span>
+                <h4 className="font-extrabold text-base text-white leading-tight">
+                  {nicho.title}
+                </h4>
+                <p className="text-[10px] text-zinc-400 leading-relaxed">
+                  {nicho.desc}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {/* BLOCO 3: OS DIFERENCIAIS QUE NENHUM CONCORRENTE TEM */}
       <section className="relative z-10 max-w-7xl mx-auto w-full px-6 py-20">
         <div className="text-center space-y-3 max-w-2xl mx-auto mb-16">
