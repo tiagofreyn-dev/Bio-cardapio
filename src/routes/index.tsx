@@ -221,7 +221,7 @@ function LandingPage() {
                   R$ 3,30 <span className="text-lg md:text-2xl font-normal text-zinc-400">/ dia</span>
                 </span>
                 <span className="text-[11px] md:text-xs text-zinc-550 font-bold uppercase tracking-widest mt-2 block">
-                  Depois, apenas R$ 99 / mês cobrados mensalmente
+                  Depois, apenas R$ 99 / mês
                 </span>
               </div>
             </div>
