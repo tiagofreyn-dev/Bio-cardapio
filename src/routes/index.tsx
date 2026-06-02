@@ -231,24 +231,24 @@ function LandingPage() {
                 </span>
               </div>
 
-              {/* Line 4: apenas 99 por mês */}
-              <span className="text-sm md:text-base font-bold text-white tracking-wide block">
-                apenas R$ 99 por mês
+              {/* Line 4: transparency statement in white */}
+              <span className="text-xs sm:text-sm font-bold text-white tracking-wide block max-w-xl mx-auto leading-relaxed">
+                Faturamento simples: sem fidelidade, cancele quando quiser. (R$ 99/mês após o teste)
               </span>
             </div>
           </div>
 
-          <div className="max-w-md mx-auto grid grid-cols-1 sm:grid-cols-2 gap-3 text-left pt-4 border-t border-zinc-800/80">
+          <div className="max-w-2xl mx-auto grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3.5 text-left pt-6 border-t border-zinc-800/80">
             {[
-              "Pedidos ilimitados via WhatsApp",
-              "Cadastro de produtos e fotos em alta resolução",
-              "Ferramenta de Sorteios Internos",
-              "Painel de Faturamento e Relatórios",
-              "Suporte prioritário",
-              "Cancelamento fácil a qualquer momento"
+              "Pedidos ILIMITADOS via WhatsApp",
+              "Cadastro de produtos com fotos em Alta Resolução",
+              "Ferramenta de Sorteios Internos Integrada",
+              "Link 100% Personalizado e Rápido",
+              "Painel de Faturamento e Relatórios Diários",
+              "Suporte Prioritário para o Seu Delivery"
             ].map((benefit) => (
-              <div key={benefit} className="flex items-center gap-2 text-xs font-semibold text-zinc-300">
-                <span className="text-teal-400 font-extrabold">✓</span>
+              <div key={benefit} className="flex items-center gap-2.5 text-xs font-semibold text-zinc-300">
+                <span className="text-teal-400 font-black text-sm">✓</span>
                 <span>{benefit}</span>
               </div>
             ))}
