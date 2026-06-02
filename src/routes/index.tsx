@@ -219,15 +219,20 @@ function LandingPage() {
                 R$ 0 nos primeiros 7 dias
               </span>
               
-              {/* Line 2: depois, 3,30 por dia */}
+              {/* Line 2: transition text 'depois' */}
+              <span className="text-[10px] md:text-xs text-zinc-400 font-extrabold uppercase tracking-widest block pt-1">
+                depois
+              </span>
+
+              {/* Line 3: 3,30 por dia */}
               <div className="py-1">
-                <span className="text-4xl sm:text-5xl md:text-6xl font-black block text-teal-400">
-                  depois, R$ 3,30 <span className="text-lg md:text-2xl font-normal text-teal-300/80">por dia</span>
+                <span className="text-5xl md:text-6xl font-black block text-teal-400">
+                  R$ 3,30 <span className="text-lg md:text-2xl font-normal text-teal-300/80">por dia</span>
                 </span>
               </div>
 
-              {/* Line 3: apenas 99 por mês */}
-              <span className="text-sm md:text-base font-bold text-white tracking-wide block mt-1">
+              {/* Line 4: apenas 99 por mês */}
+              <span className="text-sm md:text-base font-bold text-white tracking-wide block">
                 apenas R$ 99 por mês
               </span>
             </div>
