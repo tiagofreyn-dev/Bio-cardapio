@@ -169,33 +169,33 @@ function LandingPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <div className="bg-zinc-900/30 border border-zinc-850 p-6 rounded-2xl space-y-3 hover:border-teal-500/20 transition duration-200">
             <span className="text-3xl">📸</span>
-            <h4 className="font-extrabold text-base text-white">Item 1: Fotos em Altíssima Resolução (Sem travar)</h4>
+            <h4 className="font-extrabold text-base text-white">Fotos em Altíssima Resolução (Sem travar)</h4>
             <p className="text-xs text-zinc-400 leading-relaxed">
-              O cliente come com os olhos. Nosso sistema foi desenhado para suportar fotos pesadas e profissionais em alta definição. Elas carregam instantaneamente, abrindo o apetite do seu cliente sem travar o celular dele.
+              <strong>O cliente come com os olhos.</strong> Nosso sistema suporta <strong>fotos profissionais em alta definição</strong> que carregam <strong>instantaneamente</strong>, sem travar o celular do seu cliente.
             </p>
           </div>
 
           <div className="bg-zinc-900/30 border border-zinc-850 p-6 rounded-2xl space-y-3 hover:border-teal-500/20 transition duration-200">
             <span className="text-3xl">🎉</span>
-            <h4 className="font-extrabold text-base text-white">Item 2: Sorteios Automáticos Integrados</h4>
+            <h4 className="font-extrabold text-base text-white">Sorteios Automáticos Integrados</h4>
             <p className="text-xs text-zinc-400 leading-relaxed">
-              Fidelize seus clientes sem gastar com outros apps. Faça sorteios e promoções diretamente dentro do seu próprio site cardápio. É a ferramenta perfeita para bombar o seu Instagram e fazer o cliente voltar a comprar toda semana.
+              <strong>Faça sorteios e promoções</strong> diretamente no seu cardápio. A ferramenta perfeita para <strong>bombar seu Instagram</strong> e <strong>fidelizar clientes</strong> toda semana.
             </p>
           </div>
 
           <div className="bg-zinc-900/30 border border-zinc-850 p-6 rounded-2xl space-y-3 hover:border-teal-500/20 transition duration-200">
             <span className="text-3xl">📊</span>
-            <h4 className="font-extrabold text-base text-white">Item 3: Painel de Faturamento Inteligente</h4>
+            <h4 className="font-extrabold text-base text-white">Painel de Faturamento Inteligente</h4>
             <p className="text-xs text-zinc-400 leading-relaxed">
-              Chega de planilhas bagunçadas. Saiba exatamente quanto o seu restaurante faturou no dia, na semana ou no mês com gráficos simples e limpos. Tenha o controle total do seu negócio na palma da mão.
+              <strong>Chega de planilhas bagunçadas.</strong> Monitore as vendas do dia, da semana ou do mês com <strong>gráficos simples e limpos</strong> na palma da sua mão.
             </p>
           </div>
 
           <div className="bg-zinc-900/30 border border-zinc-850 p-6 rounded-2xl space-y-3 hover:border-teal-500/20 transition duration-200">
             <span className="text-3xl">🔗</span>
-            <h4 className="font-extrabold text-base text-white">Item 4: Link 100% Personalizado</h4>
+            <h4 className="font-extrabold text-base text-white">Link 100% Personalizado</h4>
             <p className="text-xs text-zinc-400 leading-relaxed">
-              Passe autoridade. O link do seu delivery será limpo e profissional: <span className="text-teal-400 font-bold">meudelivery.com/NomeDoSeuNegocio</span>. Esqueça aqueles links gigantes e feios que afastam os clientes.
+              <strong>Passe mais autoridade</strong> para o seu negócio. Tenha um <strong>link limpo, curto e profissional</strong> (ex: <span className="text-teal-400 font-bold">bio-cardapio.com.br/nome-do-seu-delivery</span>), feito exclusivamente para o seu restaurante.
             </p>
           </div>
         </div>
@@ -211,12 +211,11 @@ function LandingPage() {
         <div className="bg-gradient-to-r from-zinc-900 via-teal-950/20 to-zinc-900 border border-teal-500/30 rounded-3xl p-8 md:p-12 text-center space-y-6 shadow-2xl relative overflow-hidden">
           <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-48 h-48 rounded-full bg-teal-500/10 blur-3xl pointer-events-none" />
 
-          <div className="space-y-2">
+          <div className="space-y-4">
             <h4 className="font-black text-xl text-teal-400 uppercase tracking-widest">Plano Completo</h4>
-            <div className="py-2">
-              <span className="text-zinc-400 text-sm block font-semibold line-through">De R$ 149/mês</span>
-              <span className="text-2xl md:text-3xl font-extrabold block text-white mt-1">R$ 0 nos primeiros 7 dias</span>
-              <span className="text-4xl md:text-5xl font-black block text-teal-400 mt-2">Depois, apenas R$ 99 / mês</span>
+            <div className="space-y-2">
+              <span className="text-2xl md:text-3xl font-extrabold block text-white">R$ 0 nos primeiros 7 dias</span>
+              <span className="text-4xl md:text-5xl font-black block text-teal-400">Depois, apenas R$ 99 / mês</span>
               <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mt-1 block">(Equivale a menos de R$ 3,30 por dia!)</span>
             </div>
           </div>
