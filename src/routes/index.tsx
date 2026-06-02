@@ -215,8 +215,15 @@ function LandingPage() {
             <h4 className="font-black text-xl text-teal-400 uppercase tracking-widest">Plano Completo</h4>
             <div className="space-y-2">
               <span className="text-2xl md:text-3xl font-extrabold block text-white">R$ 0 nos primeiros 7 dias</span>
-              <span className="text-4xl md:text-5xl font-black block text-teal-400">Depois, apenas R$ 99 / mês</span>
-              <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mt-1 block">(Equivale a menos de R$ 3,30 por dia!)</span>
+              
+              <div className="py-2">
+                <span className="text-5xl md:text-6xl font-black block text-teal-400">
+                  R$ 3,30 <span className="text-lg md:text-2xl font-normal text-zinc-400">/ dia</span>
+                </span>
+                <span className="text-[11px] md:text-xs text-zinc-550 font-bold uppercase tracking-widest mt-2 block">
+                  Depois, apenas R$ 99 / mês cobrados mensalmente
+                </span>
+              </div>
             </div>
           </div>
 
