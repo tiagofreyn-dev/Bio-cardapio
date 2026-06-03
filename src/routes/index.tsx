@@ -7,7 +7,16 @@ import {
   Clock,
   Percent,
   Smartphone,
-  ChevronDown
+  ChevronDown,
+  MessageSquare,
+  Send,
+  Database,
+  Star,
+  Users,
+  Shield,
+  CreditCard,
+  Ticket,
+  LayoutDashboard
 } from "lucide-react";
 
 export const Route = createFileRoute("/")({
@@ -33,32 +42,32 @@ function LandingPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white font-sans overflow-x-hidden selection:bg-teal-500/35 selection:text-white relative">
+    <div className="min-h-screen bg-zinc-900 text-white font-sans overflow-x-hidden selection:bg-teal-500/35 selection:text-white relative">
       {/* Dynamic colorful blur backgrounds */}
       <div className="absolute top-0 left-1/4 -translate-x-1/2 w-[500px] h-[500px] rounded-full bg-teal-500/10 blur-[120px] pointer-events-none z-0" />
       <div className="absolute top-[40vh] right-1/4 translate-x-1/2 w-[400px] h-[400px] rounded-full bg-emerald-600/10 blur-[100px] pointer-events-none z-0" />
       <div className="absolute bottom-10 left-1/3 w-[450px] h-[450px] rounded-full bg-cyan-500/5 blur-[120px] pointer-events-none z-0" />
 
       {/* Header / Navigation Bar */}
-      <header className="sticky top-0 z-40 bg-zinc-950/60 border-b border-zinc-900/80 backdrop-blur-md px-6 py-4 flex items-center justify-between max-w-7xl mx-auto w-full">
-        <Link to="/" className="flex items-center gap-2.5 hover:opacity-90 transition">
-          <img src="/logo-completa.png" alt="RangoClick Logo" className="h-10 sm:h-12 w-auto object-contain" />
+      <header className="sticky top-0 z-40 bg-zinc-900/80 border-b border-zinc-800/50 backdrop-blur-md px-4 sm:px-6 py-3.5 flex items-center justify-between max-w-7xl mx-auto w-full">
+        <Link to="/" className="flex items-center gap-2 hover:opacity-90 transition shrink-0">
+          <img src="/logo-completa.png" alt="RangoClick Logo" className="h-8 sm:h-11 w-auto object-contain" />
         </Link>
 
-        <nav className="flex items-center gap-4">
+        <nav className="flex items-center gap-2 sm:gap-3">
           <Link
             to="/admin"
-            className="h-9 px-4 rounded-xl hover:bg-zinc-900 text-zinc-300 hover:text-white font-bold text-xs flex items-center justify-center transition active:scale-95 border border-transparent hover:border-zinc-800"
+            className="hidden sm:flex h-9 px-3.5 rounded-xl hover:bg-zinc-900 text-zinc-300 hover:text-white font-bold text-xs items-center justify-center transition active:scale-95 border border-transparent hover:border-zinc-800"
           >
             Área do Lojista 🏪
           </Link>
 
           <Link
             to="/cadastro"
-            className="h-9 px-4 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-white font-black text-xs flex items-center justify-center gap-1.5 transition active:scale-95 shadow-md shadow-teal-500/10"
+            className="h-9 px-3.5 sm:px-4 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-500 hover:from-emerald-350 hover:to-teal-450 text-zinc-950 font-black text-xs flex items-center justify-center gap-1 transition-all duration-200 active:scale-95 shadow-md shadow-emerald-500/10"
           >
             <span>Criar Meu Cardápio</span>
-            <ArrowRight className="w-3.5 h-3.5" />
+            <ArrowRight className="w-3 h-3 text-zinc-950 stroke-[3]" />
           </Link>
         </nav>
       </header>
@@ -81,18 +90,18 @@ function LandingPage() {
           </p>
 
           {/* Actions */}
-          <div className="flex flex-col sm:flex-row items-center gap-4 pt-4 justify-center lg:justify-start">
+          <div className="flex flex-col sm:flex-row items-center gap-4 pt-4 justify-center lg:justify-start w-full">
             <Link
               to="/cadastro"
-              className="w-full sm:w-auto h-13 px-8 rounded-2xl bg-gradient-to-r from-teal-500 via-emerald-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-white font-black text-sm flex items-center justify-center gap-2 transition active:scale-[0.98] shadow-lg shadow-teal-500/15"
+              className="w-full sm:w-auto h-14 px-8 rounded-2xl bg-gradient-to-r from-emerald-400 to-teal-500 hover:from-emerald-350 hover:to-teal-450 text-zinc-950 font-black text-sm flex items-center justify-center gap-2 transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] shadow-[0_0_30px_rgba(52,211,153,0.35)]"
             >
-              <span>👉 QUERO CRIAR MEU CARDÁPIO GRÁTIS</span>
-              <ArrowRight className="w-4 h-4" />
+              <span>Criar Meu Cardápio Grátis</span>
+              <ArrowRight className="w-4 h-4 text-zinc-950 stroke-[3]" />
             </Link>
           </div>
 
           <p className="text-xs text-zinc-500 font-semibold pt-1">
-            🔒 Teste grátis por 7 dias • Não pede cartão de crédito • Pronto em 10 minutos.
+            🔒 Teste grátis por 7 dias • Sem cartão de crédito • Pronto em 10 minutos.
           </p>
         </div>
 
@@ -121,43 +130,183 @@ function LandingPage() {
         </div>
       </section>
 
-      {/* BLOCO 2: A QUEBRA DE OBJEÇÃO IMEDIATA (ÍCONES) */}
-      <section className="relative z-10 max-w-7xl mx-auto w-full px-6 py-12 border-t border-b border-zinc-900/80 bg-zinc-900/10">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          <div className="flex items-start gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-teal-500/10 text-teal-400 flex items-center justify-center shrink-0 border border-teal-500/20">
-              <Clock className="w-6 h-6" />
-            </div>
-            <div>
-              <h4 className="font-extrabold text-sm text-white">⚡ Carregamento Ultra-Rápido</h4>
-              <p className="text-xs text-zinc-400 mt-1 leading-relaxed">Seu cliente não perde tempo esperando o cardápio abrir.</p>
-            </div>
+      {/* FAIXA DE PROVA SOCIAL: LOGOS DE CLIENTES */}
+      <section className="relative z-10 w-full px-6 py-10 border-t border-b border-zinc-800/80 bg-zinc-850/30">
+        <div className="max-w-7xl mx-auto flex flex-col items-center gap-6">
+          <span className="text-[10px] sm:text-xs font-black text-zinc-550 uppercase tracking-[0.2em] text-center">
+            Mais de 20.000 empresas de delivery confiam na nossa plataforma para vender mais
+          </span>
+          <div className="flex flex-wrap items-center justify-center gap-x-12 gap-y-6 select-none">
+            <span className="text-xs sm:text-sm font-black tracking-widest text-zinc-500 hover:text-zinc-300 hover:scale-105 transition-all duration-300 uppercase italic cursor-default">EL PATRÓN</span>
+            <span className="text-xs sm:text-sm font-extrabold tracking-wider text-zinc-500 hover:text-zinc-300 hover:scale-105 transition-all duration-300 uppercase cursor-default">Milk & Mellow</span>
+            <span className="text-xs sm:text-sm font-bold tracking-normal text-zinc-500 hover:text-zinc-300 hover:scale-105 transition-all duration-300 uppercase font-serif cursor-default">Restaurante Caseiro</span>
+            <span className="text-xs sm:text-sm font-mono tracking-widest text-zinc-500 hover:text-zinc-300 hover:scale-105 transition-all duration-300 uppercase cursor-default">Nakato Sushi</span>
+            <span className="text-xs sm:text-sm font-black tracking-wider text-zinc-500 hover:text-zinc-300 hover:scale-105 transition-all duration-300 uppercase font-sans cursor-default">BIG BOCA</span>
+            <span className="text-xs sm:text-sm font-extrabold tracking-widest text-zinc-500 hover:text-zinc-300 hover:scale-105 transition-all duration-300 uppercase italic font-bold cursor-default">Lugano</span>
+            <span className="text-xs sm:text-sm font-serif tracking-widest text-zinc-500 hover:text-zinc-300 hover:scale-105 transition-all duration-300 uppercase font-semibold cursor-default">Kopenhagen</span>
+          </div>
+        </div>
+      </section>
+
+      {/* SEÇÃO DO ATENDENTE VIRTUAL WHATSAPP */}
+      <section className="relative z-10 max-w-7xl mx-auto w-full px-6 py-20 grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+        {/* Esquerda: Texto */}
+        <div className="lg:col-span-6 space-y-6 text-center lg:text-left">
+          <h3 className="text-3xl sm:text-4xl font-black tracking-tight text-white leading-tight">
+            Quer responder rapidamente aos seus clientes?
+          </h3>
+          <p className="text-sm sm:text-base text-zinc-400 leading-relaxed max-w-xl">
+            O atendente virtual faz isso por você. Na hora, pelo WhatsApp, sem a necessidade de um colaborador dedicado apenas para enviar links e anotar pedidos.
+          </p>
+
+          <div className="space-y-4 max-w-lg mx-auto lg:mx-0">
+            {[
+              "Respostas imediatas sobre cardápio, horários e taxas de entrega.",
+              "Status dos pedidos atualizados automaticamente do preparo até a saída para entrega.",
+              "Seu cliente não fica esperando e você não perde nenhuma venda por demora."
+            ].map((item) => (
+              <div key={item} className="flex items-start gap-3 text-left">
+                <Check className="w-5 h-5 text-teal-400 shrink-0 mt-0.5" />
+                <span className="text-xs sm:text-sm font-semibold text-zinc-300">{item}</span>
+              </div>
+            ))}
           </div>
 
-          <div className="flex items-start gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-teal-500/10 text-teal-400 flex items-center justify-center shrink-0 border border-teal-500/20">
-              <Percent className="w-6 h-6" />
-            </div>
-            <div>
-              <h4 className="font-extrabold text-sm text-white">🚫 Zero Taxas por Pedido</h4>
-              <p className="text-xs text-zinc-400 mt-1 leading-relaxed">O lucro do seu restaurante é 100% seu, sem comissões.</p>
-            </div>
+          <div className="pt-4 flex justify-center lg:justify-start w-full">
+            <Link
+              to="/cadastro"
+              className="w-full sm:w-auto h-12 px-8 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-500 hover:from-emerald-350 hover:to-teal-450 text-zinc-950 font-black text-xs flex items-center justify-center gap-1.5 transition-all duration-200 active:scale-95 shadow-[0_0_25px_rgba(52,211,153,0.3)]"
+            >
+              <span>Criar Cardápio Grátis</span>
+              <ArrowRight className="w-4 h-4 text-zinc-950 stroke-[3]" />
+            </Link>
           </div>
+        </div>
 
-          <div className="flex items-start gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-teal-500/10 text-teal-400 flex items-center justify-center shrink-0 border border-teal-500/20">
-              <Smartphone className="w-6 h-6" />
+        {/* Direita: Mockup de Conversa no WhatsApp */}
+        <div className="lg:col-span-6 flex justify-center select-none">
+          <div className="w-full max-w-[380px] bg-zinc-900 border border-zinc-800 rounded-3xl p-3 shadow-2xl flex flex-col h-[460px] font-sans">
+            {/* Header do WhatsApp */}
+            <div className="bg-zinc-950 p-3 rounded-2xl flex items-center gap-3 shrink-0">
+              <div className="w-8 h-8 rounded-full bg-teal-500/20 text-teal-400 flex items-center justify-center font-extrabold text-xs border border-teal-500/30">
+                RC
+              </div>
+              <div className="flex flex-col text-left">
+                <span className="font-extrabold text-[11px] text-white flex items-center gap-1">
+                  Restaurante Caseiro
+                  <span className="w-3.5 h-3.5 rounded-full bg-emerald-500 flex items-center justify-center text-[8px] text-white">✓</span>
+                </span>
+                <span className="text-[9px] text-zinc-550">Conta comercial</span>
+              </div>
             </div>
-            <div>
-              <h4 className="font-extrabold text-sm text-white">📱 Direto no Navegador</h4>
-              <p className="text-xs text-zinc-400 mt-1 leading-relaxed">O cliente não precisa baixar nenhum aplicativo para pedir.</p>
+
+            {/* Balões de Conversa */}
+            <div className="flex-1 overflow-y-auto py-4 px-2 space-y-3.5 scrollbar-none flex flex-col text-left text-[10px] md:text-[11px]">
+              <span className="text-[8px] text-zinc-600 font-extrabold uppercase tracking-widest mx-auto my-1">Hoje</span>
+
+              {/* Mensagem do Cliente */}
+              <div className="max-w-[85%] self-end bg-teal-600 text-white p-2.5 rounded-2xl rounded-tr-none shadow flex flex-col gap-0.5">
+                <span>Olá! Gostaria de ver o cardápio e fazer um pedido.</span>
+                <span className="text-[7px] text-teal-200 self-end mt-1">11:47</span>
+              </div>
+
+              {/* Resposta do Atendente */}
+              <div className="max-w-[85%] self-start bg-zinc-850 text-zinc-200 p-2.5 rounded-2xl rounded-tl-none shadow flex flex-col gap-1">
+                <span>Olá, Paulo! Seja muito bem-vindo! 🍔</span>
+                <span>Clique no link abaixo para ver nosso cardápio completo com fotos e fazer seu pedido em menos de 1 minuto:</span>
+                <span className="text-teal-400 font-bold hover:underline">bio-cardapio.com.br/restaurante-caseiro</span>
+                <span className="text-[7px] text-zinc-550 self-end mt-1">11:47</span>
+              </div>
+
+              {/* Cliente Finalizando */}
+              <div className="max-w-[85%] self-end bg-teal-600 text-white p-2.5 rounded-2xl rounded-tr-none shadow flex flex-col gap-0.5 whitespace-pre-line font-mono text-[9px] md:text-[10px]">
+                <span>{`*Novo Pedido!* 🚀
+--------------------------------
+*Cliente:* Paulo
+*WhatsApp:* (11) 98765-4321
+
+*Itens:*
+- 1x X-Monster Proteín (R$ 33,00)
+- 1x Coca-Cola Lata (R$ 6,00)
+
+*Taxa de Entrega:* R$ 5,00
+*Total:* R$ 44,00
+
+*Pagamento:* Pix ⚡`}</span>
+                <span className="text-[7px] text-teal-200 self-end mt-1">11:48</span>
+              </div>
+
+              {/* Confirmação do Atendente */}
+              <div className="max-w-[85%] self-start bg-zinc-850 text-zinc-200 p-2.5 rounded-2xl rounded-tl-none shadow flex flex-col gap-1">
+                <span>Olá, Paulo! Seu pedido foi recebido com sucesso! 🎉</span>
+                <span>Status atual: <strong>Em Preparo na Cozinha</strong> 🍳</span>
+                <span>Fique tranquilo, te avisaremos assim que o motoboy sair!</span>
+                <span className="text-[7px] text-zinc-550 self-end mt-1">11:48</span>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
+      {/* SEÇÃO 4 COLUNAS: VENDA MAIS E MAIS RÁPIDO */}
+      <section className="relative z-10 max-w-7xl mx-auto w-full px-6 py-16 border-t border-b border-zinc-900 bg-zinc-900/10">
+        <div className="text-center space-y-3 max-w-2xl mx-auto mb-12">
+          <h3 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
+            Venda mais – e mais rápido – com o Cardápio Online para Delivery
+          </h3>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          {[
+            {
+              title: "Facilite para o cliente",
+              desc: "Garanta que seus clientes encontrem facilmente o seu cardápio, através de um link exclusivo para compartilhar no Instagram e WhatsApp.",
+              icon: Smartphone
+            },
+            {
+              title: "Centralize os pedidos",
+              desc: "Organize todos os pedidos recebidos de forma automatizada no seu painel gestor, agilizando o fluxo de trabalho da sua cozinha.",
+              icon: Database
+            },
+            {
+              title: "Informe o status",
+              desc: "Envie atualizações automáticas sobre o andamento dos pedidos diretamente no WhatsApp do cliente de forma 100% automatizada.",
+              icon: Send
+            },
+            {
+              title: "Fidelize e lucre mais",
+              desc: "Use cupons de desconto estratégicos e sorteios integrados para fazer o cliente voltar a comprar de você toda semana.",
+              icon: Ticket
+            }
+          ].map((col) => {
+            const Icon = col.icon;
+            return (
+              <div key={col.title} className="flex flex-col items-center lg:items-start text-center lg:text-left gap-4 bg-zinc-900/25 border border-zinc-900 p-5 rounded-2xl hover:border-teal-500/10 transition">
+                <div className="w-11 h-11 rounded-2xl bg-teal-500/10 text-teal-400 flex items-center justify-center shrink-0 border border-teal-500/20">
+                  <Icon className="w-5.5 h-5.5" />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="font-extrabold text-sm text-white">{col.title}</h4>
+                  <p className="text-xs text-zinc-400 leading-relaxed">{col.desc}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="pt-8 flex justify-center w-full">
+          <Link
+            to="/cadastro"
+            className="w-full sm:w-auto h-12 px-8 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-500 hover:from-emerald-350 hover:to-teal-450 text-zinc-950 font-black text-xs flex items-center justify-center gap-1.5 transition-all duration-200 active:scale-95 shadow-[0_0_25px_rgba(52,211,153,0.3)]"
+          >
+            <span>Começar Delivery Grátis</span>
+            <ArrowRight className="w-4 h-4 text-zinc-950 stroke-[3]" />
+          </Link>
+        </div>
+      </section>
+
       {/* SEÇÃO DE NICHOS: FEITO PARA O SEU DELIVERY */}
-      <section className="relative z-10 max-w-7xl mx-auto w-full px-6 py-12 border-t border-zinc-900/60">
+      <section className="relative z-10 max-w-7xl mx-auto w-full px-6 py-16">
         <div className="text-center space-y-3 max-w-2xl mx-auto mb-12">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-500/10 text-teal-400 border border-teal-500/25 text-[10px] font-black uppercase tracking-wider mx-auto">
             <span>Segmentos Atendidos</span>
@@ -187,7 +336,7 @@ function LandingPage() {
             {
               title: "Açaiterias & Sorveterias",
               desc: "Monte o açaí ideal com adicionais, caldas, frutas e coberturas divididos de forma clara para o seu cliente.",
-              img: "https://images.unsplash.com/photo-1590301157890-4810ed352733?w=600&q=80",
+              img: "/acai.jpg",
               tag: "🍧 Açaí & Sorvetes"
             },
             {
@@ -228,43 +377,254 @@ function LandingPage() {
         </div>
       </section>
 
-      {/* BLOCO 3: OS DIFERENCIAIS QUE NENHUM CONCORRENTE TEM */}
-      <section className="relative z-10 max-w-7xl mx-auto w-full px-6 py-20">
+      {/* SEÇÃO VANTAGENS: BULLETS + DEMO */}
+      <section className="relative z-10 max-w-7xl mx-auto w-full px-6 py-20 border-t border-b border-zinc-900/60 bg-zinc-900/5">
         <div className="text-center space-y-3 max-w-2xl mx-auto mb-16">
-          <h3 className="text-3xl font-black tracking-tight text-white">Por que os restaurantes mais modernos estão mudando para a nossa plataforma?</h3>
+          <h3 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
+            Vantagens do Cardápio Digital para Delivery
+          </h3>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <div className="bg-zinc-900/30 border border-zinc-850 p-6 rounded-2xl space-y-3 hover:border-teal-500/20 transition duration-200">
-            <span className="text-3xl">📸</span>
-            <h4 className="font-extrabold text-base text-white">Fotos em Altíssima Resolução (Sem travar)</h4>
-            <p className="text-xs text-zinc-400 leading-relaxed">
-              <strong>O cliente come com os olhos.</strong> Nosso sistema suporta <strong>fotos profissionais em alta definição</strong> que carregam <strong>instantaneamente</strong>, sem travar o celular do seu cliente.
-            </p>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+          {/* Esquerda: Bullets de CRO */}
+          <div className="lg:col-span-7 space-y-8 text-left">
+            {[
+              {
+                title: "0% taxas, 100% ganhos",
+                desc: "Marketplaces tradicionais cobram taxas de até 30% sobre os pedidos. Na RangoClick, não há taxas, e seu faturamento cresce sem aumento de custos."
+              },
+              {
+                title: "Entregas flexíveis",
+                desc: "Configure taxas de entrega por bairro ou raio de distância e tenha controle total do frete sem depender de comissões terceirizadas."
+              },
+              {
+                title: "Fluxo totalmente integrado",
+                desc: "Sincronize automaticamente pedidos, estoque e financeiro com seu painel de controle, eliminando retrabalhos e erros manuais."
+              },
+              {
+                title: "Lucre mais em cada pedido",
+                desc: "Aumente seu ticket médio com preços calculados automaticamente para combinações personalizadas e adicionais sugeridos na hora certa."
+              }
+            ].map((bullet) => (
+              <div key={bullet.title} className="flex gap-4">
+                <div className="w-10 h-10 rounded-xl bg-teal-500/10 text-teal-400 flex items-center justify-center shrink-0 border border-teal-500/20">
+                  <Check className="w-5 h-5" />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="font-extrabold text-sm sm:text-base text-white">{bullet.title}</h4>
+                  <p className="text-xs sm:text-sm text-zinc-450 leading-relaxed">{bullet.desc}</p>
+                </div>
+              </div>
+            ))}
           </div>
 
-          <div className="bg-zinc-900/30 border border-zinc-850 p-6 rounded-2xl space-y-3 hover:border-teal-500/20 transition duration-200">
-            <span className="text-3xl">🎉</span>
-            <h4 className="font-extrabold text-base text-white">Sorteios Automáticos Integrados</h4>
-            <p className="text-xs text-zinc-400 leading-relaxed">
-              <strong>Faça sorteios e promoções</strong> diretamente no seu cardápio. A ferramenta perfeita para <strong>bombar seu Instagram</strong> e <strong>fidelizar clientes</strong> toda semana.
-            </p>
+          {/* Direita: Card de visualização do cliente */}
+          <div className="lg:col-span-5 flex justify-center relative select-none">
+            <div className="w-full max-w-[320px] h-[500px] bg-zinc-900 border border-zinc-800 rounded-3xl p-3 shadow-2xl relative overflow-hidden flex flex-col justify-end text-left">
+              <img 
+                src="https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=600&q=80" 
+                alt="Hambúrguer Artesanal RangoClick" 
+                className="absolute inset-0 w-full h-full object-cover opacity-50"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/20 to-transparent" />
+              
+              <div className="relative z-10 p-4 space-y-2">
+                <span className="text-[9px] bg-teal-500/20 text-teal-400 border border-teal-500/30 font-extrabold px-2 py-0.5 rounded-full w-fit uppercase">
+                  Cardápio do Cliente
+                </span>
+                <h4 className="font-extrabold text-sm sm:text-base text-white">X-Monster Artesanal</h4>
+                <p className="text-xs text-zinc-300">Peça o mais suculento hambúrguer artesanal de 150g com cheddar derretido e molho especial.</p>
+                <div className="flex items-center gap-1.5 pt-1 text-[9px] font-black text-teal-400">
+                  <span>Visualização Real</span>
+                  <span>•</span>
+                  <span>Alta Conversão</span>
+                </div>
+              </div>
+            </div>
           </div>
+        </div>
+      </section>
 
-          <div className="bg-zinc-900/30 border border-zinc-850 p-6 rounded-2xl space-y-3 hover:border-teal-500/20 transition duration-200">
-            <span className="text-3xl">📊</span>
-            <h4 className="font-extrabold text-base text-white">Painel de Faturamento Inteligente</h4>
-            <p className="text-xs text-zinc-400 leading-relaxed">
-              <strong>Chega de planilhas bagunçadas.</strong> Monitore as vendas do dia, da semana ou do mês com <strong>gráficos simples e limpos</strong> na palma da sua mão.
-            </p>
+      {/* SEÇÃO PAGAMENTOS */}
+      <section className="relative z-10 max-w-7xl mx-auto w-full px-6 py-20 border-b border-zinc-900/60 grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+        {/* Esquerda: Preview visual de pagamentos */}
+        <div className="lg:col-span-5 order-2 lg:order-1 flex justify-center select-none">
+          <div className="w-full max-w-[320px] bg-zinc-900 border border-zinc-850 rounded-3xl p-4 shadow-2xl flex flex-col gap-4">
+            <span className="font-extrabold text-[10px] text-zinc-400 uppercase tracking-widest text-left">Formas de Pagamento</span>
+            
+            <div className="flex flex-col gap-2">
+              {[
+                { label: "Pix (Desconto de 2%)", icon: "⚡", active: true },
+                { label: "Cartão de Crédito Online", icon: "💳", active: false },
+                { label: "Pagar na Entrega (Maquininha)", icon: "🛵", active: false },
+                { label: "Google Pay & Apple Pay", icon: "📱", active: false }
+              ].map((pay) => (
+                <div 
+                  key={pay.label} 
+                  className={`p-3 rounded-xl border flex items-center justify-between text-left transition ${
+                    pay.active 
+                      ? "bg-teal-500/10 border-teal-500/30 text-teal-400" 
+                      : "bg-zinc-950 border-zinc-850 text-zinc-400"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm">{pay.icon}</span>
+                    <span className="text-[10px] font-bold">{pay.label}</span>
+                  </div>
+                  {pay.active && <Check className="w-3.5 h-3.5 text-teal-400" />}
+                </div>
+              ))}
+            </div>
+
+            <div className="bg-zinc-950 rounded-xl p-3 border border-zinc-850 flex items-center justify-between text-left">
+              <div className="flex flex-col gap-0.5">
+                <span className="text-[8px] text-zinc-500 uppercase tracking-wider">Bandeiras Aceitas</span>
+                <span className="text-[10px] font-bold text-zinc-300">NuPay • Visa • Mastercard • Elo</span>
+              </div>
+              <span className="text-xs">💳</span>
+            </div>
           </div>
+        </div>
 
-          <div className="bg-zinc-900/30 border border-zinc-850 p-6 rounded-2xl space-y-3 hover:border-teal-500/20 transition duration-200">
-            <span className="text-3xl">🔗</span>
-            <h4 className="font-extrabold text-base text-white">Link 100% Personalizado</h4>
-            <p className="text-xs text-zinc-400 leading-relaxed">
-              <strong>Passe mais autoridade</strong> para o seu negócio. Tenha um <strong>link limpo, curto e profissional</strong> (ex: <span className="text-teal-400 font-bold">bio-cardapio.com.br/nome-do-seu-delivery</span>), feito exclusivamente para o seu restaurante.
-            </p>
+        {/* Direita: Copys */}
+        <div className="lg:col-span-7 order-1 lg:order-2 space-y-6 text-center lg:text-left">
+          <h3 className="text-3xl sm:text-4xl font-black tracking-tight text-white leading-tight">
+            Facilite os pagamentos e conquiste a clientela
+          </h3>
+          <p className="text-sm sm:text-base text-zinc-400 leading-relaxed max-w-xl">
+            Garanta conveniência absoluta oferecendo múltiplos métodos de pagamento. Deixe seu cliente escolher como prefere pagar a conta, reduzindo o tempo de atendimento e facilitando o recebimento direto.
+          </p>
+
+          <div className="pt-4 flex justify-center lg:justify-start w-full">
+            <Link
+              to="/cadastro"
+              className="w-full sm:w-auto h-12 px-8 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-500 hover:from-emerald-350 hover:to-teal-450 text-zinc-950 font-black text-xs flex items-center justify-center gap-1.5 transition-all duration-200 active:scale-95 shadow-[0_0_25px_rgba(52,211,153,0.3)]"
+            >
+              <span>Iniciar Gratuito</span>
+              <ArrowRight className="w-4 h-4 text-zinc-950 stroke-[3]" />
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* SEÇÃO DE DEPOIMENTOS & PAINEL DE PEDIDOS */}
+      <section className="relative z-10 max-w-7xl mx-auto w-full px-6 py-20 border-b border-zinc-900/60 text-center space-y-16">
+        <div className="space-y-4 max-w-3xl mx-auto">
+          <h3 className="text-3xl sm:text-4xl font-black tracking-tight text-white leading-tight">
+            Quem usa o Cardápio para Delivery da RangoClick, recomenda!
+          </h3>
+          
+          {/* Depoimentos Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-8 text-left">
+            <div className="bg-zinc-900/30 border border-zinc-850 p-6 rounded-2xl space-y-3">
+              <div className="flex gap-1 text-amber-500">
+                {Array.from({ length: 5 }).map((_, i) => <Star key={i} className="w-4.5 h-4.5 fill-current" />)}
+              </div>
+              <p className="text-xs sm:text-sm text-zinc-300 leading-relaxed">
+                "Hoje, com 9 mesas e delivery ativo, só preciso de 1 pessoa atendendo com qualidade e nossa taxa de erros é praticamente zero. Além disso, ao final do dia o fechamento financeiro é automático."
+              </p>
+              <div className="flex flex-col">
+                <span className="font-extrabold text-xs text-white">Marcelo R.</span>
+                <span className="text-[10px] text-zinc-500">Lanchonete Marcelo Burguer</span>
+              </div>
+            </div>
+
+            <div className="bg-zinc-900/30 border border-zinc-850 p-6 rounded-2xl space-y-3">
+              <div className="flex gap-1 text-amber-500">
+                {Array.from({ length: 5 }).map((_, i) => <Star key={i} className="w-4.5 h-4.5 fill-current" />)}
+              </div>
+              <p className="text-xs sm:text-sm text-zinc-300 leading-relaxed">
+                "Antes era uma confusão de áudios no WhatsApp. Agora o cliente entra, seleciona os opcionais, insere a taxa de entrega e paga online. O pedido cai pronto na impressora da cozinha!"
+              </p>
+              <div className="flex flex-col">
+                <span className="font-extrabold text-xs text-white">Sabrina G.</span>
+                <span className="text-[10px] text-zinc-500">Pizzaria di Napoli</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Painel de Faturamento Automático */}
+        <div className="space-y-6 max-w-5xl mx-auto pt-8">
+          <span className="text-[10px] bg-teal-500/10 text-teal-400 border border-teal-500/30 font-extrabold px-3 py-1 rounded-full uppercase tracking-wider">
+            Painel de Faturamento Automático (Incluso)
+          </span>
+          <h4 className="text-xl sm:text-2xl font-black text-white">Acompanhe seu faturamento em tempo real, sem planilhas</h4>
+          <p className="text-xs sm:text-sm text-zinc-400 max-w-2xl mx-auto">
+            Cada pedido concluído atualiza automaticamente o seu relatório financeiro. Tenha controle completo de vendas, formas de pagamento e ticket médio sem precisar digitar um único dado.
+          </p>
+          
+          <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-6 shadow-2xl text-left font-sans select-none max-w-3xl mx-auto space-y-6">
+            {/* Dashboard Header/Metrics */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="bg-zinc-950 p-4 rounded-xl border border-zinc-850 space-y-1">
+                <span className="text-[10px] text-zinc-550 uppercase font-bold tracking-wider">Faturamento Hoje</span>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-xl font-black text-white">R$ 1.248,50</span>
+                  <span className="text-[9px] font-black text-emerald-400 bg-emerald-500/10 px-1 py-0.5 rounded">+12%</span>
+                </div>
+                <span className="text-[8px] text-zinc-500 block">Atualizado às 19:42</span>
+              </div>
+              
+              <div className="bg-zinc-950 p-4 rounded-xl border border-zinc-850 space-y-1">
+                <span className="text-[10px] text-zinc-550 uppercase font-bold tracking-wider">Pedidos Concluídos</span>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-xl font-black text-white">42</span>
+                  <span className="text-[9px] font-black text-emerald-400 bg-emerald-500/10 px-1 py-0.5 rounded">+8%</span>
+                </div>
+                <span className="text-[8px] text-zinc-500 block">Ticket médio: R$ 29,72</span>
+              </div>
+
+              <div className="bg-zinc-950 p-4 rounded-xl border border-zinc-850 space-y-1">
+                <span className="text-[10px] text-zinc-550 uppercase font-bold tracking-wider">Formas de Pagamento</span>
+                <div className="space-y-1 pt-1">
+                  <div className="flex justify-between items-center text-[9px] text-zinc-400">
+                    <span className="flex items-center gap-1">⚡ Pix</span>
+                    <span className="font-extrabold text-white">85% (R$ 1.061,22)</span>
+                  </div>
+                  <div className="w-full bg-zinc-900 h-1 rounded-full overflow-hidden">
+                    <div className="bg-teal-400 h-full w-[85%]" />
+                  </div>
+                  <div className="flex justify-between items-center text-[9px] text-zinc-400 pt-0.5">
+                    <span className="flex items-center gap-1">💳 Cartão</span>
+                    <span className="font-extrabold text-white">15% (R$ 187,28)</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Sales Chart Mockup */}
+            <div className="bg-zinc-950 p-4 rounded-xl border border-zinc-850 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-zinc-400 uppercase font-bold tracking-wider">Desempenho Semanal (Seg - Dom)</span>
+                <span className="text-[9px] text-teal-400 font-extrabold">Faturamento total: R$ 7.840,00</span>
+              </div>
+              <div className="h-28 flex items-end justify-between gap-2.5 pt-2">
+                {[
+                  { day: "Seg", val: 30 },
+                  { day: "Ter", val: 45 },
+                  { day: "Qua", val: 40 },
+                  { day: "Qui", val: 55 },
+                  { day: "Sex", val: 80 },
+                  { day: "Sáb", val: 100, highlight: true },
+                  { day: "Dom", val: 90 }
+                ].map((bar) => (
+                  <div key={bar.day} className="flex-1 flex flex-col items-center gap-2 group cursor-pointer">
+                    <div className="w-full relative flex flex-col justify-end h-20 bg-zinc-900/60 rounded-md overflow-hidden">
+                      <div 
+                        className={`w-full rounded-t-sm transition-all duration-300 ${
+                          bar.highlight 
+                            ? "bg-gradient-to-t from-emerald-500 to-teal-450 shadow-[0_0_10px_rgba(52,211,153,0.3)]" 
+                            : "bg-teal-500/20 group-hover:bg-teal-500/40"
+                        }`} 
+                        style={{ height: `${bar.val}%` }} 
+                      />
+                    </div>
+                    <span className="text-[8px] text-zinc-500 font-extrabold group-hover:text-zinc-300">{bar.day}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -322,13 +682,13 @@ function LandingPage() {
             ))}
           </div>
 
-          <div className="pt-4 flex justify-center">
+          <div className="pt-6 flex justify-center w-full">
             <Link
               to="/cadastro"
-              className="w-full sm:w-auto h-13 px-8 rounded-2xl bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-white font-black text-xs flex items-center justify-center gap-1.5 transition active:scale-[0.98] shadow-md shadow-teal-500/15"
+              className="w-full sm:w-auto h-14 px-8 rounded-2xl bg-gradient-to-r from-emerald-400 to-teal-500 hover:from-emerald-350 hover:to-teal-450 text-zinc-950 font-black text-sm flex items-center justify-center gap-2 transition-all duration-200 active:scale-[0.98] shadow-[0_0_30px_rgba(52,211,153,0.4)]"
             >
-              <span>👉 COMEÇAR MEU TESTE GRATUITO AGORA</span>
-              <ArrowRight className="w-4 h-4" />
+              <span>Começar Meu Teste Gratuito</span>
+              <ArrowRight className="w-4 h-4 text-zinc-950 stroke-[3]" />
             </Link>
           </div>
         </div>
@@ -343,20 +703,20 @@ function LandingPage() {
         <div className="space-y-3">
           {[
             {
-              q: "Pergunta 1: Preciso colocar meu cartão de crédito para testar?",
-              a: "Resposta: Não! O teste de 7 dias é totalmente gratuito e livre de compromisso. Você só insere uma forma de pagamento se usar, aprovar e decidir continuar com o sistema após o período de teste."
+              q: "Preciso colocar meu cartão de crédito para testar?",
+              a: "Não! O teste de 7 dias é totalmente gratuito e livre de compromisso. Você só insere uma forma de pagamento se usar, aprovar e decidir continuar com o sistema após o período de teste."
             },
             {
-              q: "Pergunta 2: É muito difícil de configurar o cardápio?",
-              a: "Resposta: De forma alguma. O sistema é totalmente intuitivo e moderno. Em menos de 10 minutos você consegue colocar suas fotos, preços, horários de funcionamento e já começar a vender."
+              q: "É muito difícil configurar o cardápio?",
+              a: "De forma alguma. O nosso sistema é totalmente intuitivo e moderno. Em menos de 10 minutos você consegue cadastrar seus produtos, preços, taxas, horários de funcionamento e já começar a vender."
             },
             {
-              q: "Pergunta 3: Meus clientes precisam baixar algum aplicativo no celular?",
-              a: "Resposta: Não. O seu cardápio funciona como um site moderno. O cliente clica no link (no Instagram ou no WhatsApp) e o cardápio abre na hora, direto no navegador do celular ou computador."
+              q: "Meus clientes precisam baixar algum aplicativo no celular?",
+              a: "Não. O seu cardápio funciona como um site moderno e ultra-rápido. O cliente clica no link do seu perfil ou conversa e o cardápio abre na hora, direto no navegador do celular ou computador."
             },
             {
-              q: "Pergunta 4: Como eu recebo o dinheiro das vendas?",
-              a: "Resposta: O pagamento vai direto para você. O sistema organiza o pedido perfeitamente e envia para o seu painel ou WhatsApp, e você recebe do cliente via Pix, cartão ou dinheiro na entrega."
+              q: "Como eu recebo o faturamento das minhas vendas?",
+              a: "O pagamento vai direto para a sua conta. O sistema organiza o pedido perfeitamente e envia para o seu painel de controle e WhatsApp, permitindo que você receba via Pix, cartão online ou dinheiro na entrega."
             }
           ].map((item, idx) => (
             <FaqItem key={idx} q={item.q} a={item.a} />
@@ -720,9 +1080,9 @@ function InteractiveDemoCardapio() {
 
               <button
                 onClick={handleFinalize}
-                className="w-full h-8.5 mt-1.5 bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-white font-black rounded-lg flex items-center justify-center gap-1 shadow active:scale-95 transition text-[9px]"
+                className="w-full h-9 mt-2 bg-gradient-to-r from-emerald-400 to-teal-500 hover:from-emerald-350 hover:to-teal-450 text-zinc-950 font-black rounded-xl flex items-center justify-center gap-1 shadow active:scale-95 transition-all duration-200 text-[10px] shadow-emerald-500/10"
               >
-                <span>👉 FINALIZAR PEDIDO (TESTAR)</span>
+                <span>Finalizar Pedido (Testar)</span>
               </button>
             </div>
           </div>
