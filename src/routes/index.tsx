@@ -90,13 +90,27 @@ function LandingPage() {
           </p>
 
           {/* Actions */}
-          <div className="flex flex-col sm:flex-row items-center gap-4 pt-4 justify-center lg:justify-start w-full">
+          <div className="flex flex-col sm:flex-row items-center gap-3 pt-4 justify-center lg:justify-start w-full">
             <Link
               to="/cadastro"
               className="w-full sm:w-auto h-14 px-8 rounded-2xl bg-gradient-to-r from-emerald-400 to-teal-500 hover:from-emerald-350 hover:to-teal-450 text-zinc-950 font-black text-sm flex items-center justify-center gap-2 transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] shadow-[0_0_30px_rgba(52,211,153,0.35)]"
             >
               <span>Criar Meu Cardápio Grátis</span>
               <ArrowRight className="w-4 h-4 text-zinc-950 stroke-[3]" />
+            </Link>
+
+            <Link
+              to="/cardapio/burger-insano-demo?demo=true"
+              className="w-full sm:w-auto h-14 px-6 rounded-2xl bg-zinc-800 hover:bg-zinc-700/80 text-zinc-300 hover:text-white font-bold text-sm flex items-center justify-center gap-2 transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] border border-zinc-750"
+            >
+              <span>Testar Cardápio (Cliente) 📱</span>
+            </Link>
+
+            <Link
+              to="/admin"
+              className="w-full sm:w-auto h-14 px-6 rounded-2xl bg-zinc-900/40 hover:bg-zinc-800 text-teal-400 hover:text-teal-300 font-extrabold text-sm flex items-center justify-center gap-2 transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] border border-teal-500/20"
+            >
+              <span>Painel Admin (Demo) 📊</span>
             </Link>
           </div>
 

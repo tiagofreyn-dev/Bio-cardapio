@@ -111,6 +111,7 @@ function DynamicCardapio() {
             })(),
             is_featured: p.is_featured,
             is_lancamento: p.is_lancamento,
+            max_sabores: Number(p.max_sabores || 1),
           }));
 
           const mappedSettings = {

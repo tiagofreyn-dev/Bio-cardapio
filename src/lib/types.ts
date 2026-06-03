@@ -14,7 +14,8 @@ export interface Product {
   hasMayoOption?: boolean;
   is_featured?: boolean;
   is_lancamento?: boolean;
-  adicionais?: { nome: string; preco: number }[];
+  max_sabores?: number;
+  adicionais?: { nome: string; preco: number; descricao?: string }[];
 }
 
 export interface CartItem {
@@ -26,7 +27,7 @@ export interface CartItem {
   lettuce?: "Alface Tradicional" | "Alface Americana";
   ketchup?: number;
   mayo?: number;
-  adicionaisSelecionados?: { nome: string; preco: number }[];
+  adicionaisSelecionados?: { nome: string; preco: number; descricao?: string }[];
 }
 
 export interface Settings {

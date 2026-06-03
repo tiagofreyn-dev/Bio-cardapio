@@ -227,6 +227,7 @@ function AdminPage() {
             hasMayoOption: p.has_mayo_option,
             is_featured: p.is_featured,
             is_lancamento: p.is_lancamento,
+            max_sabores: Number(p.max_sabores || 1),
             adicionais: (() => {
               try {
                 if (typeof p.adicionais === "string") {
@@ -415,7 +416,22 @@ function AdminPage() {
               </button>
             </form>
 
-            <div className="mt-6 text-center">
+            <div className="mt-4 p-3.5 rounded-2xl bg-teal-950/20 border border-teal-500/20 text-center">
+              <p className="text-[11px] font-bold text-teal-400">✨ Quer testar sem criar conta?</p>
+              <p className="text-[10px] text-zinc-400 mt-0.5">Use o nosso estabelecimento de exemplo:</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail("demo@rangoclick.com");
+                  setPassword("senha123");
+                }}
+                className="w-full mt-2 h-9 rounded-xl bg-teal-500 hover:bg-teal-450 text-zinc-950 font-black text-xs transition active:scale-[0.97] flex items-center justify-center gap-1.5"
+              >
+                Preencher Conta de Teste 🍔
+              </button>
+            </div>
+
+            <div className="mt-5 text-center">
               <Link to="/cadastro" className="text-xs font-bold text-zinc-400 hover:text-primary transition underline">
                 Ainda não tem conta? Crie seu cardápio!
               </Link>
@@ -1267,6 +1283,7 @@ function ProductsTab({ lojaId }: { lojaId: string | null }) {
         customizavel: (p.adicionais || []).length > 0,
         is_featured: p.is_featured,
         is_lancamento: p.is_lancamento || false,
+        max_sabores: p.max_sabores || 1,
         adicionais: p.adicionais || [],
         loja_id: lojaId,
       };
@@ -1515,6 +1532,12 @@ function ProductModal({
   const [uploading, setUploading] = useState(false);
   const [newAddonName, setNewAddonName] = useState("");
   const [newAddonPrice, setNewAddonPrice] = useState("");
+  const [newAddonDesc, setNewAddonDesc] = useState("");
+
+  const allProducts = useStorageSync(() => storage.getProducts());
+  const productsWithAddons = (allProducts || []).filter(
+    (x) => x.id !== p.id && x.adicionais && x.adicionais.length > 0
+  );
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -1608,25 +1631,75 @@ function ProductModal({
           </div>
         </Field>
 
+        {(p.category?.toLowerCase().includes("pizza") || p.name?.toLowerCase().includes("pizza")) && (
+          <Field label="Limite de Sabores para esta Pizza">
+            <input 
+              type="number" 
+              min="1" 
+              max="10" 
+              value={p.max_sabores || 1} 
+              onChange={(e) => setP({ ...p, max_sabores: Math.max(1, parseInt(e.target.value) || 1) })} 
+              className={inputCls} 
+              placeholder="Ex: 3"
+            />
+          </Field>
+        )}
+
         <div className="space-y-3 p-3.5 rounded-2xl bg-zinc-900 border border-zinc-800">
           <span className="text-[10px] uppercase font-black text-primary tracking-wider block">Adicionais do Produto (Opcionais):</span>
           
           <p className="text-[10px] text-zinc-400 leading-normal">
-            Cadastre os itens opcionais que seu cliente pode incluir no lanche (ex: Cheddar extra, Bacon, Ovo). 
-            Deixe o preço em <strong>R$ 0,00</strong> se o opcional for gratuito.
+            Cadastre os itens opcionais/sabores que seu cliente pode incluir (ex: Cheddar extra, Bacon, ou sabores de pizza). 
+            Deixe o preço em <strong>R$ 0,00</strong> se for gratuito.
           </p>
+
+          {productsWithAddons.length > 0 && (
+            <div className="space-y-1 bg-zinc-950 p-2.5 rounded-xl border border-zinc-850 text-left">
+              <label className="text-[9px] uppercase font-bold text-teal-400 tracking-wider block">⚡ Copiar Sabores/Opcionais de outro produto:</label>
+              <select
+                onChange={(e) => {
+                  const selectedId = e.target.value;
+                  if (!selectedId) return;
+                  const sourceProd = productsWithAddons.find((x) => x.id === selectedId);
+                  if (sourceProd && sourceProd.adicionais) {
+                    if (confirm(`Deseja substituir todos os opcionais/sabores atuais pelos opcionais de "${sourceProd.name}"?`)) {
+                      setP({ 
+                        ...p, 
+                        adicionais: [...sourceProd.adicionais],
+                        customizable: true 
+                      });
+                    }
+                  }
+                  e.target.value = ""; // reset
+                }}
+                className="w-full h-9 rounded-xl bg-zinc-900 border border-zinc-800 text-xs px-2.5 text-zinc-300 outline-none focus:border-primary transition mt-1"
+              >
+                <option value="">-- Selecione para importar tudo com 1 clique --</option>
+                {productsWithAddons.map((x) => (
+                  <option key={x.id} value={x.id}>
+                    {x.name} ({x.adicionais?.length} opcionais)
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
             {(p.adicionais || []).map((addon, index) => (
               <div key={index} className="flex items-center justify-between p-2.5 rounded-xl bg-surface-elevated ring-1 ring-border text-xs">
-                <span className="font-bold text-white">{addon.nome} (+ {brl(addon.preco)})</span>
+                <div className="flex flex-col min-w-0 pr-2">
+                  <span className="font-bold text-white truncate">{addon.nome} (+ {brl(addon.preco)})</span>
+                  {addon.descricao && (
+                    <span className="text-[10px] text-zinc-400 mt-0.5 leading-tight block break-words">{addon.descricao}</span>
+                  )}
+                </div>
                 <button
                   type="button"
                   onClick={() => {
                     const list = (p.adicionais || []).filter((_, i) => i !== index);
                     setP({ ...p, adicionais: list });
                   }}
-                  className="text-destructive hover:bg-destructive/10 p-1.5 rounded-lg transition"
+                  className="text-destructive hover:bg-destructive/10 p-1.5 rounded-lg transition shrink-0"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
@@ -1642,9 +1715,9 @@ function ProductModal({
           {/* Form de Cadastro de Adicional - Stacked Vertical e Super Explicado */}
           <div className="space-y-3 pt-1">
             <div className="space-y-1">
-              <label className="text-[9px] uppercase font-bold text-zinc-400 tracking-wider block pl-1">1. Nome do Opcional:</label>
+              <label className="text-[9px] uppercase font-bold text-zinc-400 tracking-wider block pl-1">1. Nome do Opcional / Sabor:</label>
               <input
-                placeholder="Ex: Cheddar Extra, Bacon Fatiado, Duplo Hamburguer"
+                placeholder="Ex: Cheddar Extra, Calabresa, Margherita"
                 value={newAddonName}
                 onChange={(e) => setNewAddonName(e.target.value)}
                 className={`${inputCls} h-10 text-xs`}
@@ -1656,9 +1729,19 @@ function ProductModal({
               <input
                 type="number"
                 step="0.01"
-                placeholder="Ex: 4.50 (ou 0.00 para opcional grátis)"
+                placeholder="Ex: 4.50 (ou 0.00 para opcional/sabor grátis)"
                 value={newAddonPrice}
                 onChange={(e) => setNewAddonPrice(e.target.value)}
+                className={`${inputCls} h-10 text-xs`}
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[9px] uppercase font-bold text-zinc-400 tracking-wider block pl-1">3. Descrição / Ingredientes (Opcional):</label>
+              <input
+                placeholder="Ex: Molho de tomate, mussarela, calabresa fatiada e cebola"
+                value={newAddonDesc}
+                onChange={(e) => setNewAddonDesc(e.target.value)}
                 className={`${inputCls} h-10 text-xs`}
               />
             </div>
@@ -1668,10 +1751,11 @@ function ProductModal({
               onClick={() => {
                 if (!newAddonName.trim()) return alert("Por favor, digite o nome do opcional.");
                 const priceNum = parseFloat(newAddonPrice) || 0;
-                const list = [...(p.adicionais || []), { nome: newAddonName.trim(), preco: priceNum }];
+                const list = [...(p.adicionais || []), { nome: newAddonName.trim(), preco: priceNum, descricao: newAddonDesc.trim() }];
                 setP({ ...p, adicionais: list, customizable: true });
                 setNewAddonName("");
                 setNewAddonPrice("");
+                setNewAddonDesc("");
               }}
               className="w-full h-10 bg-primary hover:bg-primary/95 text-primary-foreground font-black text-xs rounded-xl active:scale-95 transition flex items-center justify-center gap-1 shadow-md"
             >

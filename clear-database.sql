@@ -51,6 +51,9 @@ CREATE TABLE public.produtos (
     has_ketchup_option BOOLEAN DEFAULT true,
     has_mayo_option BOOLEAN DEFAULT true,
     is_featured BOOLEAN DEFAULT false,
+    is_lancamento BOOLEAN DEFAULT false,
+    max_sabores INT DEFAULT 1,
+    adicionais JSONB DEFAULT '[]'::jsonb,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

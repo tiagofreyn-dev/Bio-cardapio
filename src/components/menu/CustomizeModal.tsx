@@ -15,6 +15,7 @@ export function CustomizeModal({
   const additions = (product.adicionais || []).map((addon) => ({
     nome: String(addon.nome || ""),
     preco: Number(addon.preco || 0),
+    descricao: String(addon.descricao || ""),
   }));
   const [quantities, setQuantities] = useState<Record<string, number>>({});
 
@@ -22,6 +23,7 @@ export function CustomizeModal({
   
   const maxFlavors = (() => {
     if (!isPizza) return 1;
+    if (product.max_sabores && product.max_sabores > 1) return product.max_sabores;
     const match = product.name.match(/(\d+)\s*sabores/i);
     return match ? parseInt(match[1]) : 3; // Default to 3 flavors if not specified
   })();
@@ -47,9 +49,9 @@ export function CustomizeModal({
       .map((item) => {
         const qty = quantities[item.nome];
         if (qty === 1) {
-          return { nome: item.nome, preco: item.preco };
+          return { nome: item.nome, preco: item.preco, descricao: item.descricao };
         }
-        return { nome: `${item.nome} (x${qty})`, preco: item.preco * qty };
+        return { nome: `${item.nome} (x${qty})`, preco: item.preco * qty, descricao: item.descricao };
       });
     onConfirm(selectedList);
   }
@@ -101,6 +103,11 @@ export function CustomizeModal({
                   >
                     <div className="flex flex-col min-w-0 pr-2">
                       <span className="text-sm font-bold text-white truncate">{addon.nome}</span>
+                      {addon.descricao && (
+                        <span className="text-[10px] text-zinc-400 mt-0.5 leading-snug break-words max-w-[240px]">
+                          {addon.descricao}
+                        </span>
+                      )}
                       <span className="text-[11px] font-black text-primary mt-0.5">
                         {addon.preco > 0 ? `+ ${brl(addon.preco)}` : "Incluso"}
                       </span>
