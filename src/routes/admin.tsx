@@ -1273,7 +1273,7 @@ function ProductsTab({ lojaId }: { lojaId: string | null }) {
     if (!supabase || !lojaId) return;
     setLoading(true);
     try {
-      const payload = {
+      const payload: any = {
         nome: p.name,
         descricao: p.description,
         preco: Number(p.price),
@@ -1283,10 +1283,13 @@ function ProductsTab({ lojaId }: { lojaId: string | null }) {
         customizavel: (p.adicionais || []).length > 0,
         is_featured: p.is_featured,
         is_lancamento: p.is_lancamento || false,
-        max_sabores: p.max_sabores || 1,
         adicionais: p.adicionais || [],
         loja_id: lojaId,
       };
+
+      if (p.max_sabores && p.max_sabores > 1) {
+        payload.max_sabores = p.max_sabores;
+      }
 
       if (isNew) {
         const { error } = await supabase
@@ -1572,7 +1575,15 @@ function ProductModal({
         <h3 className="font-extrabold text-lg">{isNew ? "Novo produto" : "Editar produto"}</h3>
         <Field label="Nome"><input value={p.name} onChange={(e) => setP({ ...p, name: e.target.value })} className={inputCls} /></Field>
         <Field label="Descrição"><textarea value={p.description} onChange={(e) => setP({ ...p, description: e.target.value })} className={`${inputCls} h-20 py-2`} /></Field>
-        <Field label="Preço (R$)"><input type="number" step="0.01" value={p.price} onChange={(e) => setP({ ...p, price: Number(e.target.value) })} className={inputCls} /></Field>
+        <Field label="Preço (R$)">
+          <input 
+            type="number" 
+            step="0.01" 
+            value={p.price === 0 ? "" : p.price} 
+            onChange={(e) => setP({ ...p, price: e.target.value === "" ? 0 : Number(e.target.value) })} 
+            className={inputCls} 
+          />
+        </Field>
         <Field label="Imagem do Produto">
           <div className="flex gap-3 items-center mb-3">
             {p.image && (p.image.startsWith('http') || p.image.startsWith('/')) ? (
