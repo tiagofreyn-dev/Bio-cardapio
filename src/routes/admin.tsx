@@ -536,44 +536,6 @@ function AdminPage() {
         </div>
       )}
 
-      {/* Trial Active Banner se pendente, cobrança ativa e teste de 7 dias ativo */}
-      {store?.status_assinatura === "pendente" && store?.cobranca_automatica !== false && isTrialActive && (
-        <div className="bg-gradient-to-r from-teal-950/70 via-teal-900/60 to-teal-950/70 border-b border-teal-500/30 px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left relative overflow-hidden backdrop-blur shadow-lg shrink-0 animate-fade-in">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-teal-500/10 flex items-center justify-center border border-teal-500/20 text-teal-400 shrink-0">
-              <Gift className="w-5 h-5 animate-pulse" />
-            </div>
-            <div>
-              <h4 className="font-extrabold text-sm text-white">Seu período de Teste Grátis de 7 dias está ativo! 🎁</h4>
-              <p className="text-[11px] text-zinc-300">Seu cardápio público está liberado. Você tem mais <span className="font-bold text-teal-400">{trialDaysLeft} {trialDaysLeft === 1 ? "dia" : "dias"}</span> de acesso livre para receber pedidos!</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2 w-full sm:w-auto items-center justify-center sm:justify-end shrink-0">
-            <input 
-              readOnly 
-              value={`${window.location.origin}/cardapio/${store.slug}`}
-              className="px-3 h-9 rounded-xl bg-zinc-950 text-zinc-300 text-xs font-bold ring-1 ring-zinc-800 focus:outline-none w-full sm:w-44 truncate"
-            />
-            <button
-              onClick={() => {
-                navigator.clipboard.writeText(`${window.location.origin}/cardapio/${store.slug}`);
-                alert("Link do cardápio copiado!");
-              }}
-              className="h-9 px-4 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-extrabold text-xs transition active:scale-95 shrink-0"
-            >
-              Copiar Link 🔗
-            </button>
-            <button
-              onClick={handleActivateSubscription}
-              disabled={paywallSimulating}
-              className="h-9 px-4 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-extrabold text-xs transition active:scale-95 shrink-0"
-            >
-              {paywallSimulating ? "..." : "Ativar Plano 🚀"}
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Paywall Banner se pendente e teste grátis expirou */}
       {store?.status_assinatura === "pendente" && store?.cobranca_automatica !== false && !isTrialActive && (
         <div className="bg-gradient-to-r from-amber-950/70 via-amber-900/60 to-amber-950/70 border-b border-amber-500/30 px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left relative overflow-hidden backdrop-blur shadow-lg shrink-0 animate-fade-in">
@@ -596,70 +558,21 @@ function AdminPage() {
         </div>
       )}
 
-      {/* Banner de Sucesso / Cardápio Liberado com Link Público de Compartilhamento */}
-      {store?.status_assinatura === "ativo" && store?.cobranca_automatica !== false && (
-        <div className="bg-gradient-to-r from-emerald-950/60 via-emerald-900/50 to-emerald-950/60 border-b border-emerald-500/30 px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left relative overflow-hidden backdrop-blur shadow-lg shrink-0 animate-fade-in">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20 text-emerald-400 shrink-0">
-              <Check className="w-5 h-5 animate-bounce" />
-            </div>
-            <div>
-              <h4 className="font-extrabold text-sm text-white">Seu cardápio está online e liberado! 🚀</h4>
-              <p className="text-[11px] text-zinc-300">Sua assinatura do plano recorrente está ativa e o cardápio público está totalmente online para receber pedidos.</p>
-            </div>
-          </div>
-          <div className="flex gap-2 w-full sm:w-auto items-center shrink-0">
-            <input 
-              readOnly 
-              value={`${window.location.origin}/cardapio/${store.slug}`}
-              className="px-3 h-9 rounded-xl bg-zinc-950 text-zinc-300 text-xs font-bold ring-1 ring-zinc-800 focus:outline-none w-full sm:w-44 truncate"
-            />
-            <button
-              onClick={() => {
-                navigator.clipboard.writeText(`${window.location.origin}/cardapio/${store.slug}`);
-                alert("Link do cardápio copiado!");
-              }}
-              className="h-9 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold text-xs shadow-md transition active:scale-95 shrink-0 flex items-center justify-center gap-1.5"
-            >
-              Copiar Link
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Banner Informativo de Cobrança Manual Liberada */}
-      {store?.cobranca_automatica === false && (
-        <div className="bg-gradient-to-r from-emerald-950/60 via-teal-900/50 to-emerald-950/60 border-b border-emerald-500/30 px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left relative overflow-hidden backdrop-blur shadow-lg shrink-0 animate-fade-in">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20 text-emerald-400 shrink-0">
-              <Check className="w-5 h-5 animate-bounce" />
-            </div>
-            <div>
-              <h4 className="font-extrabold text-sm text-white flex items-center gap-1.5">
-                <span>Link de Cardápio Ativo & Liberado</span>
-                <span className="text-[9px] font-black uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full shrink-0">Cobrança Manual</span>
-              </h4>
-              <p className="text-[11px] text-zinc-300">
-                Seu comércio está configurado no modo de **Cobrança Manual**. O seu cardápio público está 100% online para receber pedidos!
-              </p>
-            </div>
-          </div>
-          <a
-            href={store.slug === "insano-lanches" ? "/" : `/cardapio/${store.slug}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="h-10 px-5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold text-xs shadow-md transition active:scale-95 shrink-0 flex items-center justify-center gap-1.5 hover:scale-[1.02]"
-          >
-            Visualizar Cardápio Público 🌐
-          </a>
-        </div>
-      )}
-
       {/* Grid Principal de 2 Colunas */}
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
         {/* Painel Esquerdo: Tabs de Gerenciamento */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {tab === "geral" && <GeneralTab lojaId={lojaId} slug={store?.slug} />}
+          {tab === "geral" && (
+            <GeneralTab 
+              lojaId={lojaId} 
+              slug={store?.slug} 
+              trialDaysLeft={trialDaysLeft}
+              isTrialActive={isTrialActive}
+              store={store}
+              handleActivateSubscription={handleActivateSubscription}
+              paywallSimulating={paywallSimulating}
+            />
+          )}
           {tab === "fidelidade" && <LoyaltyTab />}
           {tab === "produtos" && <ProductsTab products={products} lojaId={lojaId} />}
           {tab === "sorteios" && <CampaignsTab />}
@@ -726,7 +639,23 @@ function AdminPage() {
   );
 }
 
-function GeneralTab({ lojaId, slug }: { lojaId: string | null; slug?: string }) {
+function GeneralTab({ 
+  lojaId, 
+  slug,
+  trialDaysLeft,
+  isTrialActive,
+  store,
+  handleActivateSubscription,
+  paywallSimulating
+}: { 
+  lojaId: string | null; 
+  slug?: string;
+  trialDaysLeft: number;
+  isTrialActive: boolean;
+  store: any;
+  handleActivateSubscription: () => void;
+  paywallSimulating: boolean;
+}) {
   const settings = useStorageSync(() => storage.getSettings());
   const products = useStorageSync(() => storage.getProducts());
   const update = (patch: Partial<typeof settings>) => storage.setSettings({ ...settings, ...patch });
@@ -1181,9 +1110,64 @@ function GeneralTab({ lojaId, slug }: { lojaId: string | null; slug?: string }) 
       </Card>
 
       <Card title="Compartilhamento">
-        <div className="p-3 rounded-xl bg-surface-elevated ring-1 ring-border space-y-3">
-          <p className="text-sm font-semibold text-muted-foreground">Link para colocar na bio do Instagram:</p>
-          <div className="flex gap-2">
+        <div className="p-3.5 rounded-2xl bg-zinc-900 border border-zinc-800 space-y-4 text-left">
+          {/* 1. Trial Active State Banner Info */}
+          {store?.status_assinatura === "pendente" && store?.cobranca_automatica !== false && isTrialActive && (
+            <div className="p-3.5 rounded-xl bg-teal-950/20 border border-teal-500/20">
+              <p className="text-xs font-bold text-teal-400 flex items-center gap-1.5 mb-1.5">
+                <Gift className="w-4 h-4 animate-pulse shrink-0" />
+                Seu período de Teste Grátis de 7 dias está ativo! 🎁
+              </p>
+              <p className="text-[10px] text-zinc-400 leading-normal">
+                Você tem mais <span className="font-bold text-teal-400">{trialDaysLeft} {trialDaysLeft === 1 ? "dia" : "dias"}</span> de acesso livre para receber pedidos e seu cardápio público está ativo.
+              </p>
+            </div>
+          )}
+
+          {/* 2. Success Subscription Active State */}
+          {store?.status_assinatura === "ativo" && store?.cobranca_automatica !== false && (
+            <div className="p-3.5 rounded-xl bg-emerald-950/20 border border-emerald-500/20">
+              <p className="text-xs font-bold text-emerald-400 flex items-center gap-1.5 mb-1.5">
+                <Check className="w-4 h-4 shrink-0" />
+                Cardápio Ativo & Liberado 🚀
+              </p>
+              <p className="text-[10px] text-zinc-400 leading-normal">
+                Sua assinatura do plano recorrente está ativa e o cardápio público está totalmente online para receber pedidos.
+              </p>
+            </div>
+          )}
+
+          {/* 3. Manual Billing Mode Active State */}
+          {store?.cobranca_automatica === false && (
+            <div className="p-3.5 rounded-xl bg-emerald-950/20 border border-emerald-500/20">
+              <p className="text-xs font-bold text-emerald-400 flex items-center gap-1.5 mb-1.5">
+                <Check className="w-4 h-4 shrink-0" />
+                Cardápio Ativo & Liberado (Cobrança Manual)
+              </p>
+              <p className="text-[10px] text-zinc-400 leading-normal">
+                Este estabelecimento está configurado no modo de Cobrança Manual e está online.
+              </p>
+            </div>
+          )}
+
+          {/* 4. Expired Trial State Info */}
+          {store?.status_assinatura === "pendente" && store?.cobranca_automatica !== false && !isTrialActive && (
+            <div className="p-3.5 rounded-xl bg-amber-950/20 border border-amber-500/20">
+              <p className="text-xs font-bold text-amber-400 flex items-center gap-1.5 mb-1.5">
+                <Lock className="w-4 h-4 shrink-0" />
+                Teste Grátis Expirado (Acesso Restrito)
+              </p>
+              <p className="text-[10px] text-zinc-400 leading-normal">
+                O período de teste de 7 dias acabou. Ative o plano de R$ 99,90/mês para liberar o acesso ao seu cardápio público.
+              </p>
+            </div>
+          )}
+
+          <div>
+            <p className="text-xs font-bold text-zinc-400">Link para colocar na bio do Instagram:</p>
+          </div>
+
+          <div className="flex flex-col gap-2.5">
             <input 
               readOnly 
               value={
@@ -1191,21 +1175,35 @@ function GeneralTab({ lojaId, slug }: { lojaId: string | null; slug?: string }) 
                   ? `${window.location.origin}/`
                   : `${window.location.origin}/cardapio/${slug || ""}`
               } 
-              className={`${inputCls} bg-zinc-950 text-zinc-400`} 
+              className={`${inputCls} bg-zinc-950 text-zinc-350 text-xs font-semibold`} 
             />
-            <button 
-              type="button"
-              onClick={() => { 
-                const url = lojaId === "d3b07384-d113-4ec5-a55d-e0c157855d01"
-                  ? `${window.location.origin}/`
-                  : `${window.location.origin}/cardapio/${slug || ""}`;
-                navigator.clipboard.writeText(url); 
-                alert("Link copiado!"); 
-              }} 
-              className={btnPrimary}
-            >
-              Copiar Link
-            </button>
+            
+            <div className="flex gap-2">
+              <button 
+                type="button"
+                onClick={() => { 
+                  const url = lojaId === "d3b07384-d113-4ec5-a55d-e0c157855d01"
+                    ? `${window.location.origin}/`
+                    : `${window.location.origin}/cardapio/${slug || ""}`;
+                  navigator.clipboard.writeText(url); 
+                  alert("Link do cardápio copiado!"); 
+                }} 
+                className="flex-1 h-10 rounded-xl bg-teal-500 hover:bg-teal-450 text-zinc-950 font-black text-xs transition active:scale-95 flex items-center justify-center gap-1.5 shadow-md"
+              >
+                Copiar Link 🔗
+              </button>
+              
+              {store?.status_assinatura === "pendente" && store?.cobranca_automatica !== false && (
+                <button
+                  type="button"
+                  onClick={handleActivateSubscription}
+                  disabled={paywallSimulating}
+                  className="flex-1 h-10 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-extrabold text-xs transition active:scale-95 flex items-center justify-center gap-1.5 border border-zinc-700"
+                >
+                  {paywallSimulating ? "..." : isTrialActive ? "Ativar Plano 🚀" : "Ativar Plano (R$ 99,90) 🚀"}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </Card>
@@ -1427,80 +1425,175 @@ function ProductsTab({ lojaId }: { lojaId: string | null }) {
 
       <ul className="space-y-2">
         {(products || []).map((p) => (
-          <li key={p.id} className="p-3 rounded-xl bg-surface ring-1 ring-border flex items-center gap-3">
-            <div className="w-12 h-12 rounded-lg bg-surface-elevated flex items-center justify-center overflow-hidden text-2xl shrink-0">
-              {(p.image.startsWith('http') || p.image.startsWith('/')) ? <img src={p.image} className="w-full h-full object-cover" /> : p.image}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-bold text-sm truncate">{p.name}</p>
-              <p className="text-xs text-muted-foreground">{brl(p.price)} • {p.category}</p>
-            </div>
-            <label className="flex flex-col items-center justify-center gap-1 cursor-pointer mx-1 shrink-0">
-              <span className="text-[9px] font-bold uppercase text-muted-foreground">Destaque</span>
-              <input type="checkbox" checked={!!p.is_featured} onChange={() => toggleFeatured(p)} className="w-4 h-4 accent-primary" />
-            </label>
-            <label className="flex flex-col items-center justify-center gap-1 cursor-pointer mx-1 shrink-0">
-              <span className="text-[9px] font-bold uppercase text-muted-foreground">Lançamento</span>
-              <input type="checkbox" checked={!!p.is_lancamento} onChange={() => toggleLancamento(p)} className="w-4 h-4 accent-primary" />
-            </label>
-            <button 
-              type="button"
-              onClick={() => toggle(p)} 
-              className={`text-[10px] font-bold px-2 py-1 rounded-full ${p.available ? "bg-success/15 text-success" : "bg-destructive/15 text-destructive"}`}
-            >
-              {p.available ? "Disponível" : "Esgotado"}
-            </button>
-            <button type="button" onClick={() => { setIsNew(false); setEditing(p); }} className="p-2 text-muted-foreground"><Pencil className="w-4 h-4" /></button>
-            
-            {deletingId === p.id ? (
-              <div className="flex items-center gap-1 shrink-0">
-                <button
-                  type="button"
-                  onClick={async () => {
-                    if (!supabase) return;
-                    try {
-                      const { error } = await supabase
-                        .from("produtos")
-                        .delete()
-                        .eq("id", p.id);
-                      if (error) throw error;
-                      
-                      storage.setProducts(products.filter((x) => x.id !== p.id));
-                      setDeletingId(null);
-                      
-                      // Reload preview
-                      const iframe = document.getElementById("live-cardapio-preview") as HTMLIFrameElement;
-                      if (iframe) iframe.src = iframe.src;
-                    } catch (err: any) {
-                      alert("Erro ao excluir produto: " + err.message);
-                    }
-                  }}
-                  className="px-2.5 py-1 rounded-lg bg-destructive text-destructive-foreground text-[10px] font-extrabold shadow-sm active:scale-95 transition"
-                >
-                  Excluir
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDeletingId(null)}
-                  className="px-2 py-1 rounded-lg bg-surface-elevated ring-1 ring-border text-foreground text-[10px] font-semibold active:scale-95 transition"
-                >
-                  Sair
-                </button>
+          <li key={p.id} className="p-3 rounded-xl bg-surface ring-1 ring-border flex flex-col sm:flex-row sm:items-center gap-3">
+            {/* Top row / Info area */}
+            <div className="flex items-center justify-between gap-3 w-full sm:w-auto sm:flex-1 min-w-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-12 h-12 rounded-lg bg-surface-elevated flex items-center justify-center overflow-hidden text-2xl shrink-0">
+                  {(p.image.startsWith('http') || p.image.startsWith('/')) ? <img src={p.image} className="w-full h-full object-cover" /> : p.image}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-sm truncate">{p.name}</p>
+                  <p className="text-xs text-muted-foreground">{brl(p.price)} • {p.category}</p>
+                </div>
               </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  setDeletingId(p.id);
-                  setTimeout(() => {
-                    setDeletingId((curr) => (curr === p.id ? null : curr));
-                  }, 4000);
-                }}
-                className="p-2 text-destructive hover:bg-destructive/10 rounded-lg transition active:scale-95 shrink-0"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            )}
+
+              {/* Mobile Actions: Pencil and Trash */}
+              <div className="flex items-center gap-1 sm:hidden">
+                <button 
+                  type="button" 
+                  onClick={() => { setIsNew(false); setEditing(p); }} 
+                  className="p-2 text-muted-foreground hover:bg-surface-elevated rounded-lg transition"
+                >
+                  <Pencil className="w-4 h-4" />
+                </button>
+                
+                {deletingId === p.id ? (
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!supabase) return;
+                        try {
+                          const { error } = await supabase
+                            .from("produtos")
+                            .delete()
+                            .eq("id", p.id);
+                          if (error) throw error;
+                          
+                          storage.setProducts(products.filter((x) => x.id !== p.id));
+                          setDeletingId(null);
+                          
+                          // Reload preview
+                          const iframe = document.getElementById("live-cardapio-preview") as HTMLIFrameElement;
+                          if (iframe) iframe.src = iframe.src;
+                        } catch (err: any) {
+                          alert("Erro ao excluir produto: " + err.message);
+                        }
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-destructive text-destructive-foreground text-[10px] font-extrabold shadow-sm active:scale-95 transition"
+                    >
+                      Excluir
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDeletingId(null)}
+                      className="px-2 py-1 rounded-lg bg-surface-elevated ring-1 ring-border text-foreground text-[10px] font-semibold active:scale-95 transition"
+                    >
+                      Sair
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDeletingId(p.id);
+                      setTimeout(() => {
+                        setDeletingId((curr) => (curr === p.id ? null : curr));
+                      }, 4000);
+                    }}
+                    className="p-2 text-destructive hover:bg-destructive/10 rounded-lg transition active:scale-95 shrink-0"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Bottom row (mobile) / Right items (desktop) */}
+            <div className="flex items-center justify-between sm:justify-end gap-3 pt-2.5 sm:pt-0 border-t border-border/40 sm:border-t-0 w-full sm:w-auto shrink-0">
+              <div className="flex items-center gap-3.5">
+                <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                  <input 
+                    type="checkbox" 
+                    checked={!!p.is_featured} 
+                    onChange={() => toggleFeatured(p)} 
+                    className="w-4 h-4 rounded border-zinc-700 bg-zinc-950 text-primary focus:ring-primary accent-primary cursor-pointer" 
+                  />
+                  <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Destaque</span>
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                  <input 
+                    type="checkbox" 
+                    checked={!!p.is_lancamento} 
+                    onChange={() => toggleLancamento(p)} 
+                    className="w-4 h-4 rounded border-zinc-700 bg-zinc-950 text-primary focus:ring-primary accent-primary cursor-pointer" 
+                  />
+                  <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Lançamento</span>
+                </label>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button 
+                  type="button"
+                  onClick={() => toggle(p)} 
+                  className={`text-[10px] font-bold px-2.5 py-1 rounded-full transition active:scale-95 shrink-0 ${p.available ? "bg-success/15 text-success" : "bg-destructive/15 text-destructive"}`}
+                >
+                  {p.available ? "Disponível" : "Esgotado"}
+                </button>
+
+                {/* Desktop Actions: Pencil and Trash */}
+                <div className="hidden sm:flex items-center gap-1">
+                  <button 
+                    type="button" 
+                    onClick={() => { setIsNew(false); setEditing(p); }} 
+                    className="p-2 text-muted-foreground hover:bg-surface-elevated rounded-lg transition"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                  
+                  {deletingId === p.id ? (
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!supabase) return;
+                          try {
+                            const { error } = await supabase
+                              .from("produtos")
+                              .delete()
+                              .eq("id", p.id);
+                            if (error) throw error;
+                            
+                            storage.setProducts(products.filter((x) => x.id !== p.id));
+                            setDeletingId(null);
+                            
+                            // Reload preview
+                            const iframe = document.getElementById("live-cardapio-preview") as HTMLIFrameElement;
+                            if (iframe) iframe.src = iframe.src;
+                          } catch (err: any) {
+                            alert("Erro ao excluir produto: " + err.message);
+                          }
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-destructive text-destructive-foreground text-[10px] font-extrabold shadow-sm active:scale-95 transition"
+                      >
+                        Excluir
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDeletingId(null)}
+                        className="px-2 py-1 rounded-lg bg-surface-elevated ring-1 ring-border text-foreground text-[10px] font-semibold active:scale-95 transition"
+                      >
+                        Sair
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDeletingId(p.id);
+                        setTimeout(() => {
+                          setDeletingId((curr) => (curr === p.id ? null : curr));
+                        }, 4000);
+                      }}
+                      className="p-2 text-destructive hover:bg-destructive/10 rounded-lg transition active:scale-95 shrink-0"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
           </li>
         ))}
       </ul>
