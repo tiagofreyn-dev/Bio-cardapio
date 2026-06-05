@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Scrollmation } from "@/components/Scrollmation";
 import { 
   Check, 
   ArrowRight, 
@@ -162,9 +161,6 @@ function LandingPage() {
           </div>
         </div>
       </section>
-
-      {/* SEÇÃO SCROLLMATION (LANCHE CAINDO) */}
-      <Scrollmation frameCount={40} folderPath="/lanche-caindo" filePrefix="ezgif-frame-" fileExtension=".jpg" />
 
       {/* SEÇÃO DO ATENDENTE VIRTUAL WHATSAPP */}
       <section className="relative z-10 max-w-7xl mx-auto w-full px-6 py-20 grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
