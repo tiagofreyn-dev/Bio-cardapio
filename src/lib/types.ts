@@ -5,6 +5,7 @@ export interface ChoiceOption {
   name: string;
   price: number;
   description?: string;
+  section?: string;
 }
 
 export interface ChoiceGroup {

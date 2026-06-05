@@ -165,69 +165,89 @@ export function CustomizeModal({
                   </span>
                 </div>
 
-                <div className="space-y-2">
-                  {group.options.map(opt => {
-                    const qty = gSels[opt.id] || 0;
-                    const isSelected = qty > 0;
-                    return (
-                      <div
-                        key={opt.id}
-                        className={`w-full flex items-center justify-between p-3.5 rounded-2xl border transition ${
-                          isSelected 
-                            ? "border-primary bg-primary/10 ring-1 ring-primary" 
-                            : "border-border bg-surface-elevated"
-                        }`}
-                      >
-                        <div className="flex flex-col min-w-0 pr-2">
-                          <span className="text-sm font-bold text-white truncate">{opt.name}</span>
-                          <span className="text-[11px] font-black text-primary mt-0.5">
-                            {opt.price > 0 ? `+ ${brl(opt.price)}` : "Incluso"}
-                          </span>
-                        </div>
+                <div className="space-y-4">
+                  {(() => {
+                    const sections = Array.from(new Set(group.options.map(o => o.section || "")));
+                    return sections.map(section => {
+                      const sectionOptions = group.options.filter(o => (o.section || "") === section);
+                      if (sectionOptions.length === 0) return null;
+                      return (
+                        <div key={section} className="space-y-2">
+                          {section && (
+                            <h5 className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1 px-1">
+                              {section}
+                            </h5>
+                          )}
+                          <div className="space-y-2">
+                            {sectionOptions.map(opt => {
+                              const qty = gSels[opt.id] || 0;
+                              const isSelected = qty > 0;
+                              return (
+                                <div
+                                  key={opt.id}
+                                  className={`w-full flex items-center justify-between p-3.5 rounded-2xl border transition ${
+                                    isSelected 
+                                      ? "border-primary bg-primary/10 ring-1 ring-primary" 
+                                      : "border-border bg-surface-elevated"
+                                  }`}
+                                >
+                                  <div className="flex flex-col min-w-0 pr-2">
+                                    <span className="text-sm font-bold text-white truncate">{opt.name}</span>
+                                    {opt.price > 0 && (
+                                      <span className="text-[11px] font-black text-primary mt-0.5">
+                                        + {brl(opt.price)}
+                                      </span>
+                                    )}
+                                  </div>
 
-                        {group.max_choices === 1 ? (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (!isSelected) {
-                                adjustQuantity(group.id, opt.id, group.max_choices, 1);
-                              } else {
-                                if (group.min_choices === 0) {
-                                   adjustQuantity(group.id, opt.id, group.max_choices, -1);
-                                }
-                              }
-                            }}
-                            className={`h-6 w-6 rounded-full border-2 flex items-center justify-center transition shrink-0 ${
-                              isSelected ? "border-primary bg-primary" : "border-zinc-600 bg-zinc-900"
-                            }`}
-                          >
-                            {isSelected && <div className="w-2.5 h-2.5 bg-black rounded-full" />}
-                          </button>
-                        ) : (
-                          <div className="flex items-center gap-3 bg-zinc-950/60 p-1.5 rounded-xl border border-zinc-800/80 shrink-0">
-                            <button
-                              type="button"
-                              onClick={() => adjustQuantity(group.id, opt.id, group.max_choices, -1)}
-                              disabled={qty === 0}
-                              className="w-7 h-7 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 disabled:opacity-40 flex items-center justify-center transition active:scale-90"
-                            >
-                              <Minus className="w-3.5 h-3.5" />
-                            </button>
-                            <span className="text-xs font-black text-white w-4 text-center select-none">
-                              {qty}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => adjustQuantity(group.id, opt.id, group.max_choices, 1)}
-                              className="w-7 h-7 rounded-lg bg-primary text-primary-foreground flex items-center justify-center transition active:scale-90"
-                            >
-                              <Plus className="w-3.5 h-3.5" />
-                            </button>
+                                  {group.max_choices === 1 ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (!isSelected) {
+                                          adjustQuantity(group.id, opt.id, group.max_choices, 1);
+                                        } else {
+                                          if (group.min_choices === 0) {
+                                             adjustQuantity(group.id, opt.id, group.max_choices, -1);
+                                          }
+                                        }
+                                      }}
+                                      className={`h-6 w-6 rounded-full border-2 flex items-center justify-center transition shrink-0 ${
+                                        isSelected ? "border-primary bg-primary" : "border-zinc-600 bg-zinc-900"
+                                      }`}
+                                    >
+                                      {isSelected && <div className="w-2.5 h-2.5 bg-black rounded-full" />}
+                                    </button>
+                                  ) : (
+                                    <div className="flex items-center gap-3 bg-zinc-950/60 p-1.5 rounded-xl border border-zinc-800/80 shrink-0">
+                                      <button
+                                        type="button"
+                                        onClick={() => adjustQuantity(group.id, opt.id, group.max_choices, -1)}
+                                        disabled={qty === 0}
+                                        className="w-7 h-7 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 disabled:opacity-40 flex items-center justify-center transition active:scale-90"
+                                      >
+                                        <Minus className="w-3.5 h-3.5" />
+                                      </button>
+                                      <span className="text-xs font-black text-white w-4 text-center select-none">
+                                        {qty}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => adjustQuantity(group.id, opt.id, group.max_choices, 1)}
+                                        className="w-7 h-7 rounded-lg bg-primary text-primary-foreground flex items-center justify-center transition active:scale-90"
+                                      >
+                                        <Plus className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                        </div>
+                      );
+                    });
+                  })()}
                   {group.options.length === 0 && (
                     <p className="text-xs text-muted-foreground italic py-2">Nenhuma opção configurada.</p>
                   )}

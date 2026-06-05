@@ -1981,10 +1981,13 @@ function GroupsTab({ lojaId }: { lojaId: string | null }) {
               <label className="text-xs font-bold text-zinc-300 mb-2 block">Opções disponíveis:</label>
               <div className="space-y-2">
                 {group.options.map((opt, oIdx) => (
-                  <div key={opt.id} className="flex gap-2 items-center">
+                  <div key={opt.id} className="flex gap-2 items-center flex-wrap sm:flex-nowrap">
                     <input value={opt.name} onChange={e => {
                       const ng = [...templates]; ng[gIdx].options[oIdx].name = e.target.value; setTemplates(ng);
-                    }} className="flex-1 bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm" placeholder="Nome (Ex: Calabresa)" />
+                    }} className="flex-1 min-w-[120px] bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm" placeholder="Nome (Ex: Calabresa)" />
+                    <input value={opt.section || ""} onChange={e => {
+                      const ng = [...templates]; ng[gIdx].options[oIdx].section = e.target.value; setTemplates(ng);
+                    }} className="w-full sm:w-1/3 min-w-[100px] bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm" placeholder="Seção (Ex: Tradicional)" />
                     <input type="number" step="0.01" value={opt.price} onChange={e => {
                       const ng = [...templates]; ng[gIdx].options[oIdx].price = parseFloat(e.target.value)||0; setTemplates(ng);
                     }} className="w-24 bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm" placeholder="R$ 0,00" />
