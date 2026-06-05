@@ -51,11 +51,14 @@ export function Scrollmation({
     const context = canvas.getContext("2d");
     if (!context) return;
 
-    // Set canvas resolution to match window inner width/height for sharp rendering
+    // Set canvas resolution to match parent container for sharp rendering
     const updateCanvasSize = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-      renderFrame(currentFrameRef.current);
+      const parent = canvas.parentElement;
+      if (parent) {
+        canvas.width = parent.clientWidth;
+        canvas.height = parent.clientHeight;
+        renderFrame(currentFrameRef.current);
+      }
     };
 
     let currentFrameRef = { current: 0 };
@@ -64,7 +67,7 @@ export function Scrollmation({
       if (images[frameIndex]) {
         const img = images[frameIndex];
         
-        // Calculate image aspect ratio to cover canvas (like object-fit: cover)
+        // Calculate image aspect ratio to fit within canvas (like object-fit: contain)
         const canvasRatio = canvas.width / canvas.height;
         const imgRatio = img.width / img.height;
         
@@ -74,11 +77,17 @@ export function Scrollmation({
         let offsetY = 0;
 
         if (canvasRatio > imgRatio) {
-          drawHeight = canvas.width / imgRatio;
-          offsetY = (canvas.height - drawHeight) / 2;
-        } else {
+          // Canvas is wider than image. Height is limiting.
+          drawHeight = canvas.height;
           drawWidth = canvas.height * imgRatio;
           offsetX = (canvas.width - drawWidth) / 2;
+          offsetY = 0;
+        } else {
+          // Canvas is taller than image. Width is limiting.
+          drawWidth = canvas.width;
+          drawHeight = canvas.width / imgRatio;
+          offsetX = 0;
+          offsetY = (canvas.height - drawHeight) / 2;
         }
 
         // Fill background to prevent transparent artifacts
@@ -97,13 +106,7 @@ export function Scrollmation({
     // Scroll listener
     const handleScroll = () => {
       const rect = container.getBoundingClientRect();
-      // The container takes e.g. 300vh space.
-      // rect.top goes from 0 (when container hits top of screen)
-      // to negative (as we scroll down)
-      
-      const scrollStart = 0;
       const scrollDistance = rect.height - window.innerHeight;
-      
       let scrollProgress = -rect.top / scrollDistance;
       
       // Clamp between 0 and 1
@@ -118,7 +121,6 @@ export function Scrollmation({
       // Render only if frame changed to save performance
       if (frameIndex !== currentFrameRef.current) {
         currentFrameRef.current = frameIndex;
-        // Use requestAnimationFrame for smooth drawing
         requestAnimationFrame(() => renderFrame(frameIndex));
       }
     };
@@ -132,28 +134,33 @@ export function Scrollmation({
   }, [loaded, images, frameCount]);
 
   return (
-    <div ref={containerRef} className="relative w-full h-[300vh] bg-zinc-950">
-      <div className="sticky top-0 left-0 w-full h-screen overflow-hidden">
-        {!loaded && (
-          <div className="absolute inset-0 flex items-center justify-center text-white/50 text-sm font-bold z-10">
-            Carregando animação...
-          </div>
-        )}
-        <canvas
-          ref={canvasRef}
-          className="w-full h-full object-cover"
-        />
+    <section ref={containerRef} className="relative w-full h-[300vh] bg-zinc-950">
+      <div className="sticky top-0 left-0 w-full h-screen overflow-hidden flex flex-col lg:flex-row items-center px-6 lg:px-20">
         
-        {/* Optional Overlay Text while scrolling */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none p-6 text-center z-20">
-          <h2 className="text-4xl sm:text-6xl font-black text-white drop-shadow-[0_4px_20px_rgba(0,0,0,0.8)]">
+        {/* Left Column: Text */}
+        <div className="w-full lg:w-1/2 flex flex-col justify-center h-[40vh] lg:h-full z-20 text-center lg:text-left pt-20 lg:pt-0">
+          <h2 className="text-4xl sm:text-5xl lg:text-7xl font-black text-white leading-tight drop-shadow-md">
             Construa o Seu Sucesso
           </h2>
-          <p className="text-lg sm:text-xl text-zinc-200 font-bold mt-4 drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)]">
-            Camada por camada, ingrediente por ingrediente.
+          <p className="text-lg sm:text-xl text-zinc-400 font-bold mt-6 max-w-lg mx-auto lg:mx-0 drop-shadow-sm">
+            Camada por camada, ingrediente por ingrediente. O seu negócio na palma da mão do seu cliente, sem fricção.
           </p>
         </div>
+
+        {/* Right Column: Canvas Animation */}
+        <div className="w-full lg:w-1/2 h-[60vh] lg:h-full relative flex items-center justify-center">
+          {!loaded && (
+            <div className="absolute inset-0 flex items-center justify-center text-white/50 text-sm font-bold z-10">
+              Carregando animação...
+            </div>
+          )}
+          <canvas
+            ref={canvasRef}
+            className="w-full h-full object-contain"
+          />
+        </div>
+        
       </div>
-    </div>
+    </section>
   );
 }
