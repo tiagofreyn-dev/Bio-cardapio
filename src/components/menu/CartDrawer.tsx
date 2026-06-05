@@ -179,7 +179,11 @@ export function CartDrawer({
     lines.push("🛒 *ITENS DO PEDIDO:*");
     items.forEach((i) => {
       lines.push(`• ${i.qty}x ${i.name} (${brl(i.price * i.qty)})`);
-      if (i.adicionaisSelecionados && i.adicionaisSelecionados.length > 0) {
+      if (i.selectedChoices && i.selectedChoices.length > 0) {
+        i.selectedChoices.forEach((addon) => {
+          lines.push(`   - ${addon.groupName}: ${addon.qty > 1 ? addon.qty + 'x ' : ''}${addon.optionName} (${brl(addon.price)})`);
+        });
+      } else if (i.adicionaisSelecionados && i.adicionaisSelecionados.length > 0) {
         i.adicionaisSelecionados.forEach((addon) => {
           lines.push(`   - Adicional: + ${addon.nome} (${brl(addon.preco)})`);
         });
@@ -444,12 +448,20 @@ export function CartDrawer({
                   <div className="flex justify-between items-start gap-2">
                     <div className="flex-1 min-w-0">
                       <p className="font-bold text-sm">{i.name}</p>
-                      {i.adicionaisSelecionados && Array.isArray(i.adicionaisSelecionados) && i.adicionaisSelecionados.length > 0 && (
+                      {i.selectedChoices && Array.isArray(i.selectedChoices) && i.selectedChoices.length > 0 ? (
                         <div className="mt-1 text-[11px] text-muted-foreground space-y-0.5">
-                          {i.adicionaisSelecionados.map((addon) => (
-                            <p key={addon?.nome || "Opcional"}>• + {addon?.nome || "Opcional"} ({brl(addon?.preco)})</p>
+                          {i.selectedChoices.map((addon) => (
+                            <p key={addon.groupId + addon.optionId}>• {addon.groupName}: {addon.qty > 1 ? addon.qty + 'x ' : ''}{addon.optionName} ({brl(addon.price)})</p>
                           ))}
                         </div>
+                      ) : (
+                        i.adicionaisSelecionados && Array.isArray(i.adicionaisSelecionados) && i.adicionaisSelecionados.length > 0 && (
+                          <div className="mt-1 text-[11px] text-muted-foreground space-y-0.5">
+                            {i.adicionaisSelecionados.map((addon) => (
+                              <p key={addon?.nome || "Opcional"}>• + {addon?.nome || "Opcional"} ({brl(addon?.preco)})</p>
+                            ))}
+                          </div>
+                        )
                       )}
                       <p className="text-primary font-extrabold mt-1">{brl(i.price * i.qty)}</p>
                     </div>

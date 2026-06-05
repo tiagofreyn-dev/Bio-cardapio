@@ -33,6 +33,7 @@ CREATE TABLE public.lojas (
     chave_pix TEXT,
     titular_pix TEXT,
     cobranca_automatica BOOLEAN DEFAULT true NOT NULL,
+    choice_group_templates JSONB DEFAULT '[]'::jsonb,
     criado_em TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -54,6 +55,7 @@ CREATE TABLE public.produtos (
     is_lancamento BOOLEAN DEFAULT false,
     max_sabores INT DEFAULT 1,
     adicionais JSONB DEFAULT '[]'::jsonb,
+    choice_groups JSONB DEFAULT '[]'::jsonb,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

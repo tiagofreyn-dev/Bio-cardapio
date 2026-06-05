@@ -1,5 +1,25 @@
 export type Category = string;
 
+export interface ChoiceOption {
+  id: string;
+  name: string;
+  price: number;
+  description?: string;
+}
+
+export interface ChoiceGroup {
+  id: string;
+  name: string;
+  options: ChoiceOption[];
+}
+
+export interface ProductChoiceGroup {
+  template_id: string;
+  min_choices: number;
+  max_choices: number;
+  pricing_logic: "sum" | "highest" | "average";
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -16,6 +36,7 @@ export interface Product {
   is_lancamento?: boolean;
   max_sabores?: number;
   adicionais?: { nome: string; preco: number; descricao?: string }[];
+  choice_groups?: ProductChoiceGroup[];
 }
 
 export interface CartItem {
@@ -28,6 +49,13 @@ export interface CartItem {
   ketchup?: number;
   mayo?: number;
   adicionaisSelecionados?: { nome: string; preco: number; descricao?: string }[];
+  selectedChoices?: {
+    groupId: string;
+    groupName: string;
+    optionId: string;
+    optionName: string;
+    price: number;
+  }[];
 }
 
 export interface Settings {
@@ -48,6 +76,7 @@ export interface Settings {
   cobranca_automatica?: boolean;
   logoUrl?: string;
   deliveryTime?: string;
+  choiceGroupTemplates?: ChoiceGroup[];
 }
 
 export interface CustomerLoyalty {

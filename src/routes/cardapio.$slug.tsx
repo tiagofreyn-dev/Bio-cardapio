@@ -97,7 +97,15 @@ function DynamicCardapio() {
             image: p.imagem || "🍔",
             category: p.category || "hamburgueres",
             available: p.disponivel,
-            customizable: p.customizavel,
+            customizable: p.customizavel || (() => {
+              try {
+                const adc = typeof p.adicionais === "string" ? JSON.parse(p.adicionais || "[]") : (p.adicionais || []);
+                const cg = typeof p.choice_groups === "string" ? JSON.parse(p.choice_groups || "[]") : (p.choice_groups || []);
+                return adc.length > 0 || cg.length > 0;
+              } catch (e) {
+                return p.customizavel;
+              }
+            })(),
             adicionais: (() => {
               try {
                 if (typeof p.adicionais === "string") {
@@ -111,6 +119,16 @@ function DynamicCardapio() {
             })(),
             is_featured: p.is_featured,
             is_lancamento: p.is_lancamento,
+            choice_groups: (() => {
+              try {
+                if (typeof p.choice_groups === "string") {
+                  return JSON.parse(p.choice_groups);
+                }
+                return p.choice_groups || [];
+              } catch (e) {
+                return [];
+              }
+            })(),
             max_sabores: Number(p.max_sabores || 1),
           }));
 
@@ -440,25 +458,17 @@ function DynamicCardapio() {
         <CustomizeModal 
           product={customizing} 
           onClose={() => setCustomizing(null)} 
-          onConfirm={(selectedAdditions) => {
+          onConfirm={(finalPrice, additionsText, selectedChoices) => {
             try {
-              const validatedAdditions = (selectedAdditions || []).map(a => ({
-                nome: String(a?.nome || ""),
-                preco: Number(a?.preco || 0),
-              }));
-              const additionsText = validatedAdditions.length > 0 
-                ? ` (+ ${validatedAdditions.map(a => a.nome).join(", ")})` 
-                : "";
               const namePlus = (customizing.name || "Item") + additionsText;
-              const extraPrice = validatedAdditions.reduce((sum, a) => sum + a.preco, 0);
               
               setCart((c) => [...c, {
                 id: safeUUID(),
                 productId: customizing.id,
                 name: namePlus,
-                price: Number(customizing.price || 0) + extraPrice,
+                price: finalPrice,
                 qty: 1,
-                adicionaisSelecionados: validatedAdditions,
+                selectedChoices: selectedChoices,
               }]);
               setCustomizing(null);
             } catch (err) {

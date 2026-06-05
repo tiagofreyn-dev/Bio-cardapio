@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { storage } from "@/lib/storage";
 import { useStorageSync } from "@/hooks/use-storage";
-import type { Product, Category, CustomerLoyalty, Campaign, CampaignWinner, Participant, OrderHistory, DeliveryLocation } from "@/lib/types";
+import type { Product, Category, CustomerLoyalty, Campaign, CampaignWinner, Participant, OrderHistory, DeliveryLocation, ChoiceGroup } from "@/lib/types";
 import { brl } from "@/lib/format";
 import { ArrowLeft, Plus, Pencil, Trash2, Search, Gift, Trophy, Download, DollarSign, TrendingUp, ShoppingCart, Truck, Lock, RefreshCw, Check, ShieldCheck } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -254,6 +254,16 @@ function AdminPage() {
             storeAddress: storeData.endereco || "",
             logoUrl: storeData.logo_url || "",
             deliveryTime: storeData.tempo_entrega || "30-60",
+            choiceGroupTemplates: (() => {
+              try {
+                if (typeof storeData.choice_group_templates === "string") {
+                  return JSON.parse(storeData.choice_group_templates);
+                }
+                return storeData.choice_group_templates || [];
+              } catch {
+                return [];
+              }
+            })(),
           };
 
           // Store in localStorage cache
@@ -489,9 +499,10 @@ function AdminPage() {
         
         {/* Navigation Tabs */}
         <div className="flex gap-2 px-4 pb-3 overflow-x-auto no-scrollbar">
-          {([["geral", "⚙️ Geral"], ["fidelidade", "🎁 Fidelidade"], ["produtos", "🍔 Produtos"], ["sorteios", "🏆 Sorteios"], ["faturamento", "📊 Faturamento"], ["tutorial", "📚 Como Usar"]] as [Tab, string][]).map(([id, label]) => (
+          {([["geral", "⚙️ Geral"], ["fidelidade", "🎁 Fidelidade"], ["produtos", "🍔 Produtos"], ["grupos", "📦 Sabores/Adicionais"], ["sorteios", "🏆 Sorteios"], ["faturamento", "📊 Faturamento"], ["tutorial", "📚 Como Usar"]] as [Tab, string][]).map(([id, label]) => (
             <button
               key={id}
+              data-tab={id}
               onClick={() => setTab(id)}
               className={`shrink-0 px-4 py-1.5 rounded-full text-xs font-bold transition-all ${
                 tab === id 
@@ -574,7 +585,8 @@ function AdminPage() {
             />
           )}
           {tab === "fidelidade" && <LoyaltyTab />}
-          {tab === "produtos" && <ProductsTab products={products} lojaId={lojaId} />}
+          {tab === "produtos" && <ProductsTab products={products} lojaId={lojaId} onSwitchToGroups={() => setTab("grupos")} />}
+          {tab === "grupos" && <GroupsTab lojaId={lojaId} />}
           {tab === "sorteios" && <CampaignsTab />}
           {tab === "faturamento" && <FaturamentoTab lojaId={lojaId} />}
           {tab === "tutorial" && <TutorialTab />}
@@ -785,6 +797,7 @@ function GeneralTab({
           logo_url: nextSettings.logoUrl,
           esta_aberta: nextSettings.isOpen !== false,
           tempo_entrega: nextSettings.deliveryTime || "30-60",
+          choice_group_templates: nextSettings.choiceGroupTemplates || [],
         })
         .eq("id", lojaId);
 
@@ -1260,8 +1273,7 @@ function LoyaltyTab() {
   );
 }
 
-function ProductsTab({ lojaId }: { lojaId: string | null }) {
-  const products = useStorageSync(() => storage.getProducts());
+function ProductsTab({ products, lojaId, onSwitchToGroups }: { products: Product[], lojaId: string | null, onSwitchToGroups?: () => void }) {
   const [editing, setEditing] = useState<Product | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -1278,10 +1290,11 @@ function ProductsTab({ lojaId }: { lojaId: string | null }) {
         imagem: p.image,
         category: p.category,
         disponivel: p.available,
-        customizavel: (p.adicionais || []).length > 0,
+        customizavel: (p.adicionais || []).length > 0 || (p.choice_groups || []).length > 0,
         is_featured: p.is_featured,
         is_lancamento: p.is_lancamento || false,
         adicionais: p.adicionais || [],
+        choice_groups: p.choice_groups || [],
         loja_id: lojaId,
       };
 
@@ -1631,6 +1644,7 @@ function ProductModal({
   const [newAddonDesc, setNewAddonDesc] = useState("");
 
   const allProducts = useStorageSync(() => storage.getProducts());
+  const settings = useStorageSync(() => storage.getSettings());
   const productsWithAddons = (allProducts || []).filter(
     (x) => x.id !== p.id && x.adicionais && x.adicionais.length > 0
   );
@@ -1735,136 +1749,102 @@ function ProductModal({
           </div>
         </Field>
 
-        {(p.category?.toLowerCase().includes("pizza") || p.name?.toLowerCase().includes("pizza")) && (
-          <Field label="Limite de Sabores para esta Pizza">
-            <input 
-              type="number" 
-              min="1" 
-              max="10" 
-              value={p.max_sabores || 1} 
-              onChange={(e) => setP({ ...p, max_sabores: Math.max(1, parseInt(e.target.value) || 1) })} 
-              className={inputCls} 
-              placeholder="Ex: 3"
-            />
-          </Field>
-        )}
-
-        <div className="space-y-3 p-3.5 rounded-2xl bg-zinc-900 border border-zinc-800">
-          <span className="text-[10px] uppercase font-black text-primary tracking-wider block">Adicionais do Produto (Opcionais):</span>
-          
-          <p className="text-[10px] text-zinc-400 leading-normal">
-            Cadastre os itens opcionais/sabores que seu cliente pode incluir (ex: Cheddar extra, Bacon, ou sabores de pizza). 
-            Deixe o preço em <strong>R$ 0,00</strong> se for gratuito.
-          </p>
-
-          {productsWithAddons.length > 0 && (
-            <div className="space-y-1 bg-zinc-950 p-2.5 rounded-xl border border-zinc-850 text-left">
-              <label className="text-[9px] uppercase font-bold text-teal-400 tracking-wider block">⚡ Copiar Sabores/Opcionais de outro produto:</label>
-              <select
-                onChange={(e) => {
-                  const selectedId = e.target.value;
-                  if (!selectedId) return;
-                  const sourceProd = productsWithAddons.find((x) => x.id === selectedId);
-                  if (sourceProd && sourceProd.adicionais) {
-                    if (confirm(`Deseja substituir todos os opcionais/sabores atuais pelos opcionais de "${sourceProd.name}"?`)) {
-                      setP({ 
-                        ...p, 
-                        adicionais: [...sourceProd.adicionais],
-                        customizable: true 
-                      });
-                    }
-                  }
-                  e.target.value = ""; // reset
-                }}
-                className="w-full h-9 rounded-xl bg-zinc-900 border border-zinc-800 text-xs px-2.5 text-zinc-300 outline-none focus:border-primary transition mt-1"
-              >
-                <option value="">-- Selecione para importar tudo com 1 clique --</option>
-                {productsWithAddons.map((x) => (
-                  <option key={x.id} value={x.id}>
-                    {x.name} ({x.adicionais?.length} opcionais)
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-            {(p.adicionais || []).map((addon, index) => (
-              <div key={index} className="flex items-center justify-between p-2.5 rounded-xl bg-surface-elevated ring-1 ring-border text-xs">
-                <div className="flex flex-col min-w-0 pr-2">
-                  <span className="font-bold text-white truncate">{addon.nome} (+ {brl(addon.preco)})</span>
-                  {addon.descricao && (
-                    <span className="text-[10px] text-zinc-400 mt-0.5 leading-tight block break-words">{addon.descricao}</span>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const list = (p.adicionais || []).filter((_, i) => i !== index);
-                    setP({ ...p, adicionais: list });
-                  }}
-                  className="text-destructive hover:bg-destructive/10 p-1.5 rounded-lg transition shrink-0"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            ))}
-            {(p.adicionais || []).length === 0 && (
-              <p className="text-[10px] text-zinc-500 italic text-center py-2">Nenhum opcional configurado ainda.</p>
-            )}
+        <div className="space-y-4 p-4 rounded-2xl bg-zinc-900 border border-zinc-800">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[10px] uppercase font-black text-primary tracking-wider">Adicionais e Sabores vinculados:</span>
           </div>
+          
+          <div className="space-y-2">
+            {settings?.choiceGroupTemplates && settings.choiceGroupTemplates.length > 0 ? (
+              settings.choiceGroupTemplates.map(tmpl => {
+                // Backward compatibility & normalize
+                const normalizedGroups = (p.choice_groups || []).map(g => 
+                  typeof g === 'string' ? { template_id: g, min_choices: 0, max_choices: 1, pricing_logic: "sum" } : g
+                ) as ProductChoiceGroup[];
+                
+                const linkedGroup = normalizedGroups.find(g => g.template_id === tmpl.id);
+                const isChecked = !!linkedGroup;
 
-          <div className="h-px bg-zinc-800 my-2" />
+                return (
+                  <div key={tmpl.id} className="flex flex-col gap-2 p-3 rounded-lg bg-zinc-950 border border-zinc-800 transition">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        className="w-4 h-4 accent-primary"
+                        checked={isChecked}
+                        onChange={(e) => {
+                          let nextGroups = [...normalizedGroups];
+                          if (e.target.checked) {
+                            if (!isChecked) nextGroups.push({ template_id: tmpl.id, min_choices: 0, max_choices: 1, pricing_logic: "sum" });
+                          } else {
+                            nextGroups = nextGroups.filter(g => g.template_id !== tmpl.id);
+                          }
+                          setP({ ...p, choice_groups: nextGroups });
+                        }}
+                      />
+                      <div className="flex flex-col">
+                        <span className="text-sm font-bold text-zinc-200">{tmpl.name}</span>
+                        <span className="text-[10px] text-zinc-500">{tmpl.options?.length || 0} opções cadastradas</span>
+                      </div>
+                    </label>
 
-          {/* Form de Cadastro de Adicional - Stacked Vertical e Super Explicado */}
-          <div className="space-y-3 pt-1">
-            <div className="space-y-1">
-              <label className="text-[9px] uppercase font-bold text-zinc-400 tracking-wider block pl-1">1. Nome do Opcional / Sabor:</label>
-              <input
-                placeholder="Ex: Cheddar Extra, Calabresa, Margherita"
-                value={newAddonName}
-                onChange={(e) => setNewAddonName(e.target.value)}
-                className={`${inputCls} h-10 text-xs`}
-              />
+                    {isChecked && linkedGroup && (
+                      <div className="mt-2 pt-2 border-t border-zinc-800 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <div>
+                          <label className="text-[9px] text-zinc-400 font-bold ml-1">Mínimo de escolhas</label>
+                          <input type="number" min="0" value={linkedGroup.min_choices} onChange={e => {
+                            const ng = [...normalizedGroups];
+                            const idx = ng.findIndex(g => g.template_id === tmpl.id);
+                            if (idx >= 0) ng[idx].min_choices = parseInt(e.target.value) || 0;
+                            setP({ ...p, choice_groups: ng });
+                          }} className="w-full bg-surface ring-1 ring-border rounded-lg px-2 py-1.5 text-xs" />
+                        </div>
+                        <div>
+                          <label className="text-[9px] text-zinc-400 font-bold ml-1">Máximo de escolhas</label>
+                          <input type="number" min="1" value={linkedGroup.max_choices} onChange={e => {
+                            const ng = [...normalizedGroups];
+                            const idx = ng.findIndex(g => g.template_id === tmpl.id);
+                            if (idx >= 0) ng[idx].max_choices = parseInt(e.target.value) || 1;
+                            setP({ ...p, choice_groups: ng });
+                          }} className="w-full bg-surface ring-1 ring-border rounded-lg px-2 py-1.5 text-xs" />
+                        </div>
+                        <div>
+                          <label className="text-[9px] text-zinc-400 font-bold ml-1">Regra de Preço</label>
+                          <select value={linkedGroup.pricing_logic} onChange={e => {
+                            const ng = [...normalizedGroups];
+                            const idx = ng.findIndex(g => g.template_id === tmpl.id);
+                            if (idx >= 0) ng[idx].pricing_logic = e.target.value as any;
+                            setP({ ...p, choice_groups: ng });
+                          }} className="w-full bg-surface ring-1 ring-border rounded-lg px-1 py-1.5 text-[10px] sm:text-xs">
+                            <option value="sum">Soma (Adicionais)</option>
+                            <option value="highest">Maior Valor (Pizza)</option>
+                            <option value="average">Média (Pizza)</option>
+                          </select>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            ) : (
+              <p className="text-[10px] text-zinc-500 italic">Nenhuma lista global criada.</p>
+            )}
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  onClose(); // Close modal
+                  // Wait a tick for the modal to close, then trigger navigation
+                  setTimeout(() => {
+                    const btn = document.querySelector('button[data-tab="grupos"]') as HTMLButtonElement;
+                    if(btn) btn.click();
+                  }, 100);
+                }}
+                className="text-[10px] font-bold text-primary hover:underline"
+              >
+                + Criar novo grupo de adicionais/sabores
+              </button>
             </div>
-            
-            <div className="space-y-1">
-              <label className="text-[9px] uppercase font-bold text-zinc-400 tracking-wider block pl-1">2. Preço Adicional (R$):</label>
-              <input
-                type="number"
-                step="0.01"
-                placeholder="Ex: 4.50 (ou 0.00 para opcional/sabor grátis)"
-                value={newAddonPrice}
-                onChange={(e) => setNewAddonPrice(e.target.value)}
-                className={`${inputCls} h-10 text-xs`}
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[9px] uppercase font-bold text-zinc-400 tracking-wider block pl-1">3. Descrição / Ingredientes (Opcional):</label>
-              <input
-                placeholder="Ex: Molho de tomate, mussarela, calabresa fatiada e cebola"
-                value={newAddonDesc}
-                onChange={(e) => setNewAddonDesc(e.target.value)}
-                className={`${inputCls} h-10 text-xs`}
-              />
-            </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                if (!newAddonName.trim()) return alert("Por favor, digite o nome do opcional.");
-                const priceNum = parseFloat(newAddonPrice) || 0;
-                const list = [...(p.adicionais || []), { nome: newAddonName.trim(), preco: priceNum, descricao: newAddonDesc.trim() }];
-                setP({ ...p, adicionais: list, customizable: true });
-                setNewAddonName("");
-                setNewAddonPrice("");
-                setNewAddonDesc("");
-              }}
-              className="w-full h-10 bg-primary hover:bg-primary/95 text-primary-foreground font-black text-xs rounded-xl active:scale-95 transition flex items-center justify-center gap-1 shadow-md"
-            >
-              + Salvar Adicional na Lista
-            </button>
           </div>
         </div>
 
@@ -1879,7 +1859,7 @@ function ProductModal({
             onClick={() => {
               onSave({
                 ...p,
-                customizable: (p.adicionais || []).length > 0
+                customizable: (p.adicionais || []).length > 0 || (p.choice_groups || []).length > 0
               });
             }} 
             className={`flex-1 ${btnPrimary}`}
@@ -1908,6 +1888,131 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     </label>
   );
 }
+function GroupsTab({ lojaId }: { lojaId: string | null }) {
+  const settings = useStorageSync(() => storage.getSettings());
+  const [templates, setTemplates] = useState<ChoiceGroup[]>(settings?.choiceGroupTemplates || []);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (settings?.choiceGroupTemplates) {
+      setTemplates(settings.choiceGroupTemplates);
+    }
+  }, [settings?.choiceGroupTemplates]);
+
+  async function saveTemplates(newTemplates: ChoiceGroup[]) {
+    if (!supabase || !lojaId) return;
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from("lojas")
+        .update({ choice_group_templates: newTemplates })
+        .eq("id", lojaId);
+      if (error) throw error;
+      
+      const newSettings = { ...settings, choiceGroupTemplates: newTemplates };
+      storage.setSettings(newSettings as Settings);
+      setTemplates(newTemplates);
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao salvar grupos. Verifique se você executou a migration SQL para adicionar a coluna 'choice_group_templates'.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className="space-y-6 max-w-4xl pb-20">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-xl sm:text-2xl font-black tracking-tight">Grupos de Sabores e Adicionais</h2>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">Crie templates globais (ex: Ponto da Carne, Sabores de Pizza) para reutilizar em seus produtos.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button onClick={() => {
+            const newGroup: ChoiceGroup = { id: crypto.randomUUID(), name: "Novo Grupo", options: [] };
+            saveTemplates([...templates, newGroup]);
+          }} className="h-9 px-4 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs shadow-md transition active:scale-95">
+            + Nova Lista de Opções Vazia
+          </button>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2 p-4 rounded-2xl bg-zinc-900 border border-zinc-800">
+        <span className="text-[10px] uppercase font-black text-primary tracking-wider w-full">Magia: Listas Rápidas</span>
+        <button onClick={() => {
+          const sab: ChoiceGroup = { id: crypto.randomUUID(), name: "Sabores da Pizza", options: [] };
+          saveTemplates([...templates, sab]);
+        }} className="text-[10px] font-bold px-3 py-1.5 bg-indigo-500/20 text-indigo-400 rounded-lg hover:bg-indigo-500/30">🍕 Magia: Pizza</button>
+        <button onClick={() => {
+          const ponto: ChoiceGroup = { id: crypto.randomUUID(), name: "Ponto da Carne", options: [{ id: crypto.randomUUID(), name: "Ao ponto", price: 0 }, { id: crypto.randomUUID(), name: "Bem passado", price: 0 }] };
+          const extra: ChoiceGroup = { id: crypto.randomUUID(), name: "Ingredientes Extras", options: [{ id: crypto.randomUUID(), name: "Bacon Extra", price: 5 }] };
+          saveTemplates([...templates, ponto, extra]);
+        }} className="text-[10px] font-bold px-3 py-1.5 bg-amber-500/20 text-amber-400 rounded-lg hover:bg-amber-500/30">🍔 Magia: Burger</button>
+        <button onClick={() => {
+          const grats: ChoiceGroup = { id: crypto.randomUUID(), name: "Acompanhamentos Grátis", options: [] };
+          const pagos: ChoiceGroup = { id: crypto.randomUUID(), name: "Adicionais Pagos", options: [] };
+          saveTemplates([...templates, grats, pagos]);
+        }} className="text-[10px] font-bold px-3 py-1.5 bg-purple-500/20 text-purple-400 rounded-lg hover:bg-purple-500/30">🍧 Magia: Açaí</button>
+      </div>
+
+      <div className="space-y-4">
+        {templates.length === 0 && (
+          <div className="p-8 text-center text-zinc-500 italic bg-surface rounded-2xl ring-1 ring-border">Nenhuma lista configurada. Comece criando uma vazia ou usando uma Magia acima.</div>
+        )}
+        {templates.map((group, gIdx) => (
+          <div key={group.id} className="p-4 bg-surface ring-1 ring-border rounded-2xl space-y-4 relative">
+            <div className="absolute top-4 right-4">
+               <button onClick={() => {
+                 if (confirm("Excluir este grupo excluirá as opções de todos os produtos que o utilizam. Continuar?")) {
+                   saveTemplates(templates.filter(t => t.id !== group.id));
+                 }
+               }} className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition"><Trash2 className="w-4 h-4" /></button>
+            </div>
+            <div className="flex gap-2 mr-10">
+              <div className="flex-1">
+                <label className="text-[10px] text-zinc-400 font-bold ml-1">Nome da Lista</label>
+                <input value={group.name} onChange={e => {
+                  const ng = [...templates]; ng[gIdx].name = e.target.value; setTemplates(ng);
+                }} className="w-full bg-zinc-950 ring-1 ring-border rounded-lg px-3 py-2 text-sm font-bold" placeholder="Ex: Sabores" />
+              </div>
+            </div>
+
+            <div className="bg-zinc-900/50 p-3 rounded-xl ring-1 ring-border mt-4">
+              <label className="text-xs font-bold text-zinc-300 mb-2 block">Opções disponíveis:</label>
+              <div className="space-y-2">
+                {group.options.map((opt, oIdx) => (
+                  <div key={opt.id} className="flex gap-2 items-center">
+                    <input value={opt.name} onChange={e => {
+                      const ng = [...templates]; ng[gIdx].options[oIdx].name = e.target.value; setTemplates(ng);
+                    }} className="flex-1 bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm" placeholder="Nome (Ex: Calabresa)" />
+                    <input type="number" step="0.01" value={opt.price} onChange={e => {
+                      const ng = [...templates]; ng[gIdx].options[oIdx].price = parseFloat(e.target.value)||0; setTemplates(ng);
+                    }} className="w-24 bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm" placeholder="R$ 0,00" />
+                    <button onClick={() => {
+                      const ng = [...templates]; ng[gIdx].options = ng[gIdx].options.filter((_, i) => i !== oIdx); setTemplates(ng);
+                    }} className="text-zinc-500 hover:text-rose-400 p-2"><Trash2 className="w-4 h-4" /></button>
+                  </div>
+                ))}
+                <button onClick={() => {
+                  const ng = [...templates]; ng[gIdx].options.push({ id: crypto.randomUUID(), name: "", price: 0 }); setTemplates(ng);
+                }} className="text-xs bg-primary/10 text-primary font-bold px-3 py-2 rounded-lg hover:bg-primary/20 transition w-full mt-2 border border-primary/20">+ Adicionar Opção</button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+      
+      {templates.length > 0 && (
+        <div className="flex justify-end pt-4 pb-10">
+          <button onClick={() => saveTemplates(templates)} disabled={saving} className="h-12 px-8 rounded-xl bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground font-black shadow-xl shadow-primary/20 transition active:scale-95">
+            {saving ? "Salvando..." : "Salvar Alterações das Listas"}
+          </button>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function CampaignsTab() {
   const products = useStorageSync(() => storage.getProducts());
   const campaignWinners = useStorageSync(() => storage.getCampaignWinners());
