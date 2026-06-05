@@ -145,6 +145,16 @@ function DynamicCardapio() {
             loyaltyActive: storeData.fidelidade_ativo !== false,
             logoUrl: storeData.logo_url || "",
             deliveryTime: storeData.tempo_entrega || "30-60",
+            choiceGroupTemplates: (() => {
+              try {
+                if (typeof storeData.choice_group_templates === "string") {
+                  return JSON.parse(storeData.choice_group_templates);
+                }
+                return storeData.choice_group_templates || [];
+              } catch (e) {
+                return [];
+              }
+            })(),
           };
 
           // Salvar no localStorage temporário do cliente para reatividade dos componentes locais
