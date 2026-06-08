@@ -228,6 +228,11 @@ function DynamicCardapio() {
       const normA = a.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
       const normB = b.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
       
+      const isPromoA = a === "🔥 Promoções";
+      const isPromoB = b === "🔥 Promoções";
+      if (isPromoA && !isPromoB) return -1;
+      if (!isPromoA && isPromoB) return 1;
+
       const isAcaiA = normA.includes("acai");
       const isAcaiB = normB.includes("acai");
       if (isAcaiA && !isAcaiB) return -1;

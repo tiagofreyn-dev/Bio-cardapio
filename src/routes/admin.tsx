@@ -541,7 +541,7 @@ function AdminPage() {
         
         {/* Navigation Tabs */}
         <div className="flex gap-2 px-4 pb-3 overflow-x-auto no-scrollbar">
-          {([["geral", "⚙️ Geral"], ["tutorial", "📚 Como Usar"], ["fidelidade", "🎁 Fidelidade"], ["produtos", "🍔 Produtos"], ["grupos", "📦 Sabores/Adicionais"], ["sorteios", "🏆 Sorteios"], ["faturamento", "📊 Faturamento"]] as [Tab, string][]).map(([id, label]) => (
+          {([["geral", "⚙️ Geral"], ["tutorial", "📚 Como Usar"], ["promo", "🔥 Promoções"], ["fidelidade", "🎁 Fidelidade"], ["produtos", "🍔 Produtos"], ["grupos", "📦 Sabores/Adicionais"], ["sorteios", "🏆 Sorteios"], ["faturamento", "📊 Faturamento"]] as [Tab, string][]).map(([id, label]) => (
             <button
               key={id}
               data-tab={id}
@@ -628,6 +628,7 @@ function AdminPage() {
           )}
           {tab === "fidelidade" && <LoyaltyTab />}
           {tab === "produtos" && <ProductsTab products={products} lojaId={lojaId} onSwitchToGroups={() => setTab("grupos")} />}
+          {tab === "promo" && <ProductsTab products={products} lojaId={lojaId} onSwitchToGroups={() => setTab("grupos")} isPromoMode={true} />}
           {tab === "grupos" && <GroupsTab lojaId={lojaId} />}
           {tab === "sorteios" && <CampaignsTab />}
           {tab === "faturamento" && <FaturamentoTab lojaId={lojaId} />}
@@ -1315,7 +1316,7 @@ function LoyaltyTab() {
   );
 }
 
-function ProductsTab({ products, lojaId, onSwitchToGroups }: { products: Product[], lojaId: string | null, onSwitchToGroups?: () => void }) {
+function ProductsTab({ products, lojaId, onSwitchToGroups, isPromoMode = false }: { products: Product[], lojaId: string | null, onSwitchToGroups?: () => void, isPromoMode?: boolean }) {
   const [editing, setEditing] = useState<Product | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -1465,7 +1466,7 @@ function ProductsTab({ products, lojaId, onSwitchToGroups }: { products: Product
             description: "", 
             price: 0, 
             image: "🍔", 
-            category: "hamburgueres", 
+            category: isPromoMode ? "🔥 Promoções" : "hamburgueres", 
             available: true, 
             customizable: true,
             hasLettuceOption: true,
@@ -1479,7 +1480,7 @@ function ProductsTab({ products, lojaId, onSwitchToGroups }: { products: Product
       </button>
 
       <ul className="space-y-2">
-        {(products || []).map((p) => (
+        {(products || []).filter(p => isPromoMode ? p.category === "🔥 Promoções" : p.category !== "🔥 Promoções").map((p) => (
           <li key={p.id} className="p-3 rounded-xl bg-surface ring-1 ring-border flex flex-col sm:flex-row sm:items-center gap-3">
             {/* Top row / Info area */}
             <div className="flex items-center justify-between gap-3 w-full sm:w-auto sm:flex-1 min-w-0">
@@ -1762,34 +1763,36 @@ function ProductModal({
           </div>
         </Field>
         
-        <Field label="Categoria (Ex: Pizza, Açaí Turbinado, Bebidas)">
-          <div className="space-y-2">
-            <input 
-              value={p.category} 
-              onChange={(e) => setP({ ...p, category: e.target.value })} 
-              className={inputCls} 
-              placeholder="Digite a categoria do produto..." 
-            />
-            {existingCategories.length > 0 && (
-              <div className="flex gap-1.5 flex-wrap pt-1">
-                {existingCategories.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => setP({ ...p, category: c })}
-                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition ${
-                      p.category === c 
-                        ? "bg-primary text-primary-foreground shadow-sm" 
-                        : "bg-surface-elevated ring-1 ring-border text-muted-foreground hover:text-white"
-                    }`}
-                  >
-                    {c}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </Field>
+        {!isPromoMode && (
+          <Field label="Categoria (Ex: Pizza, Açaí Turbinado, Bebidas)">
+            <div className="space-y-2">
+              <input 
+                value={p.category} 
+                onChange={(e) => setP({ ...p, category: e.target.value })} 
+                className={inputCls} 
+                placeholder="Digite a categoria do produto..." 
+              />
+              {existingCategories.length > 0 && (
+                <div className="flex gap-1.5 flex-wrap pt-1">
+                  {existingCategories.map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setP({ ...p, category: c })}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition ${
+                        p.category === c 
+                          ? "bg-primary text-primary-foreground shadow-sm" 
+                          : "bg-surface-elevated ring-1 ring-border text-muted-foreground hover:text-white"
+                      }`}
+                    >
+                      {c}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </Field>
+        )}
 
         <div className="space-y-4 p-4 rounded-2xl bg-zinc-900 border border-zinc-800">
           <div className="flex items-center justify-between mb-2">
