@@ -354,13 +354,20 @@ function AdminPage() {
     if (!lojaId) return;
     setPaywallSimulating(true);
     try {
-      // Redireciona diretamente para o link de assinatura recorrente da plataforma Cakto (Cactus)
-      // Passamos a lojaId na query string para que o webhook possa identificar quem pagou!
-      const checkoutUrl = `https://pay.cakto.com.br/n6v7x8p_908076?ref=${lojaId}&ext=${lojaId}`;
-      window.location.href = checkoutUrl;
+      const response = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lojaId }),
+      });
+      const data = await response.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        alert(data.error || "Erro ao gerar link de pagamento.");
+        setPaywallSimulating(false);
+      }
     } catch (err: any) {
       alert("Erro ao redirecionar para o pagamento: " + err.message);
-    } finally {
       setPaywallSimulating(false);
     }
   }
