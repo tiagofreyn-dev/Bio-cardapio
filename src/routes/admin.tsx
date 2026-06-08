@@ -6,7 +6,42 @@ import type { Product, Category, CustomerLoyalty, Campaign, CampaignWinner, Part
 import { brl } from "@/lib/format";
 import { ArrowLeft, Plus, Pencil, Trash2, Search, Gift, Trophy, Download, DollarSign, TrendingUp, ShoppingCart, Truck, Lock, RefreshCw, Check, ShieldCheck } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { Info, EyeOff, PlayCircle } from "lucide-react";
 
+export function InfoTooltip({ title, text }: { title?: string, text: string }) {
+  const [enabled, setEnabled] = useState(localStorage.getItem('hideHelp') !== 'true');
+  const [open, setOpen] = useState(false);
+  
+  useEffect(() => {
+    const handleToggle = () => setEnabled(localStorage.getItem('hideHelp') !== 'true');
+    window.addEventListener('helpToggled', handleToggle);
+    return () => window.removeEventListener('helpToggled', handleToggle);
+  }, []);
+
+  if (!enabled) return null;
+
+  return (
+    <div className="relative inline-flex items-center justify-center ml-1.5 z-40 align-middle">
+      <button 
+        type="button" 
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen(!open); }} 
+        onBlur={() => setTimeout(() => setOpen(false), 200)}
+        className="w-4 h-4 rounded-full bg-zinc-800 text-zinc-400 hover:text-white flex items-center justify-center transition active:scale-95 border border-zinc-700"
+      >
+        <Info className="w-2.5 h-2.5" />
+      </button>
+      {open && (
+        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-56 bg-zinc-900 border border-zinc-700 shadow-xl rounded-xl p-3 animate-fade-in z-50 text-left cursor-default" onClick={(e) => e.stopPropagation()}>
+          <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-zinc-900 border-t border-l border-zinc-700 rotate-45"></div>
+          <div className="relative z-10 space-y-1">
+            {title && <h6 className="font-bold text-[10px] text-white">{title}</h6>}
+            <p className="text-[10px] text-zinc-300 leading-relaxed font-normal normal-case">{text}</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 async function compressImage(file: File, maxWidth = 800, maxHeight = 800, quality = 0.75): Promise<File> {
   return new Promise((resolve) => {
     if (!file.type.startsWith('image/')) {
@@ -482,6 +517,20 @@ function AdminPage() {
               </Link>
             )}
             <button
+              onClick={() => {
+                const current = localStorage.getItem('hideHelp') === 'true';
+                localStorage.setItem('hideHelp', current ? 'false' : 'true');
+                window.dispatchEvent(new Event('helpToggled'));
+                // Force a re-render of this component to update the button text
+                setTab(t => t); 
+              }}
+              className="hidden sm:flex h-9 px-3 rounded-lg bg-zinc-800/50 hover:bg-zinc-800 text-zinc-400 hover:text-white text-xs font-bold transition items-center gap-1.5"
+              title="Mostrar/Ocultar dicas de ajuda"
+            >
+              {localStorage.getItem('hideHelp') === 'true' ? <Info className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+              {localStorage.getItem('hideHelp') === 'true' ? 'Mostrar Ajuda' : 'Ocultar Ajuda'}
+            </button>
+            <button
               onClick={handleLogout}
               className="h-9 px-3 rounded-lg bg-zinc-800 hover:bg-red-950/40 text-zinc-400 hover:text-red-400 text-xs font-bold transition active:scale-95 flex items-center gap-1.5"
             >
@@ -492,7 +541,7 @@ function AdminPage() {
         
         {/* Navigation Tabs */}
         <div className="flex gap-2 px-4 pb-3 overflow-x-auto no-scrollbar">
-          {([["geral", "⚙️ Geral"], ["fidelidade", "🎁 Fidelidade"], ["produtos", "🍔 Produtos"], ["grupos", "📦 Sabores/Adicionais"], ["sorteios", "🏆 Sorteios"], ["faturamento", "📊 Faturamento"], ["tutorial", "📚 Como Usar"]] as [Tab, string][]).map(([id, label]) => (
+          {([["geral", "⚙️ Geral"], ["tutorial", "📚 Como Usar"], ["fidelidade", "🎁 Fidelidade"], ["produtos", "🍔 Produtos"], ["grupos", "📦 Sabores/Adicionais"], ["sorteios", "🏆 Sorteios"], ["faturamento", "📊 Faturamento"]] as [Tab, string][]).map(([id, label]) => (
             <button
               key={id}
               data-tab={id}
@@ -1784,25 +1833,25 @@ function ProductModal({
                     {isChecked && linkedGroup && (
                       <div className="mt-2 pt-2 border-t border-zinc-800 grid grid-cols-1 sm:grid-cols-3 gap-2">
                         <div>
-                          <label className="text-[9px] text-zinc-400 font-bold ml-1">Mínimo de escolhas</label>
+                          <label className="text-[9px] text-zinc-400 font-bold ml-1">Mínimo de escolhas <InfoTooltip text="Deixe '0' se as escolhas forem opcionais para o cliente (ex: Sabores extras)." /></label>
                           <input type="number" min="0" value={linkedGroup.min_choices} onChange={e => {
                             const ng = [...normalizedGroups];
                             const idx = ng.findIndex(g => g.template_id === tmpl.id);
-                            if (idx >= 0) ng[idx].min_choices = parseInt(e.target.value) || 0;
+                            if (idx >= 0) ng[idx].min_choices = e.target.value === '' ? '' as any : parseInt(e.target.value);
                             setP({ ...p, choice_groups: ng });
                           }} className="w-full bg-surface ring-1 ring-border rounded-lg px-2 py-1.5 text-xs" />
                         </div>
                         <div>
-                          <label className="text-[9px] text-zinc-400 font-bold ml-1">Máximo de escolhas</label>
+                          <label className="text-[9px] text-zinc-400 font-bold ml-1">Máximo de escolhas <InfoTooltip text="Quantas opções o cliente pode selecionar no máximo. Ex: Se for uma pizza meia-a-meia, coloque 2." /></label>
                           <input type="number" min="1" value={linkedGroup.max_choices} onChange={e => {
                             const ng = [...normalizedGroups];
                             const idx = ng.findIndex(g => g.template_id === tmpl.id);
-                            if (idx >= 0) ng[idx].max_choices = parseInt(e.target.value) || 1;
+                            if (idx >= 0) ng[idx].max_choices = e.target.value === '' ? '' as any : parseInt(e.target.value);
                             setP({ ...p, choice_groups: ng });
                           }} className="w-full bg-surface ring-1 ring-border rounded-lg px-2 py-1.5 text-xs" />
                         </div>
                         <div>
-                          <label className="text-[9px] text-zinc-400 font-bold ml-1">Regra de Preço</label>
+                          <label className="text-[9px] text-zinc-400 font-bold ml-1">Regra de Preço <InfoTooltip title="Como o preço será cobrado?" text="• Soma: Cobra o valor de todos os itens escolhidos.\n• Maior Valor: Cobra apenas o valor da opção mais cara (Ideal para pizzas).\n• Média: Soma as opções e divide pela quantidade." /></label>
                           <select value={linkedGroup.pricing_logic} onChange={e => {
                             const ng = [...normalizedGroups];
                             const idx = ng.findIndex(g => g.template_id === tmpl.id);
@@ -1982,7 +2031,7 @@ function GroupsTab({ lojaId }: { lojaId: string | null }) {
                       const ng = [...templates]; ng[gIdx].options[oIdx].section = e.target.value; setTemplates(ng);
                     }} className="w-full sm:w-1/3 min-w-[100px] bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm" placeholder="Seção (Ex: Tradicional)" />
                     <input type="number" step="0.01" value={opt.price} onChange={e => {
-                      const ng = [...templates]; ng[gIdx].options[oIdx].price = parseFloat(e.target.value)||0; setTemplates(ng);
+                      const ng = [...templates]; ng[gIdx].options[oIdx].price = e.target.value === '' ? '' as any : parseFloat(e.target.value); setTemplates(ng);
                     }} className="w-24 bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm" placeholder="R$ 0,00" />
                     <button onClick={() => {
                       const ng = [...templates]; ng[gIdx].options = ng[gIdx].options.filter((_, i) => i !== oIdx); setTemplates(ng);
@@ -3087,47 +3136,85 @@ function FaturamentoTab({ lojaId }: { lojaId: string | null }) {
 
 function TutorialTab() {
   return (
-    <section className="space-y-6">
+    <section className="space-y-6 animate-fade-in">
       <div className="space-y-0.5">
         <h4 className="font-extrabold text-sm text-white">📚 Guia Completo do RangoClick</h4>
-        <p className="text-[11px] text-zinc-400">Aprenda a configurar e usar todo o potencial do seu cardápio digital.</p>
+        <p className="text-[11px] text-zinc-400">Aprenda a configurar e usar todo o potencial do seu cardápio digital com nossos vídeos passo a passo.</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Passo 1 */}
-        <div className="bg-surface ring-1 ring-border rounded-2xl p-5 space-y-3">
-          <div className="w-8 h-8 rounded-xl bg-teal-500/10 text-teal-400 flex items-center justify-center font-black text-sm">1</div>
-          <h5 className="font-bold text-sm text-white">Configurar sua Loja</h5>
-          <p className="text-xs text-zinc-400 leading-relaxed">
-            Na aba <strong>Geral</strong>, defina o nome do seu negócio, WhatsApp para receber os pedidos (com DDI e DDD, ex: 5546999999999), tempo de entrega estimado e o endereço para retirada física.
-          </p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        
+        {/* Vídeo 1 */}
+        <div className="bg-surface ring-1 ring-border rounded-2xl overflow-hidden flex flex-col shadow-lg">
+          <div className="aspect-video bg-zinc-900 border-b border-zinc-800 relative flex items-center justify-center group cursor-pointer">
+            {/* Placeholder de Vídeo - Substituir por iframe do YouTube ou tag de video depois */}
+            <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/90 to-transparent z-10" />
+            <img src="https://images.unsplash.com/photo-1600880292203-757bb62b4baf?q=80&w=1000&auto=format&fit=crop" className="w-full h-full object-cover opacity-50 transition duration-700 group-hover:scale-105 group-hover:opacity-30" alt="Video thumbnail" />
+            <div className="absolute z-20 w-12 h-12 rounded-full bg-primary/90 text-primary-foreground flex items-center justify-center shadow-[0_0_30px_rgba(245,158,11,0.5)] group-hover:scale-110 transition">
+              <PlayCircle className="w-6 h-6" />
+            </div>
+            <p className="absolute bottom-2 right-2 z-20 text-[9px] font-black text-white px-1.5 py-0.5 rounded-md bg-black/60 backdrop-blur-md">02:15</p>
+          </div>
+          <div className="p-4 space-y-1.5 flex-1">
+            <h5 className="font-bold text-xs text-white leading-tight">1. Como Cadastrar Produtos e Sabores</h5>
+            <p className="text-[10px] text-zinc-400 leading-relaxed">
+              Aprenda a organizar seu cardápio, criar categorias e vincular sabores e adicionais corretamente sem erros.
+            </p>
+          </div>
         </div>
 
-        {/* Passo 2 */}
-        <div className="bg-surface ring-1 ring-border rounded-2xl p-5 space-y-3">
-          <div className="w-8 h-8 rounded-xl bg-teal-500/10 text-teal-400 flex items-center justify-center font-black text-sm">2</div>
-          <h5 className="font-bold text-sm text-white">Cadastrar Seus Produtos</h5>
-          <p className="text-xs text-zinc-400 leading-relaxed">
-            Na aba <strong>Produtos</strong>, crie categorias (Hambúrgueres, Pizzas, Bebidas, etc.) e adicione seus produtos com fotos ou emojis, descrição caprichada e opções de adicionais (ex: queijo extra, molhos).
-          </p>
+        {/* Vídeo 2 */}
+        <div className="bg-surface ring-1 ring-border rounded-2xl overflow-hidden flex flex-col shadow-lg">
+          <div className="aspect-video bg-zinc-900 border-b border-zinc-800 relative flex items-center justify-center group cursor-pointer">
+            <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/90 to-transparent z-10" />
+            <img src="https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?q=80&w=1000&auto=format&fit=crop" className="w-full h-full object-cover opacity-50 transition duration-700 group-hover:scale-105 group-hover:opacity-30" alt="Video thumbnail" />
+            <div className="absolute z-20 w-12 h-12 rounded-full bg-primary/90 text-primary-foreground flex items-center justify-center shadow-[0_0_30px_rgba(245,158,11,0.5)] group-hover:scale-110 transition">
+              <PlayCircle className="w-6 h-6" />
+            </div>
+            <p className="absolute bottom-2 right-2 z-20 text-[9px] font-black text-white px-1.5 py-0.5 rounded-md bg-black/60 backdrop-blur-md">01:45</p>
+          </div>
+          <div className="p-4 space-y-1.5 flex-1">
+            <h5 className="font-bold text-xs text-white leading-tight">2. Configurações de Loja e Entrega</h5>
+            <p className="text-[10px] text-zinc-400 leading-relaxed">
+              Saiba como configurar o WhatsApp que receberá os pedidos, taxas de entrega por bairro e a sua chave Pix.
+            </p>
+          </div>
         </div>
 
-        {/* Passo 3 */}
-        <div className="bg-surface ring-1 ring-border rounded-2xl p-5 space-y-3">
-          <div className="w-8 h-8 rounded-xl bg-teal-500/10 text-teal-400 flex items-center justify-center font-black text-sm">3</div>
-          <h5 className="font-bold text-sm text-white">Taxas de Entrega e Pix</h5>
-          <p className="text-xs text-zinc-400 leading-relaxed">
-            Cadastre os bairros que você atende com suas respectivas taxas de entrega. Configure sua chave Pix copia-e-cola para que os clientes paguem antes do pedido ser enviado ao WhatsApp.
-          </p>
+        {/* Vídeo 3 */}
+        <div className="bg-surface ring-1 ring-border rounded-2xl overflow-hidden flex flex-col shadow-lg">
+          <div className="aspect-video bg-zinc-900 border-b border-zinc-800 relative flex items-center justify-center group cursor-pointer">
+            <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/90 to-transparent z-10" />
+            <img src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1000&auto=format&fit=crop" className="w-full h-full object-cover opacity-50 transition duration-700 group-hover:scale-105 group-hover:opacity-30" alt="Video thumbnail" />
+            <div className="absolute z-20 w-12 h-12 rounded-full bg-primary/90 text-primary-foreground flex items-center justify-center shadow-[0_0_30px_rgba(245,158,11,0.5)] group-hover:scale-110 transition">
+              <PlayCircle className="w-6 h-6" />
+            </div>
+            <p className="absolute bottom-2 right-2 z-20 text-[9px] font-black text-white px-1.5 py-0.5 rounded-md bg-black/60 backdrop-blur-md">03:10</p>
+          </div>
+          <div className="p-4 space-y-1.5 flex-1">
+            <h5 className="font-bold text-xs text-white leading-tight">3. Regras de Preços (Maior Valor x Soma)</h5>
+            <p className="text-[10px] text-zinc-400 leading-relaxed">
+              Entenda exatamente como usar as regras de cálculo para vender pizzas meio-a-meio ou itens com adicionais pagos.
+            </p>
+          </div>
         </div>
 
-        {/* Passo 4 */}
-        <div className="bg-surface ring-1 ring-border rounded-2xl p-5 space-y-3">
-          <div className="w-8 h-8 rounded-xl bg-teal-500/10 text-teal-400 flex items-center justify-center font-black text-sm">4</div>
-          <h5 className="font-bold text-sm text-white">Fidelizar com Cupons e Sorteios</h5>
-          <p className="text-xs text-zinc-400 leading-relaxed">
-            Ative o <strong>Cartão Fidelidade</strong> para dar prêmios a clientes recorrentes. Crie <strong>Sorteios</strong> automáticos para compras acima de um valor mínimo para turbinar suas vendas da semana.
-          </p>
+        {/* Vídeo 4 */}
+        <div className="bg-surface ring-1 ring-border rounded-2xl overflow-hidden flex flex-col shadow-lg">
+          <div className="aspect-video bg-zinc-900 border-b border-zinc-800 relative flex items-center justify-center group cursor-pointer">
+            <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/90 to-transparent z-10" />
+            <img src="https://images.unsplash.com/photo-1513151233558-d860c5398176?q=80&w=1000&auto=format&fit=crop" className="w-full h-full object-cover opacity-50 transition duration-700 group-hover:scale-105 group-hover:opacity-30" alt="Video thumbnail" />
+            <div className="absolute z-20 w-12 h-12 rounded-full bg-primary/90 text-primary-foreground flex items-center justify-center shadow-[0_0_30px_rgba(245,158,11,0.5)] group-hover:scale-110 transition">
+              <PlayCircle className="w-6 h-6" />
+            </div>
+            <p className="absolute bottom-2 right-2 z-20 text-[9px] font-black text-white px-1.5 py-0.5 rounded-md bg-black/60 backdrop-blur-md">01:20</p>
+          </div>
+          <div className="p-4 space-y-1.5 flex-1">
+            <h5 className="font-bold text-xs text-white leading-tight">4. Fidelidade e Sorteios</h5>
+            <p className="text-[10px] text-zinc-400 leading-relaxed">
+              Descubra como ativar campanhas automáticas de fidelização e sorteios para fazer os clientes comprarem com mais frequência.
+            </p>
+          </div>
         </div>
       </div>
 
