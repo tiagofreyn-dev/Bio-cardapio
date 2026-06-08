@@ -1660,7 +1660,8 @@ function ProductsTab({ products, lojaId, onSwitchToGroups, isPromoMode = false }
           isNew={isNew} 
           existingCategories={Array.from(new Set(products.map((x) => x.category))).filter(Boolean)}
           onClose={() => { setEditing(null); setIsNew(false); }} 
-          onSave={save} 
+          onSave={save}
+          isPromoMode={isPromoMode}
         />
       )}
     </section>
@@ -1672,13 +1673,15 @@ function ProductModal({
   isNew, 
   existingCategories, 
   onClose, 
-  onSave 
+  onSave,
+  isPromoMode
 }: { 
   product: Product; 
   isNew: boolean; 
   existingCategories: string[]; 
   onClose: () => void; 
-  onSave: (p: Product) => void 
+  onSave: (p: Product) => void;
+  isPromoMode?: boolean;
 }) {
   const [p, setP] = useState<Product>(product);
   const [uploading, setUploading] = useState(false);
