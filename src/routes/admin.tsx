@@ -426,20 +426,6 @@ function AdminPage() {
               </button>
             </form>
 
-            <div className="mt-4 p-3.5 rounded-2xl bg-teal-950/20 border border-teal-500/20 text-center">
-              <p className="text-[11px] font-bold text-teal-400">✨ Quer testar sem criar conta?</p>
-              <p className="text-[10px] text-zinc-400 mt-0.5">Use o nosso estabelecimento de exemplo:</p>
-              <button
-                type="button"
-                onClick={() => {
-                  setEmail("demo@rangoclick.com");
-                  setPassword("senha123");
-                }}
-                className="w-full mt-2 h-9 rounded-xl bg-teal-500 hover:bg-teal-450 text-zinc-950 font-black text-xs transition active:scale-[0.97] flex items-center justify-center gap-1.5"
-              >
-                Preencher Conta de Teste 🍔
-              </button>
-            </div>
 
             <div className="mt-5 text-center">
               <Link to="/cadastro" className="text-xs font-bold text-zinc-400 hover:text-primary transition underline">
