@@ -110,20 +110,14 @@ function LandingPage() {
       {/* 1. SEÇÃO HERO */}
       <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden bg-zinc-950 pt-20">
         {/* Vídeo Background */}
-        <div className="absolute inset-0 z-0">
-          <video 
-            autoPlay 
-            loop 
-            muted 
-            playsInline 
-            className="w-full h-full object-cover opacity-60"
-            poster="https://images.unsplash.com/photo-1555939594-58d7cb561ad1?q=80&w=2000&auto=format&fit=crop"
-          >
-            {/* Placeholder de vídeo gourmet - pode ser substituído depois */}
-            <source src="https://cdn.pixabay.com/video/2023/10/22/186008-876822263_large.mp4" type="video/mp4" />
-          </video>
+        <div className="absolute inset-0 z-0 bg-zinc-950">
+          <img 
+            src="https://images.unsplash.com/photo-1586190848861-99aa4a171e90?q=80&w=2500&auto=format&fit=crop"
+            alt="Hambúrguer Premium"
+            className="w-full h-full object-cover opacity-50 object-center"
+          />
           {/* Overlay Escuro com gradiente terracota */}
-          <div className="absolute inset-0 bg-gradient-to-b from-zinc-950/80 via-zinc-950/60 to-orange-950/90 mix-blend-multiply" />
+          <div className="absolute inset-0 bg-gradient-to-b from-zinc-950/90 via-zinc-950/50 to-orange-950/90 mix-blend-multiply" />
         </div>
 
         <div className="relative z-10 max-w-7xl mx-auto px-6 w-full pt-10 pb-20">
