@@ -3152,14 +3152,17 @@ function TutorialTab() {
         
         {/* Vídeo 1 */}
         <div className="bg-surface ring-1 ring-border rounded-2xl overflow-hidden flex flex-col shadow-lg">
-          <div className="aspect-video bg-zinc-900 border-b border-zinc-800 relative flex items-center justify-center group cursor-pointer">
-            {/* Placeholder de Vídeo - Substituir por iframe do YouTube ou tag de video depois */}
-            <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/90 to-transparent z-10" />
-            <img src="https://images.unsplash.com/photo-1600880292203-757bb62b4baf?q=80&w=1000&auto=format&fit=crop" className="w-full h-full object-cover opacity-50 transition duration-700 group-hover:scale-105 group-hover:opacity-30" alt="Video thumbnail" />
-            <div className="absolute z-20 w-12 h-12 rounded-full bg-primary/90 text-primary-foreground flex items-center justify-center shadow-[0_0_30px_rgba(245,158,11,0.5)] group-hover:scale-110 transition">
-              <PlayCircle className="w-6 h-6" />
-            </div>
-            <p className="absolute bottom-2 right-2 z-20 text-[9px] font-black text-white px-1.5 py-0.5 rounded-md bg-black/60 backdrop-blur-md">02:15</p>
+          <div className="aspect-video bg-zinc-900 border-b border-zinc-800 relative flex items-center justify-center group cursor-pointer overflow-hidden">
+            <iframe 
+              width="100%" 
+              height="100%" 
+              src="https://www.youtube.com/embed/rvYq-8uV2ls?rel=0&modestbranding=1" 
+              title="1. Como Cadastrar Produtos e Sabores" 
+              frameBorder="0" 
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+              referrerPolicy="strict-origin-when-cross-origin" 
+              allowFullScreen
+            ></iframe>
           </div>
           <div className="p-4 space-y-1.5 flex-1">
             <h5 className="font-bold text-xs text-white leading-tight">1. Como Cadastrar Produtos e Sabores</h5>
@@ -3171,13 +3174,17 @@ function TutorialTab() {
 
         {/* Vídeo 2 */}
         <div className="bg-surface ring-1 ring-border rounded-2xl overflow-hidden flex flex-col shadow-lg">
-          <div className="aspect-video bg-zinc-900 border-b border-zinc-800 relative flex items-center justify-center group cursor-pointer">
-            <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/90 to-transparent z-10" />
-            <img src="https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?q=80&w=1000&auto=format&fit=crop" className="w-full h-full object-cover opacity-50 transition duration-700 group-hover:scale-105 group-hover:opacity-30" alt="Video thumbnail" />
-            <div className="absolute z-20 w-12 h-12 rounded-full bg-primary/90 text-primary-foreground flex items-center justify-center shadow-[0_0_30px_rgba(245,158,11,0.5)] group-hover:scale-110 transition">
-              <PlayCircle className="w-6 h-6" />
-            </div>
-            <p className="absolute bottom-2 right-2 z-20 text-[9px] font-black text-white px-1.5 py-0.5 rounded-md bg-black/60 backdrop-blur-md">01:45</p>
+          <div className="aspect-video bg-zinc-900 border-b border-zinc-800 relative flex items-center justify-center group cursor-pointer overflow-hidden">
+            <iframe 
+              width="100%" 
+              height="100%" 
+              src="https://www.youtube.com/embed/_IilQ4NTyFg?rel=0&modestbranding=1" 
+              title="2. Configurações de Loja e Entrega" 
+              frameBorder="0" 
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+              referrerPolicy="strict-origin-when-cross-origin" 
+              allowFullScreen
+            ></iframe>
           </div>
           <div className="p-4 space-y-1.5 flex-1">
             <h5 className="font-bold text-xs text-white leading-tight">2. Configurações de Loja e Entrega</h5>
@@ -3189,13 +3196,17 @@ function TutorialTab() {
 
         {/* Vídeo 3 */}
         <div className="bg-surface ring-1 ring-border rounded-2xl overflow-hidden flex flex-col shadow-lg">
-          <div className="aspect-video bg-zinc-900 border-b border-zinc-800 relative flex items-center justify-center group cursor-pointer">
-            <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/90 to-transparent z-10" />
-            <img src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1000&auto=format&fit=crop" className="w-full h-full object-cover opacity-50 transition duration-700 group-hover:scale-105 group-hover:opacity-30" alt="Video thumbnail" />
-            <div className="absolute z-20 w-12 h-12 rounded-full bg-primary/90 text-primary-foreground flex items-center justify-center shadow-[0_0_30px_rgba(245,158,11,0.5)] group-hover:scale-110 transition">
-              <PlayCircle className="w-6 h-6" />
-            </div>
-            <p className="absolute bottom-2 right-2 z-20 text-[9px] font-black text-white px-1.5 py-0.5 rounded-md bg-black/60 backdrop-blur-md">03:10</p>
+          <div className="aspect-video bg-zinc-900 border-b border-zinc-800 relative flex items-center justify-center group cursor-pointer overflow-hidden">
+            <iframe 
+              width="100%" 
+              height="100%" 
+              src="https://www.youtube.com/embed/QCwO1J9_dRE?rel=0&modestbranding=1" 
+              title="3. Regras de Preços (Maior Valor x Soma)" 
+              frameBorder="0" 
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+              referrerPolicy="strict-origin-when-cross-origin" 
+              allowFullScreen
+            ></iframe>
           </div>
           <div className="p-4 space-y-1.5 flex-1">
             <h5 className="font-bold text-xs text-white leading-tight">3. Regras de Preços (Maior Valor x Soma)</h5>
@@ -3207,13 +3218,17 @@ function TutorialTab() {
 
         {/* Vídeo 4 */}
         <div className="bg-surface ring-1 ring-border rounded-2xl overflow-hidden flex flex-col shadow-lg">
-          <div className="aspect-video bg-zinc-900 border-b border-zinc-800 relative flex items-center justify-center group cursor-pointer">
-            <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/90 to-transparent z-10" />
-            <img src="https://images.unsplash.com/photo-1513151233558-d860c5398176?q=80&w=1000&auto=format&fit=crop" className="w-full h-full object-cover opacity-50 transition duration-700 group-hover:scale-105 group-hover:opacity-30" alt="Video thumbnail" />
-            <div className="absolute z-20 w-12 h-12 rounded-full bg-primary/90 text-primary-foreground flex items-center justify-center shadow-[0_0_30px_rgba(245,158,11,0.5)] group-hover:scale-110 transition">
-              <PlayCircle className="w-6 h-6" />
-            </div>
-            <p className="absolute bottom-2 right-2 z-20 text-[9px] font-black text-white px-1.5 py-0.5 rounded-md bg-black/60 backdrop-blur-md">01:20</p>
+          <div className="aspect-video bg-zinc-900 border-b border-zinc-800 relative flex items-center justify-center group cursor-pointer overflow-hidden">
+            <iframe 
+              width="100%" 
+              height="100%" 
+              src="https://www.youtube.com/embed/LFe9gKk8TQU?rel=0&modestbranding=1" 
+              title="4. Fidelidade e Sorteios" 
+              frameBorder="0" 
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+              referrerPolicy="strict-origin-when-cross-origin" 
+              allowFullScreen
+            ></iframe>
           </div>
           <div className="p-4 space-y-1.5 flex-1">
             <h5 className="font-bold text-xs text-white leading-tight">4. Fidelidade e Sorteios</h5>
