@@ -630,7 +630,7 @@ function AdminPage() {
           {tab === "produtos" && <ProductsTab products={products} lojaId={lojaId} onSwitchToGroups={() => setTab("grupos")} />}
           {tab === "promo" && <ProductsTab products={products} lojaId={lojaId} onSwitchToGroups={() => setTab("grupos")} isPromoMode={true} />}
           {tab === "grupos" && <GroupsTab lojaId={lojaId} />}
-          {tab === "sorteios" && <CampaignsTab />}
+          {tab === "sorteios" && <CampaignsTab lojaId={lojaId} />}
           {tab === "faturamento" && <FaturamentoTab lojaId={lojaId} />}
           {tab === "tutorial" && <TutorialTab />}
         </div>
@@ -760,6 +760,7 @@ function GeneralTab({
       const { data, error } = await supabase
         .from("delivery_locations")
         .select("*")
+        .eq("loja_id", lojaId)
         .order("name", { ascending: true });
       if (error) throw error;
       setLocations(data || []);
@@ -785,12 +786,13 @@ function GeneralTab({
         const { error } = await supabase
           .from("delivery_locations")
           .update({ name: name.trim(), fee: Number(fee) })
-          .eq("id", editingId);
+          .eq("id", editingId)
+          .eq("loja_id", lojaId);
         if (error) throw error;
       } else {
         const { error } = await supabase
           .from("delivery_locations")
-          .insert({ name: name.trim(), fee: Number(fee) });
+          .insert({ name: name.trim(), fee: Number(fee), loja_id: lojaId });
         if (error) throw error;
       }
       setName("");
@@ -809,7 +811,8 @@ function GeneralTab({
       const { error } = await supabase
         .from("delivery_locations")
         .delete()
-        .eq("id", id);
+        .eq("id", id)
+        .eq("loja_id", lojaId);
       if (error) throw error;
       await fetchLocations();
     } catch (err: any) {
@@ -2064,7 +2067,7 @@ function GroupsTab({ lojaId }: { lojaId: string | null }) {
   );
 }
 
-function CampaignsTab() {
+function CampaignsTab({ lojaId }: { lojaId: string | null }) {
   const products = useStorageSync(() => storage.getProducts());
   const campaignWinners = useStorageSync(() => storage.getCampaignWinners());
   const [selectedProductId, setSelectedProductId] = useState("");
@@ -2108,6 +2111,7 @@ function CampaignsTab() {
       const { data: campaignData, error: campaignError } = await supabase
         .from("campaigns")
         .select("*")
+        .eq("loja_id", lojaId)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -2158,6 +2162,7 @@ function CampaignsTab() {
       const { data, error } = await supabase
         .from("campaigns")
         .insert({
+          loja_id: lojaId,
           title: title.trim(),
           min_value: parseFloat(minValue) || 30.00,
           is_active: true,

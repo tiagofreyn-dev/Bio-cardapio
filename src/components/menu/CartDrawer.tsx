@@ -91,13 +91,16 @@ export function CartDrawer({
       if (savedRef) setRef(savedRef);
     } catch {}
 
+    const lojaId = typeof window !== "undefined" ? localStorage.getItem("insano.tenant.activeId") : null;
+
     // Buscar campanha ativa no Supabase
     async function fetchCampaign() {
       try {
-        if (!supabase) return;
+        if (!supabase || !lojaId) return;
         const { data, error } = await supabase
           .from("campaigns")
           .select("*")
+          .eq("loja_id", lojaId)
           .eq("is_active", true)
           .maybeSingle();
 
@@ -111,10 +114,11 @@ export function CartDrawer({
     // Buscar locais e taxas de entrega dinâmicas
     async function fetchLocations() {
       try {
-        if (!supabase) return;
+        if (!supabase || !lojaId) return;
         const { data, error } = await supabase
           .from("delivery_locations")
           .select("*")
+          .eq("loja_id", lojaId)
           .order("name", { ascending: true });
         if (error) throw error;
         if (data) {
@@ -286,6 +290,7 @@ export function CartDrawer({
     if (isCampaignEligible && supabase) {
       try {
         const { error } = await supabase.from("participants").insert({
+          loja_id: lojaId,
           campaign_id: activeCampaign.id,
           client_name: name.trim(),
           client_phone: phone.trim(),
