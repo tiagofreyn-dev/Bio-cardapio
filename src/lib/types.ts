@@ -1,5 +1,11 @@
 export type Category = string;
 
+export interface GlobalAddon {
+  id: string;
+  name: string;
+  price: number;
+}
+
 export interface ChoiceOption {
   id: string;
   name: string;
@@ -38,6 +44,7 @@ export interface Product {
   max_sabores?: number;
   adicionais?: { nome: string; preco: number; descricao?: string }[];
   choice_groups?: ProductChoiceGroup[];
+  allowed_addons?: string[]; // IDs of GlobalAddons allowed for this product
 }
 
 export interface CartItem {
@@ -75,9 +82,13 @@ export interface Settings {
   storeAddress?: string;
   loyaltyActive?: boolean;
   cobranca_automatica?: boolean;
+  categoryOrder?: string[];
   logoUrl?: string;
   deliveryTime?: string;
   choiceGroupTemplates?: ChoiceGroup[];
+  acceptsPix?: boolean;
+  acceptsCard?: boolean;
+  acceptsCash?: boolean;
 }
 
 export interface CustomerLoyalty {
@@ -156,5 +167,13 @@ export interface Loja {
   titular_pix?: string;
   criado_em?: string;
   cobranca_automatica?: boolean;
+}
+
+export interface StoreDataJSON {
+  settings: Settings;
+  products: Product[];
+  delivery_locations: DeliveryLocation[];
+  global_addons: GlobalAddon[];
+  campaigns: Campaign[];
 }
 

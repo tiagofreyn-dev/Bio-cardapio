@@ -4,9 +4,15 @@ import { storage } from "@/lib/storage";
 import { useStorageSync } from "@/hooks/use-storage";
 import type { Product, Category, CustomerLoyalty, Campaign, CampaignWinner, Participant, OrderHistory, DeliveryLocation, ChoiceGroup } from "@/lib/types";
 import { brl } from "@/lib/format";
-import { ArrowLeft, Plus, Pencil, Trash2, Search, Gift, Trophy, Download, DollarSign, TrendingUp, ShoppingCart, Truck, Lock, RefreshCw, Check, ShieldCheck } from "lucide-react";
+import {
+  MoreVertical, Edit2, Copy, Trash2, Eye, EyeOff, Search,
+  Settings, LogOut, ChevronDown, Check, Menu, X, GripVertical, Image as ImageIcon,
+  HelpCircle, Tag, ArrowLeft, Plus, Pencil, Gift, Trophy, Download, DollarSign, TrendingUp, ShoppingCart, Truck, Lock, RefreshCw, ShieldCheck
+} from "lucide-react";
+import imageCompression from 'browser-image-compression';
 import { supabase } from "@/lib/supabase";
-import { Info, EyeOff, PlayCircle } from "lucide-react";
+import { Info, PlayCircle } from "lucide-react";
+import { ThemeToggle } from "@/components/menu/MenuHeader";
 
 export function InfoTooltip({ title, text }: { title?: string, text: string }) {
   const [enabled, setEnabled] = useState(localStorage.getItem('hideHelp') !== 'true');
@@ -43,62 +49,22 @@ export function InfoTooltip({ title, text }: { title?: string, text: string }) {
   );
 }
 async function compressImage(file: File, maxWidth = 800, maxHeight = 800, quality = 0.75): Promise<File> {
-  return new Promise((resolve) => {
-    if (!file.type.startsWith('image/')) {
-      resolve(file);
-      return;
-    }
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = (event) => {
-      const img = new Image();
-      img.src = event.target?.result as string;
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        let width = img.width;
-        let height = img.height;
-
-        if (width > height) {
-          if (width > maxWidth) {
-            height = Math.round((height * maxWidth) / width);
-            width = maxWidth;
-          }
-        } else {
-          if (height > maxHeight) {
-            width = Math.round((width * maxHeight) / height);
-            height = maxHeight;
-          }
-        }
-
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          resolve(file);
-          return;
-        }
-        ctx.drawImage(img, 0, 0, width, height);
-
-        canvas.toBlob(
-          (blob) => {
-            if (!blob) {
-              resolve(file);
-              return;
-            }
-            const compressedFile = new File([blob], file.name.replace(/\.[^/.]+$/, "") + ".jpg", {
-              type: 'image/jpeg',
-              lastModified: Date.now(),
-            });
-            resolve(compressedFile);
-          },
-          'image/jpeg',
-          quality
-        );
-      };
-      img.onerror = () => resolve(file);
-    };
-    reader.onerror = () => resolve(file);
-  });
+  if (!file.type.startsWith('image/')) return file;
+  const options = {
+    maxSizeMB: 0.8,
+    maxWidthOrHeight: Math.max(maxWidth, maxHeight),
+    useWebWorker: true,
+    fileType: "image/webp",
+    initialQuality: quality
+  };
+  try {
+    const compressedBlob = await imageCompression(file, options);
+    const newFileName = file.name.replace(/\.[^/.]+$/, "") + ".webp";
+    return new File([compressedBlob], newFileName, { type: "image/webp" });
+  } catch (error) {
+    console.error("Compression error:", error);
+    return file;
+  }
 }
 
 export const Route = createFileRoute("/admin")({
@@ -106,7 +72,7 @@ export const Route = createFileRoute("/admin")({
   component: AdminPage,
 });
 
-type Tab = "geral" | "fidelidade" | "produtos" | "sorteios" | "faturamento" | "tutorial";
+type Tab = "geral" | "fidelidade" | "produtos" | "adicionais" | "grupos" | "promo" | "sorteios" | "faturamento" | "tutorial";
 
 function safeUUID() {
   if (typeof window !== "undefined" && window.crypto && typeof window.crypto.randomUUID === "function") {
@@ -238,73 +204,41 @@ function AdminPage() {
         if (storeData) {
           setStore(storeData);
 
-          // 2. Fetch products for this store
-          const { data: productsData, error: productsError } = await supabase
-            .from("produtos")
-            .select("*")
+          // 2. Load JSON data from store_data
+          const { data: sdRecord, error: sdError } = await supabase
+            .from("store_data")
+            .select("data")
             .eq("loja_id", lojaId)
-            .order("preco", { ascending: true });
+            .maybeSingle();
 
-          if (productsError) throw productsError;
+          if (sdError) throw sdError;
 
-          // Map products to the frontend interface format
-          const mappedProducts: Product[] = (productsData || []).map((p) => ({
-            id: p.id,
-            name: p.nome,
-            description: p.descricao || "",
-            price: Number(p.preco),
-            image: p.imagem || "🍔",
-            category: p.category || "hamburgueres",
-            available: p.disponivel,
-            customizable: p.customizavel,
-            hasLettuceOption: p.has_lettuce_option,
-            hasKetchupOption: p.has_ketchup_option,
-            hasMayoOption: p.has_mayo_option,
-            is_featured: p.is_featured,
-            is_lancamento: p.is_lancamento,
-            max_sabores: Number(p.max_sabores || 1),
-            adicionais: (() => {
-              try {
-                if (typeof p.adicionais === "string") {
-                  return JSON.parse(p.adicionais);
-                }
-                return p.adicionais || [];
-              } catch (e) {
-                console.error("Erro ao parsear adicionais:", e);
-                return [];
-              }
-            })(),
-          }));
-
-          // Map settings
-          const mappedSettings = {
-            storeName: storeData.nome,
-            whatsapp: storeData.whatsapp || "5546999999999",
-            isOpen: storeData.esta_aberta !== false,
-            loyaltyMinOrder: 30,
-            loyaltyGoal: 10,
-            deliveryFee: Number(storeData.taxa_entrega) || 0,
-            pixKey: storeData.chave_pix || "",
-            pixName: storeData.titular_pix || "",
-            storeAddress: storeData.endereco || "",
-            logoUrl: storeData.logo_url || "",
-            deliveryTime: storeData.tempo_entrega || "30-60",
-            choiceGroupTemplates: (() => {
-              try {
-                if (typeof storeData.choice_group_templates === "string") {
-                  return JSON.parse(storeData.choice_group_templates);
-                }
-                return storeData.choice_group_templates || [];
-              } catch {
-                return [];
-              }
-            })(),
-          };
-
-          // Store in localStorage cache
-          localStorage.setItem("insano.products", JSON.stringify(mappedProducts));
-          localStorage.setItem("insano.settings", JSON.stringify(mappedSettings));
-          localStorage.setItem("insano.tenant.activeId", storeData.id);
+          if (sdRecord && sdRecord.data) {
+            const sd = sdRecord.data;
+            if (sd.settings) storage.setSettings(sd.settings);
+            if (sd.products) storage.setProducts(sd.products);
+            if (sd.delivery_locations) storage.setDeliveryLocations(sd.delivery_locations);
+            if (sd.global_addons) storage.setGlobalAddons(sd.global_addons);
+            if (sd.campaigns) storage.setCampaigns(sd.campaigns);
+          } else {
+            // Se nao tiver JSON, carrega configurações padrão do banco relacional (fallback)
+            const mappedSettings = {
+              storeName: storeData.nome,
+              whatsapp: storeData.whatsapp || "5546999999999",
+              isOpen: storeData.esta_aberta !== false,
+              loyaltyMinOrder: 30,
+              loyaltyGoal: 10,
+              deliveryFee: storeData.taxa_entrega || 0,
+              pixKey: storeData.chave_pix || "",
+              pixName: storeData.titular_pix || "",
+              adminPassword: "1234",
+              mayoPrice: 2,
+              storeAddress: storeData.endereco || "",
+              logoUrl: storeData.logo_url || "",
+              deliveryTime: "30-60",
+            };
+            storage.setSettings(mappedSettings);
+          }
 
           // Update browser page title
           document.title = `Admin — ${storeData.nome}`;
@@ -541,7 +475,7 @@ function AdminPage() {
         
         {/* Navigation Tabs */}
         <div className="flex gap-2 px-4 pb-3 overflow-x-auto no-scrollbar">
-          {([["geral", "⚙️ Geral"], ["tutorial", "📚 Como Usar"], ["promo", "🔥 Promoções"], ["fidelidade", "🎁 Fidelidade"], ["produtos", "🍔 Produtos"], ["grupos", "📦 Sabores/Adicionais"], ["sorteios", "🏆 Sorteios"], ["faturamento", "📊 Faturamento"]] as [Tab, string][]).map(([id, label]) => (
+          {([["geral", "⚙️ Geral"], ["tutorial", "📚 Como Usar"], ["promo", "🔥 Promoções"], ["fidelidade", "🎁 Fidelidade"], ["produtos", "🍔 Produtos"], ["adicionais", "➕ Adicionais"], ["grupos", "📦 Sabores"], ["sorteios", "🏆 Sorteios"], ["faturamento", "📊 Faturamento"]] as [Tab, string][]).map(([id, label]) => (
             <button
               key={id}
               data-tab={id}
@@ -629,6 +563,7 @@ function AdminPage() {
           {tab === "fidelidade" && <LoyaltyTab />}
           {tab === "produtos" && <ProductsTab products={products} lojaId={lojaId} onSwitchToGroups={() => setTab("grupos")} />}
           {tab === "promo" && <ProductsTab products={products} lojaId={lojaId} onSwitchToGroups={() => setTab("grupos")} isPromoMode={true} />}
+          {tab === "adicionais" && <GlobalAddonsTab />}
           {tab === "grupos" && <GroupsTab lojaId={lojaId} />}
           {tab === "sorteios" && <CampaignsTab lojaId={lojaId} />}
           {tab === "faturamento" && <FaturamentoTab lojaId={lojaId} />}
@@ -715,7 +650,7 @@ function GeneralTab({
   const products = useStorageSync(() => storage.getProducts());
   const update = (patch: Partial<typeof settings>) => storage.setSettings({ ...settings, ...patch });
 
-  const [locations, setLocations] = useState<DeliveryLocation[]>([]);
+
   const [locLoading, setLocLoading] = useState(true);
   const [locError, setLocError] = useState<string | null>(null);
 
@@ -752,53 +687,29 @@ function GeneralTab({
     }
   }
 
-  async function fetchLocations() {
-    setLocLoading(true);
-    setLocError(null);
-    try {
-      if (!supabase) return;
-      const { data, error } = await supabase
-        .from("delivery_locations")
-        .select("*")
-        .eq("loja_id", lojaId)
-        .order("name", { ascending: true });
-      if (error) throw error;
-      setLocations(data || []);
-    } catch (err: any) {
-      console.error(err);
-      setLocError(err.message);
-    } finally {
-      setLocLoading(false);
-    }
-  }
+  const locations = useStorageSync(() => storage.getDeliveryLocations());
 
   useEffect(() => {
-    fetchLocations();
+    // Legacy fetch removed; handled by storage sync
+    setLocLoading(false);
   }, []);
 
   async function handleSaveLocation(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim() || !fee) return alert("Por favor, preencha todos os campos.");
-    if (!supabase) return;
 
     try {
+      const currentList = storage.getDeliveryLocations();
       if (editingId) {
-        const { error } = await supabase
-          .from("delivery_locations")
-          .update({ name: name.trim(), fee: Number(fee) })
-          .eq("id", editingId)
-          .eq("loja_id", lojaId);
-        if (error) throw error;
+        const updatedList = currentList.map(loc => loc.id === editingId ? { ...loc, name: name.trim(), fee: Number(fee) } : loc);
+        storage.setDeliveryLocations(updatedList);
       } else {
-        const { error } = await supabase
-          .from("delivery_locations")
-          .insert({ name: name.trim(), fee: Number(fee), loja_id: lojaId });
-        if (error) throw error;
+        const newLoc: DeliveryLocation = { id: crypto.randomUUID(), name: name.trim(), fee: Number(fee) };
+        storage.setDeliveryLocations([...currentList, newLoc]);
       }
       setName("");
       setFee("");
       setEditingId(null);
-      await fetchLocations();
     } catch (err: any) {
       alert("Erro ao salvar localização: " + err.message);
     }
@@ -806,15 +717,9 @@ function GeneralTab({
 
   async function handleDeleteLocation(id: string) {
     if (!confirm("Excluir esta taxa de entrega?")) return;
-    if (!supabase) return;
     try {
-      const { error } = await supabase
-        .from("delivery_locations")
-        .delete()
-        .eq("id", id)
-        .eq("loja_id", lojaId);
-      if (error) throw error;
-      await fetchLocations();
+      const currentList = storage.getDeliveryLocations();
+      storage.setDeliveryLocations(currentList.filter(loc => loc.id !== id));
     } catch (err: any) {
       alert("Erro ao excluir localização: " + err.message);
     }
@@ -894,7 +799,7 @@ function GeneralTab({
         <Field label="Logo / Imagem do Estabelecimento">
           <div className="space-y-4">
             <div className="flex gap-4 items-center p-3 rounded-2xl bg-zinc-900/40 ring-1 ring-border shadow-inner">
-              {settings.logoUrl && (settings.logoUrl.startsWith('http') || settings.logoUrl.startsWith('/')) ? (
+              {typeof settings.logoUrl === 'string' && (settings.logoUrl.startsWith('http') || settings.logoUrl.startsWith('/')) ? (
                 <img src={settings.logoUrl} className="w-16 h-16 object-cover rounded-2xl ring-2 ring-primary/20 shadow-md shrink-0 animate-fade-in" />
               ) : (
                 <div className="w-16 h-16 text-3xl flex items-center justify-center bg-primary/10 text-primary rounded-2xl ring-2 ring-primary/20 font-black shadow-md shrink-0">
@@ -999,6 +904,57 @@ function GeneralTab({
             {settings.isOpen ? "Loja Aberta — Aceitando pedidos" : "Loja Fechada — Bloquear novos pedidos"}
           </button>
         </Field>
+      </Card>
+
+      <Card title="Ordem das Categorias">
+        <p className="text-[11px] text-zinc-400 mb-4">Escolha a ordem em que as categorias vão aparecer no seu cardápio. Para mover, use as setinhas.</p>
+        <div className="space-y-2">
+          {(()=>{
+            const allCats = Array.from(new Set((products || []).map(p => p.category))).filter(Boolean);
+            const ordered = [...(settings.categoryOrder || []).filter(c => allCats.includes(c))];
+            for (const c of allCats) {
+              if (!ordered.includes(c)) ordered.push(c);
+            }
+            return (
+              <div className="flex flex-col gap-2">
+                {ordered.map((cat, idx) => (
+                   <div key={cat} className="flex items-center justify-between p-3 bg-zinc-900 border border-zinc-800 rounded-xl">
+                     <span className="font-bold text-sm text-white">{cat}</span>
+                     <div className="flex gap-1">
+                       <button 
+                         type="button"
+                         disabled={idx === 0}
+                         onClick={() => {
+                           const newOrder = [...ordered];
+                           [newOrder[idx - 1], newOrder[idx]] = [newOrder[idx], newOrder[idx - 1]];
+                           update({ categoryOrder: newOrder });
+                           autoSave({ ...settings, categoryOrder: newOrder });
+                         }}
+                         className="w-8 h-8 flex items-center justify-center bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white disabled:opacity-30 rounded-lg transition text-lg"
+                       >
+                         ↑
+                       </button>
+                       <button 
+                         type="button"
+                         disabled={idx === ordered.length - 1}
+                         onClick={() => {
+                           const newOrder = [...ordered];
+                           [newOrder[idx + 1], newOrder[idx]] = [newOrder[idx], newOrder[idx + 1]];
+                           update({ categoryOrder: newOrder });
+                           autoSave({ ...settings, categoryOrder: newOrder });
+                         }}
+                         className="w-8 h-8 flex items-center justify-center bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white disabled:opacity-30 rounded-lg transition text-lg"
+                       >
+                         ↓
+                       </button>
+                     </div>
+                   </div>
+                ))}
+                {ordered.length === 0 && <p className="text-zinc-500 text-sm">Nenhuma categoria encontrada no momento.</p>}
+              </div>
+            );
+          })()}
+        </div>
       </Card>
 
       <Card title="📍 Taxas de Entrega por Região">
@@ -1147,7 +1103,39 @@ function GeneralTab({
         )}
       </Card>
 
-      <Card title="Pagamento via Pix">
+      <Card title="Formas de Pagamento">
+        <div className="space-y-3">
+          <label className="flex items-center gap-3 cursor-pointer p-3 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-primary/50 transition">
+            <input 
+              type="checkbox" 
+              checked={settings.acceptsPix !== false} 
+              onChange={(e) => { update({ acceptsPix: e.target.checked }); autoSave({ ...settings, acceptsPix: e.target.checked }); }} 
+              className="w-5 h-5 accent-primary" 
+            />
+            <span className="text-sm font-semibold text-white">Aceitar Pix</span>
+          </label>
+          <label className="flex items-center gap-3 cursor-pointer p-3 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-primary/50 transition">
+            <input 
+              type="checkbox" 
+              checked={settings.acceptsCard !== false} 
+              onChange={(e) => { update({ acceptsCard: e.target.checked }); autoSave({ ...settings, acceptsCard: e.target.checked }); }} 
+              className="w-5 h-5 accent-primary" 
+            />
+            <span className="text-sm font-semibold text-white">Aceitar Cartão (Débito/Crédito)</span>
+          </label>
+          <label className="flex items-center gap-3 cursor-pointer p-3 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-primary/50 transition">
+            <input 
+              type="checkbox" 
+              checked={settings.acceptsCash !== false} 
+              onChange={(e) => { update({ acceptsCash: e.target.checked }); autoSave({ ...settings, acceptsCash: e.target.checked }); }} 
+              className="w-5 h-5 accent-primary" 
+            />
+            <span className="text-sm font-semibold text-white">Aceitar Dinheiro</span>
+          </label>
+        </div>
+      </Card>
+
+      <Card title="Dados do Pix">
         <Field label="Chave PIX do Estabelecimento">
           <input 
             value={settings.pixKey} 
@@ -1170,58 +1158,6 @@ function GeneralTab({
 
       <Card title="Compartilhamento">
         <div className="p-3.5 rounded-2xl bg-zinc-900 border border-zinc-800 space-y-4 text-left">
-          {/* 1. Trial Active State Banner Info */}
-          {store?.status_assinatura === "pendente" && store?.cobranca_automatica !== false && isTrialActive && (
-            <div className="p-3.5 rounded-xl bg-teal-950/20 border border-teal-500/20">
-              <p className="text-xs font-bold text-teal-400 flex items-center gap-1.5 mb-1.5">
-                <Gift className="w-4 h-4 animate-pulse shrink-0" />
-                Seu período de Teste Grátis de 7 dias está ativo! 🎁
-              </p>
-              <p className="text-[10px] text-zinc-400 leading-normal">
-                Você tem mais <span className="font-bold text-teal-400">{trialDaysLeft} {trialDaysLeft === 1 ? "dia" : "dias"}</span> de acesso livre para receber pedidos e seu cardápio público está ativo.
-              </p>
-            </div>
-          )}
-
-          {/* 2. Success Subscription Active State */}
-          {store?.status_assinatura === "ativo" && store?.cobranca_automatica !== false && (
-            <div className="p-3.5 rounded-xl bg-emerald-950/20 border border-emerald-500/20">
-              <p className="text-xs font-bold text-emerald-400 flex items-center gap-1.5 mb-1.5">
-                <Check className="w-4 h-4 shrink-0" />
-                Cardápio Ativo & Liberado 🚀
-              </p>
-              <p className="text-[10px] text-zinc-400 leading-normal">
-                Sua assinatura do plano recorrente está ativa e o cardápio público está totalmente online para receber pedidos.
-              </p>
-            </div>
-          )}
-
-          {/* 3. Manual Billing Mode Active State */}
-          {store?.cobranca_automatica === false && (
-            <div className="p-3.5 rounded-xl bg-emerald-950/20 border border-emerald-500/20">
-              <p className="text-xs font-bold text-emerald-400 flex items-center gap-1.5 mb-1.5">
-                <Check className="w-4 h-4 shrink-0" />
-                Cardápio Ativo & Liberado (Cobrança Manual)
-              </p>
-              <p className="text-[10px] text-zinc-400 leading-normal">
-                Este estabelecimento está configurado no modo de Cobrança Manual e está online.
-              </p>
-            </div>
-          )}
-
-          {/* 4. Expired Trial State Info */}
-          {store?.status_assinatura === "pendente" && store?.cobranca_automatica !== false && !isTrialActive && (
-            <div className="p-3.5 rounded-xl bg-amber-950/20 border border-amber-500/20">
-              <p className="text-xs font-bold text-amber-400 flex items-center gap-1.5 mb-1.5">
-                <Lock className="w-4 h-4 shrink-0" />
-                Teste Grátis Expirado (Acesso Restrito)
-              </p>
-              <p className="text-[10px] text-zinc-400 leading-normal">
-                O período de teste de 7 dias acabou. Ative o plano de R$ 99,90/mês para liberar o acesso ao seu cardápio público.
-              </p>
-            </div>
-          )}
-
           <div>
             <p className="text-xs font-bold text-zinc-400">Link para colocar na bio do Instagram:</p>
           </div>
@@ -1237,32 +1173,19 @@ function GeneralTab({
               className={`${inputCls} bg-zinc-950 text-zinc-350 text-xs font-semibold`} 
             />
             
-            <div className="flex gap-2">
-              <button 
-                type="button"
-                onClick={() => { 
-                  const url = lojaId === "d3b07384-d113-4ec5-a55d-e0c157855d01"
-                    ? `${window.location.origin}/`
-                    : `${window.location.origin}/cardapio/${slug || ""}`;
-                  navigator.clipboard.writeText(url); 
-                  alert("Link do cardápio copiado!"); 
-                }} 
-                className="flex-1 h-10 rounded-xl bg-teal-500 hover:bg-teal-450 text-zinc-950 font-black text-xs transition active:scale-95 flex items-center justify-center gap-1.5 shadow-md"
-              >
-                Copiar Link 🔗
-              </button>
-              
-              {store?.status_assinatura === "pendente" && store?.cobranca_automatica !== false && (
-                <button
-                  type="button"
-                  onClick={handleActivateSubscription}
-                  disabled={paywallSimulating}
-                  className="flex-1 h-10 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-extrabold text-xs transition active:scale-95 flex items-center justify-center gap-1.5 border border-zinc-700"
-                >
-                  {paywallSimulating ? "..." : isTrialActive ? "Ativar Plano 🚀" : "Ativar Plano (R$ 99,90) 🚀"}
-                </button>
-              )}
-            </div>
+            <button 
+              type="button"
+              onClick={() => { 
+                const url = lojaId === "d3b07384-d113-4ec5-a55d-e0c157855d01"
+                  ? `${window.location.origin}/`
+                  : `${window.location.origin}/cardapio/${slug || ""}`;
+                navigator.clipboard.writeText(url); 
+                alert("Link do cardápio copiado!"); 
+              }} 
+              className="w-full h-10 rounded-xl bg-teal-500 hover:bg-teal-450 text-zinc-950 font-black text-xs transition active:scale-95 flex items-center justify-center gap-1.5 shadow-md"
+            >
+              Copiar Link 🔗
+            </button>
           </div>
         </div>
       </Card>
@@ -1319,6 +1242,93 @@ function LoyaltyTab() {
   );
 }
 
+function GlobalAddonsTab() {
+  const addons = useStorageSync(() => storage.getGlobalAddons());
+  const [name, setName] = useState("");
+  const [price, setPrice] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim() || !price) return alert("Preencha todos os campos.");
+    const parsedPrice = parseFloat(price.replace(",", "."));
+    
+    if (editingId) {
+      storage.setGlobalAddons(addons.map(a => a.id === editingId ? { ...a, name: name.trim(), price: parsedPrice } : a));
+    } else {
+      storage.setGlobalAddons([...addons, { id: crypto.randomUUID(), name: name.trim(), price: parsedPrice }]);
+    }
+    setName("");
+    setPrice("");
+    setEditingId(null);
+  }
+
+  function handleDelete(id: string) {
+    if (confirm("Excluir este adicional global?")) {
+      storage.setGlobalAddons(addons.filter(a => a.id !== id));
+    }
+  }
+
+  return (
+    <section className="space-y-6 animate-in fade-in zoom-in-95 duration-300">
+      <div className="bg-zinc-900/50 p-6 rounded-2xl border border-zinc-800/50 relative overflow-hidden group">
+        <h2 className="text-xl font-black text-white mb-2 flex items-center gap-2">
+          <Plus className="w-5 h-5 text-primary" />
+          Adicionais Globais
+        </h2>
+        <p className="text-zinc-400 text-sm mb-6 max-w-xl">
+          Crie adicionais aqui (ex: Bacon, Cheddar) e depois apenas ative eles nos produtos.
+        </p>
+        
+        <form onSubmit={handleSave} className="flex flex-col sm:flex-row gap-3">
+          <input 
+            type="text" 
+            placeholder="Nome do Adicional" 
+            value={name} 
+            onChange={(e) => setName(e.target.value)} 
+            className="flex-1 h-12 bg-zinc-950/50 border border-zinc-800 rounded-xl px-4 text-white focus:outline-none focus:border-primary/50 transition-colors"
+          />
+          <input 
+            type="number" 
+            step="0.01" 
+            placeholder="Preço (R$)" 
+            value={price} 
+            onChange={(e) => setPrice(e.target.value)} 
+            className="w-full sm:w-32 h-12 bg-zinc-950/50 border border-zinc-800 rounded-xl px-4 text-white focus:outline-none focus:border-primary/50 transition-colors"
+          />
+          <button type="submit" className="h-12 px-6 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-bold shadow-lg shadow-primary/20 transition active:scale-95">
+            {editingId ? "Salvar" : "Adicionar"}
+          </button>
+        </form>
+      </div>
+
+      <div className="grid gap-3">
+        {addons.map(addon => (
+          <div key={addon.id} className="bg-zinc-900/50 p-4 rounded-xl border border-zinc-800 flex items-center justify-between group hover:border-zinc-700 transition-colors">
+            <div>
+              <p className="font-bold text-white">{addon.name}</p>
+              <p className="text-sm text-emerald-400">{brl(addon.price)}</p>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => { setEditingId(addon.id); setName(addon.name); setPrice(addon.price.toString()); }} className="w-8 h-8 rounded-lg bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700 flex items-center justify-center transition">
+                <Edit2 className="w-4 h-4" />
+              </button>
+              <button onClick={() => handleDelete(addon.id)} className="w-8 h-8 rounded-lg bg-red-950/30 text-red-400 hover:bg-red-900/50 hover:text-red-300 flex items-center justify-center transition">
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        ))}
+        {addons.length === 0 && (
+          <div className="text-center py-10 bg-zinc-900/30 rounded-2xl border border-dashed border-zinc-800">
+            <p className="text-zinc-500 font-medium">Nenhum adicional global cadastrado.</p>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function ProductsTab({ products, lojaId, onSwitchToGroups, isPromoMode = false }: { products: Product[], lojaId: string | null, onSwitchToGroups?: () => void, isPromoMode?: boolean }) {
   const [editing, setEditing] = useState<Product | null>(null);
   const [isNew, setIsNew] = useState(false);
@@ -1336,7 +1346,7 @@ function ProductsTab({ products, lojaId, onSwitchToGroups, isPromoMode = false }
         imagem: p.image,
         category: p.category,
         disponivel: p.available,
-        customizavel: (p.adicionais || []).length > 0 || (p.choice_groups || []).length > 0,
+        customizable: (p.adicionais || []).length > 0 || (p.choice_groups || []).length > 0,
         is_featured: p.is_featured,
         is_lancamento: p.is_lancamento || false,
         adicionais: p.adicionais || [],
@@ -1346,22 +1356,6 @@ function ProductsTab({ products, lojaId, onSwitchToGroups, isPromoMode = false }
 
       if (p.max_sabores && p.max_sabores > 1) {
         payload.max_sabores = p.max_sabores;
-      }
-
-      if (isNew) {
-        const { error } = await supabase
-          .from("produtos")
-          .insert({
-            id: p.id,
-            ...payload,
-          });
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from("produtos")
-          .update(payload)
-          .eq("id", p.id);
-        if (error) throw error;
       }
 
       // Sync local storage
@@ -1387,16 +1381,7 @@ function ProductsTab({ products, lojaId, onSwitchToGroups, isPromoMode = false }
     if (!supabase) return;
     try {
       const nextVal = !p.available;
-      const { data, error } = await supabase
-        .from("produtos")
-        .update({ disponivel: nextVal })
-        .eq("id", p.id)
-        .select();
-      if (error) throw error;
-      if (!data || data.length === 0) {
-        throw new Error("Não foi possível atualizar o produto. Certifique-se de que está autenticado com a conta correta.");
-      }
-
+      
       const list = products.map((x) => x.id === p.id ? { ...x, available: nextVal } : x);
       storage.setProducts(list);
       
@@ -1412,16 +1397,7 @@ function ProductsTab({ products, lojaId, onSwitchToGroups, isPromoMode = false }
     if (!supabase) return;
     try {
       const nextVal = !p.is_featured;
-      const { data, error } = await supabase
-        .from("produtos")
-        .update({ is_featured: nextVal })
-        .eq("id", p.id)
-        .select();
-      if (error) throw error;
-      if (!data || data.length === 0) {
-        throw new Error("Não foi possível destacar o produto. Certifique-se de que está autenticado com a conta correta.");
-      }
-
+      
       const list = products.map((x) => x.id === p.id ? { ...x, is_featured: nextVal } : x);
       storage.setProducts(list);
       
@@ -1437,16 +1413,7 @@ function ProductsTab({ products, lojaId, onSwitchToGroups, isPromoMode = false }
     if (!supabase) return;
     try {
       const nextVal = !p.is_lancamento;
-      const { data, error } = await supabase
-        .from("produtos")
-        .update({ is_lancamento: nextVal })
-        .eq("id", p.id)
-        .select();
-      if (error) throw error;
-      if (!data || data.length === 0) {
-        throw new Error("Não foi possível alternar lançamento. Certifique-se de que está autenticado com a conta correta.");
-      }
-
+      
       const list = products.map((x) => x.id === p.id ? { ...x, is_lancamento: nextVal } : x);
       storage.setProducts(list);
       
@@ -1489,7 +1456,7 @@ function ProductsTab({ products, lojaId, onSwitchToGroups, isPromoMode = false }
             <div className="flex items-center justify-between gap-3 w-full sm:w-auto sm:flex-1 min-w-0">
               <div className="flex items-center gap-3 min-w-0">
                 <div className="w-12 h-12 rounded-lg bg-surface-elevated flex items-center justify-center overflow-hidden text-2xl shrink-0">
-                  {(p.image.startsWith('http') || p.image.startsWith('/')) ? <img src={p.image} className="w-full h-full object-cover" /> : p.image}
+                  {((p.image || "").startsWith('http') || (p.image || "").startsWith('/')) ? <img src={p.image} className="w-full h-full object-cover" /> : p.image}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-bold text-sm truncate">{p.name}</p>
@@ -1514,11 +1481,7 @@ function ProductsTab({ products, lojaId, onSwitchToGroups, isPromoMode = false }
                       onClick={async () => {
                         if (!supabase) return;
                         try {
-                          const { error } = await supabase
-                            .from("produtos")
-                            .delete()
-                            .eq("id", p.id);
-                          if (error) throw error;
+                          // We skip direct DB deletion because storage syncs automatically
                           
                           storage.setProducts(products.filter((x) => x.id !== p.id));
                           setDeletingId(null);
@@ -1606,14 +1569,7 @@ function ProductsTab({ products, lojaId, onSwitchToGroups, isPromoMode = false }
                       <button
                         type="button"
                         onClick={async () => {
-                          if (!supabase) return;
                           try {
-                            const { error } = await supabase
-                              .from("produtos")
-                              .delete()
-                              .eq("id", p.id);
-                            if (error) throw error;
-                            
                             storage.setProducts(products.filter((x) => x.id !== p.id));
                             setDeletingId(null);
                             
@@ -1899,6 +1855,39 @@ function ProductModal({
           </div>
         </div>
 
+        <div className="pt-2 border-t border-zinc-800">
+          <label className="text-xs font-bold text-zinc-400 mb-2 block">Adicionais Globais Ativos neste Produto</label>
+          <div className="grid grid-cols-2 gap-2">
+            {storage.getGlobalAddons().map(addon => {
+              const isActive = p.allowed_addons?.includes(addon.id) || false;
+              return (
+                <label key={addon.id} className="flex items-center gap-2 p-2 rounded-lg bg-zinc-900/50 border border-zinc-800 cursor-pointer hover:bg-zinc-800 transition">
+                  <input 
+                    type="checkbox" 
+                    checked={isActive}
+                    onChange={(e) => {
+                      const current = p.allowed_addons || [];
+                      if (e.target.checked) {
+                        setP({ ...p, allowed_addons: [...current, addon.id] });
+                      } else {
+                        setP({ ...p, allowed_addons: current.filter(id => id !== addon.id) });
+                      }
+                    }}
+                    className="accent-primary"
+                  />
+                  <div className="flex flex-col">
+                    <span className="text-xs font-bold text-zinc-200">{addon.name}</span>
+                    <span className="text-[10px] text-emerald-400">{brl(addon.price)}</span>
+                  </div>
+                </label>
+              );
+            })}
+            {storage.getGlobalAddons().length === 0 && (
+              <p className="text-[10px] text-zinc-500 italic col-span-2">Nenhum adicional global cadastrado. Crie-os na aba "Adicionais".</p>
+            )}
+          </div>
+        </div>
+
         <label className="flex items-center justify-between p-3 rounded-xl bg-surface-elevated ring-1 ring-border">
           <span className="text-sm font-semibold">Disponível</span>
           <input type="checkbox" checked={p.available} onChange={(e) => setP({ ...p, available: e.target.checked })} className="w-5 h-5 accent-primary" />
@@ -1910,7 +1899,7 @@ function ProductModal({
             onClick={() => {
               onSave({
                 ...p,
-                customizable: (p.adicionais || []).length > 0 || (p.choice_groups || []).length > 0
+                customizable: (p.adicionais || []).length > 0 || (p.choice_groups || []).length > 0 || (p.allowed_addons || []).length > 0
               });
             }} 
             className={`flex-1 ${btnPrimary}`}
@@ -1954,12 +1943,6 @@ function GroupsTab({ lojaId }: { lojaId: string | null }) {
     if (!supabase || !lojaId) return;
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from("lojas")
-        .update({ choice_group_templates: newTemplates })
-        .eq("id", lojaId);
-      if (error) throw error;
-      
       const newSettings = { ...settings, choiceGroupTemplates: newTemplates };
       storage.setSettings(newSettings as Settings);
       setTemplates(newTemplates);
@@ -2107,16 +2090,8 @@ function CampaignsTab({ lojaId }: { lojaId: string | null }) {
         return;
       }
 
-      // Query latest campaign (active or inactive)
-      const { data: campaignData, error: campaignError } = await supabase
-        .from("campaigns")
-        .select("*")
-        .eq("loja_id", lojaId)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (campaignError) throw campaignError;
+      const allCampaigns = storage.getCampaigns();
+      const campaignData = allCampaigns.length > 0 ? allCampaigns[allCampaigns.length - 1] : null;
 
       if (campaignData) {
         setLatestCampaign(campaignData);
@@ -2126,7 +2101,7 @@ function CampaignsTab({ lojaId }: { lojaId: string | null }) {
           setActiveCampaign(null);
         }
         
-        // Query participants for this campaign (whether active or inactive!)
+        // Query participants for this campaign (whether active or inactive!) from Supabase directly
         const { data: participantsData, error: participantsError } = await supabase
           .from("participants")
           .select("*")
@@ -2159,20 +2134,18 @@ function CampaignsTab({ lojaId }: { lojaId: string | null }) {
 
     setActionLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("campaigns")
-        .insert({
-          loja_id: lojaId,
-          title: title.trim(),
-          min_value: parseFloat(minValue) || 30.00,
-          is_active: true,
-          ends_at: endsAt ? new Date(`${endsAt}T23:59:59`).toISOString() : null,
-          image: campaignImage || "🏆"
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
+      const newCampaign: Campaign = {
+        id: crypto.randomUUID(),
+        title: title.trim(),
+        min_value: parseFloat(minValue) || 30.00,
+        is_active: true,
+        ends_at: endsAt ? new Date(`${endsAt}T23:59:59`).toISOString() : undefined,
+        image: campaignImage || "🏆",
+        created_at: new Date().toISOString()
+      };
+      
+      const allCampaigns = storage.getCampaigns();
+      storage.setCampaigns([...allCampaigns, newCampaign]);
 
       setTitle("");
       setMinValue("30.00");
@@ -2263,12 +2236,12 @@ function CampaignsTab({ lojaId }: { lojaId: string | null }) {
 
     setActionLoading(true);
     try {
-      const { error } = await supabase
-        .from("campaigns")
-        .update({ is_active: false })
-        .eq("id", activeCampaign.id);
+      const allCampaigns = storage.getCampaigns();
+      const updated = allCampaigns.map(c => 
+        c.id === activeCampaign.id ? { ...c, is_active: false } : c
+      );
+      storage.setCampaigns(updated);
 
-      if (error) throw error;
       await fetchData();
     } catch (err: any) {
       alert("Erro ao encerrar campanha: " + err.message);
@@ -3087,10 +3060,11 @@ function FaturamentoTab({ lojaId }: { lojaId: string | null }) {
               <tr>
                 <th className="px-4 py-3 font-bold">Data/Hora</th>
                 <th className="px-4 py-3 font-bold">Cliente</th>
-                <th className="px-4 py-3 font-bold">Itens do Pedido</th>
+                <th className="px-4 py-3 font-bold">Detalhes do Pedido</th>
                 <th className="px-4 py-3 font-bold">Pagamento</th>
                 <th className="px-4 py-3 font-bold">Entrega</th>
                 <th className="px-4 py-3 font-bold text-right">Valor Total</th>
+                <th className="px-4 py-3 font-bold text-center w-10">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-900">
@@ -3102,7 +3076,7 @@ function FaturamentoTab({ lojaId }: { lojaId: string | null }) {
                   <tr key={o.id} className="hover:bg-zinc-900/20 transition-colors">
                     <td className="px-4 py-3 font-bold text-zinc-400 whitespace-nowrap">{dateStr}</td>
                     <td className="px-4 py-3 font-extrabold text-white whitespace-nowrap">{o.client_name}</td>
-                    <td className="px-4 py-3 text-zinc-300 max-w-[200px] truncate" title={o.items_summary}>{o.items_summary || "—"}</td>
+                    <td className="px-4 py-3 text-zinc-300 min-w-[200px] max-w-[400px] whitespace-pre-wrap leading-relaxed text-[11px] font-medium" title={o.items_summary}>{o.items_summary || "—"}</td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       {o.payment_method === "Pix" && (
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/30">Pix</span>
@@ -3128,6 +3102,25 @@ function FaturamentoTab({ lojaId }: { lojaId: string | null }) {
                       <span className={o.is_fidelidade_resgate ? "text-emerald-400" : ""}>
                         {o.is_fidelidade_resgate ? brl(o.delivery_fee) : brl(o.total_price)}
                       </span>
+                    </td>
+                    <td className="px-4 py-3 text-center whitespace-nowrap">
+                      <button
+                        onClick={async () => {
+                          if (!confirm("Deseja realmente apagar este pedido do histórico?")) return;
+                          if (!supabase) return;
+                          try {
+                            const { error } = await supabase.from("orders_history").delete().eq("id", o.id);
+                            if (error) throw error;
+                            setOrders(orders.filter(ord => ord.id !== o.id));
+                          } catch (err: any) {
+                            alert("Erro ao excluir: " + err.message);
+                          }
+                        }}
+                        className="p-1.5 text-zinc-500 hover:bg-destructive/10 hover:text-destructive rounded-lg transition-colors"
+                        title="Excluir pedido"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </td>
                   </tr>
                 );

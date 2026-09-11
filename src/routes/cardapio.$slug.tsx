@@ -77,89 +77,49 @@ function DynamicCardapio() {
           return (Date.now() - createdDate) < sevenDaysInMs;
         })();
 
-        // Se o cardápio estiver ativo ou cobrança automática estiver desabilitada, ou no teste de 7 dias ativo, sincroniza os produtos
-        if (storeData.status_assinatura === "ativo" || storeData.cobranca_automatica === false || isPreview || isTrialActive) {
-          // Buscar produtos reais da loja
-          const { data: productsData, error: productsError } = await supabase
-            .from("produtos")
-            .select("*")
+        // Sincroniza dados e configurações da loja
+        if (storeData) {
+          // Buscar dados otimizados (JSON único) da loja
+          const { data: unifiedData, error: unifiedError } = await supabase
+            .from("store_data")
+            .select("data")
             .eq("loja_id", storeData.id)
-            .order("preco", { ascending: true });
+            .maybeSingle();
 
-          if (productsError) throw productsError;
+          if (unifiedError) throw unifiedError;
 
-          // Mapear produtos para o formato do frontend
-          const mappedProducts: Product[] = (productsData || []).map((p) => ({
-            id: p.id,
-            name: p.nome,
-            description: p.descricao || "",
-            price: Number(p.preco),
-            image: p.imagem || "🍔",
-            category: p.category || "hamburgueres",
-            available: p.disponivel,
-            customizable: p.customizavel || (() => {
-              try {
-                const adc = typeof p.adicionais === "string" ? JSON.parse(p.adicionais || "[]") : (p.adicionais || []);
-                const cg = typeof p.choice_groups === "string" ? JSON.parse(p.choice_groups || "[]") : (p.choice_groups || []);
-                return adc.length > 0 || cg.length > 0;
-              } catch (e) {
-                return p.customizavel;
-              }
-            })(),
-            adicionais: (() => {
-              try {
-                if (typeof p.adicionais === "string") {
-                  return JSON.parse(p.adicionais);
-                }
-                return p.adicionais || [];
-              } catch (e) {
-                console.error("Erro ao parsear adicionais:", e);
-                return [];
-              }
-            })(),
-            is_featured: p.is_featured,
-            is_lancamento: p.is_lancamento,
-            choice_groups: (() => {
-              try {
-                if (typeof p.choice_groups === "string") {
-                  return JSON.parse(p.choice_groups);
-                }
-                return p.choice_groups || [];
-              } catch (e) {
-                return [];
-              }
-            })(),
-            max_sabores: Number(p.max_sabores || 1),
-          }));
+          if (unifiedData && unifiedData.data) {
+            const sd = unifiedData.data;
+            
+            // Override settings with dynamic store data for the top-level tenant logic
+            const mappedSettings = {
+              ...(sd.settings || {}),
+              storeName: storeData.nome,
+              whatsapp: isDemo ? "5546999999999" : (storeData.whatsapp || sd.settings?.whatsapp || "5546999999999"),
+              isOpen: storeData.esta_aberta !== false,
+              pixKey: isDemo ? "demo-pix-key@saas.com" : (storeData.chave_pix || sd.settings?.pixKey || ""),
+              pixName: isDemo ? "Demonstração Cardápio Digital" : (storeData.titular_pix || sd.settings?.pixName || ""),
+              storeAddress: storeData.endereco || sd.settings?.storeAddress || "",
+              deliveryFee: Number(storeData.taxa_entrega) || sd.settings?.deliveryFee || 0,
+            };
 
-          const mappedSettings = {
-            storeName: storeData.nome,
-            whatsapp: isDemo ? "5546999999999" : (storeData.whatsapp || "5546999999999"),
-            isOpen: storeData.esta_aberta !== false,
-            loyaltyMinOrder: 30,
-            loyaltyGoal: 10,
-            deliveryFee: Number(storeData.taxa_entrega) || 0,
-            pixKey: isDemo ? "demo-pix-key@saas.com" : (storeData.chave_pix || ""),
-            pixName: isDemo ? "Demonstração Cardápio Digital" : (storeData.titular_pix || ""),
-            storeAddress: storeData.endereco || "",
-            loyaltyActive: storeData.fidelidade_ativo !== false,
-            logoUrl: storeData.logo_url || "",
-            deliveryTime: storeData.tempo_entrega || "30-60",
-            choiceGroupTemplates: (() => {
-              try {
-                if (typeof storeData.choice_group_templates === "string") {
-                  return JSON.parse(storeData.choice_group_templates);
-                }
-                return storeData.choice_group_templates || [];
-              } catch (e) {
-                return [];
-              }
-            })(),
-          };
+            localStorage.setItem("insano.settings", JSON.stringify(mappedSettings));
+            localStorage.setItem("insano.products", JSON.stringify(sd.products || []));
+            localStorage.setItem("insano.delivery_locations", JSON.stringify(sd.delivery_locations || []));
+            localStorage.setItem("insano.global_addons", JSON.stringify(sd.global_addons || []));
+            localStorage.setItem("insano.campaigns", JSON.stringify(sd.campaigns || []));
+          } else {
+             // Fallback para fallback vazio caso a loja seja nova e ainda não tenha JSON salvo
+             localStorage.setItem("insano.settings", JSON.stringify({
+               storeName: storeData.nome,
+               whatsapp: storeData.whatsapp || "5546999999999"
+             }));
+             localStorage.setItem("insano.products", "[]");
+             localStorage.setItem("insano.delivery_locations", "[]");
+             localStorage.setItem("insano.global_addons", "[]");
+             localStorage.setItem("insano.campaigns", "[]");
+          }
 
-          // Salvar no localStorage temporário do cliente para reatividade dos componentes locais
-          localStorage.setItem("insano.products", JSON.stringify(mappedProducts));
-          localStorage.setItem("insano.settings", JSON.stringify(mappedSettings));
           localStorage.setItem("insano.tenant.activeId", storeData.id);
 
           // Atualizar o titulo da página na aba do navegador
@@ -198,22 +158,15 @@ function DynamicCardapio() {
       if (raw) setCart(JSON.parse(raw));
     } catch {}
 
-    async function fetchCampaign() {
+    // Load active campaign directly from the synced storage
+    const campaignsRaw = localStorage.getItem("insano.campaigns");
+    if (campaignsRaw) {
       try {
-        if (!supabase) return;
-        const { data, error } = await supabase
-          .from("campaigns")
-          .select("*")
-          .eq("is_active", true)
-          .maybeSingle();
-
-        if (error) throw error;
-        if (data) setActiveCampaign(data);
-      } catch (err) {
-        console.error("Erro ao buscar campanha ativa:", err);
-      }
+        const campaigns = JSON.parse(campaignsRaw) as Campaign[];
+        const active = campaigns.find(c => c.is_active);
+        if (active) setActiveCampaign(active);
+      } catch (err) {}
     }
-    fetchCampaign();
   }, []);
 
   useEffect(() => {
@@ -225,6 +178,16 @@ function DynamicCardapio() {
     const uniqueCats = Array.from(new Set(list.map((p) => p.category))).filter(Boolean);
     
     return uniqueCats.sort((a, b) => {
+      // 1. Usa a ordem customizada, se existir
+      if (settings?.categoryOrder && settings.categoryOrder.length > 0) {
+        const idxA = settings.categoryOrder.indexOf(a);
+        const idxB = settings.categoryOrder.indexOf(b);
+        if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+        if (idxA !== -1) return -1;
+        if (idxB !== -1) return 1;
+      }
+
+      // 2. Fallback para a ordenação padrão (promoções, açaí, sorvete, alfabética)
       const normA = a.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
       const normB = b.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
       
@@ -245,7 +208,7 @@ function DynamicCardapio() {
 
       return a.localeCompare(b);
     });
-  }, [products]);
+  }, [products, settings?.categoryOrder]);
 
   // Selecionar automaticamente a primeira categoria ao carregar
   useEffect(() => {
@@ -327,32 +290,22 @@ function DynamicCardapio() {
     return (Date.now() - createdDate) < sevenDaysInMs;
   })();
 
-  // TRAVA DE PAYWALL: Se status_assinatura for 'pendente', cobrança automática ativa e teste grátis expirou
-  if (store.status_assinatura === "pendente" && store.cobranca_automatica !== false && !isPreview && !isTrialActive) {
+  // BANNER DE BLOQUEIO (INDISPONÍVEL): se isBlocked ou status_assinatura bloqueado
+  if ((store.status_assinatura === "bloqueado" || settings?.isBlocked) && !isPreview) {
     return (
       <div className="min-h-screen bg-zinc-950 text-white flex flex-col items-center justify-center p-6 text-center space-y-6">
-        <div className="w-20 h-20 rounded-full bg-amber-500/10 flex items-center justify-center border border-amber-500/20 text-amber-500 animate-pulse">
+        <div className="w-20 h-20 rounded-full bg-red-500/10 flex items-center justify-center border border-red-500/20 text-red-500 animate-pulse">
           <Lock className="w-10 h-10" />
         </div>
         <div className="space-y-2 max-w-md">
-          <span className="text-[10px] uppercase font-black tracking-widest text-amber-500 bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/25">
-            Cardápio em Construção
+          <span className="text-[10px] uppercase font-black tracking-widest text-red-500 bg-red-500/10 px-3 py-1 rounded-full border border-red-500/25">
+            Aviso
           </span>
-          <h2 className="text-3xl font-black tracking-tight pt-2">Acesso Restrito</h2>
+          <h2 className="text-3xl font-black tracking-tight pt-2">Indisponível no momento</h2>
           <p className="text-sm text-zinc-400 leading-relaxed">
-            Olá! O período de testes grátis do estabelecimento **{store.nome}** expirou.
+            Este cardápio está temporariamente indisponível. Por favor, tente novamente mais tarde.
           </p>
         </div>
-        <div className="p-4 bg-zinc-900 ring-1 ring-border rounded-2xl max-w-sm text-xs text-zinc-400 leading-relaxed">
-          <p className="font-bold text-white mb-1">Dono do Estabelecimento?</p>
-          Acesse a Dashboard Administrativa agora mesmo para assinar o plano SaaS por R$ 99,90/mês para liberar o acesso e continuar vendendo muito no WhatsApp!
-        </div>
-        <Link
-          to="/admin"
-          className="h-12 px-6 rounded-xl bg-primary text-primary-foreground font-black text-sm inline-flex items-center gap-2 shadow-[0_5px_20px_rgba(239,68,68,0.3)] active:scale-95 transition"
-        >
-          Entrar na Dashboard Admin
-        </Link>
       </div>
     );
   }
@@ -463,6 +416,17 @@ function DynamicCardapio() {
         ))}
       </main>
 
+      {products.length <= 3 && (
+        <div className="px-4 pb-8 pt-4 flex justify-center">
+          <div className="w-full max-w-sm p-6 rounded-3xl border-2 border-dashed border-primary/20 bg-primary/5 flex flex-col items-center justify-center text-center gap-2 relative overflow-hidden backdrop-blur-sm">
+            <div className="absolute -top-10 -right-10 w-24 h-24 bg-primary/20 rounded-full blur-2xl"></div>
+            <div className="absolute -bottom-10 -left-10 w-24 h-24 bg-primary/20 rounded-full blur-2xl"></div>
+            <span className="text-3xl mb-1 animate-bounce">🍔</span>
+            <h3 className="font-extrabold text-primary text-lg">Novidades em Breve!</h3>
+            <p className="text-xs text-muted-foreground font-medium px-4">Estamos preparando novos lanches deliciosos para o nosso cardápio. Aguarde!</p>
+          </div>
+        </div>
+      )}
       <footer className="mt-8 mb-4 flex flex-col items-center justify-center gap-1.5 text-center px-4">
         <p className="text-sm font-black text-white">{settings.storeName}</p>
         <p className="text-xs text-zinc-500">📍 {settings.storeAddress || "Endereço não cadastrado"}</p>
