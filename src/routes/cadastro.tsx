@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/lib/supabase";
+import { initCleanStore } from "@/lib/storage";
 import { brl } from "@/lib/format";
 import { ArrowLeft, User, Store, Palette, CheckCircle, Eye } from "lucide-react";
 
@@ -70,7 +71,9 @@ function CadastroPage() {
             password: password.trim(),
           });
           if (loginRes.error) {
-            throw new Error("Este e-mail já está cadastrado. Se for o seu, insira a senha correta para prosseguir.");
+            throw new Error(
+              "Este e-mail já está cadastrado. Se for o seu, insira a senha correta para prosseguir.",
+            );
           }
           authData = loginRes.data;
         } else {
@@ -167,15 +170,12 @@ function CadastroPage() {
               endereco: endereco.trim(),
             })
             .eq("id", existingLoja.id);
-          
+
           if (claimError) throw claimError;
 
           // Deletar a loja rascunho temporária do Passo 1 para evitar registros fantasmas
-          await supabase
-            .from("lojas")
-            .delete()
-            .eq("id", createdLojaId);
-          
+          await supabase.from("lojas").delete().eq("id", createdLojaId);
+
           targetLojaId = existingLoja.id;
           setCreatedLojaId(existingLoja.id);
         } else {
@@ -235,10 +235,18 @@ function CadastroPage() {
 
       if (updateError) throw updateError;
 
+      // Loja nova começa zerada: cria a linha store_data vazia e limpa o
+      // escopo local para não herdar lanches de outra loja do navegador.
+      await initCleanStore(createdLojaId, {
+        storeName: nome.trim() || "Meu Novo Comércio",
+        whatsapp: whatsapp.trim().replace(/\D/g, "") || "5546999999999",
+        storeAddress: endereco.trim(),
+      });
+
       // Armazenar sessão rápida para pular login no admin temporariamente
       sessionStorage.setItem("insano.admin.auth", "true");
       sessionStorage.setItem("insano.admin.lojaId", createdLojaId);
-      
+
       setStep(4);
     } catch (err: any) {
       console.error(err);
@@ -248,7 +256,8 @@ function CadastroPage() {
     }
   }
 
-  const inputCls = "w-full h-12 px-4 rounded-xl bg-zinc-950 text-white placeholder:text-zinc-600 ring-1 ring-zinc-800 focus:ring-primary outline-none text-sm transition-all duration-200";
+  const inputCls =
+    "w-full h-12 px-4 rounded-xl bg-zinc-950 text-white placeholder:text-zinc-600 ring-1 ring-zinc-800 focus:ring-primary outline-none text-sm transition-all duration-200";
   const labelCls = "block space-y-1.5 text-xs font-bold text-zinc-400 uppercase tracking-wide";
 
   return (
@@ -256,18 +265,25 @@ function CadastroPage() {
       {/* Header */}
       <div className="w-full max-w-md text-center mb-6 space-y-2">
         <h1 className="text-3xl font-black tracking-tight">Crie seu Cardápio</h1>
-        <p className="text-sm text-zinc-400">Leve o seu comércio para o ambiente digital em poucos cliques.</p>
+        <p className="text-sm text-zinc-400">
+          Leve o seu comércio para o ambiente digital em poucos cliques.
+        </p>
       </div>
 
       {/* Container Principal */}
       <div className="w-full max-w-md p-6 sm:p-8 rounded-3xl bg-zinc-900 ring-1 ring-zinc-800 shadow-2xl relative overflow-hidden">
-        
         {/* Barra de Progresso Visual */}
         {step < 4 && (
           <div className="flex gap-2 mb-6">
-            <div className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${step >= 1 ? "bg-primary" : "bg-zinc-800"}`} />
-            <div className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${step >= 2 ? "bg-primary" : "bg-zinc-800"}`} />
-            <div className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${step >= 3 ? "bg-primary" : "bg-zinc-800"}`} />
+            <div
+              className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${step >= 1 ? "bg-primary" : "bg-zinc-800"}`}
+            />
+            <div
+              className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${step >= 2 ? "bg-primary" : "bg-zinc-800"}`}
+            />
+            <div
+              className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${step >= 3 ? "bg-primary" : "bg-zinc-800"}`}
+            />
           </div>
         )}
 
@@ -322,7 +338,10 @@ function CadastroPage() {
 
         {/* PASSO 2: DADOS COMERCIAIS */}
         {step === 2 && (
-          <form onSubmit={handleSubmitStep2} className="space-y-4 max-h-[75vh] overflow-y-auto pr-1 no-scrollbar">
+          <form
+            onSubmit={handleSubmitStep2}
+            className="space-y-4 max-h-[75vh] overflow-y-auto pr-1 no-scrollbar"
+          >
             <div className="flex items-center gap-2 mb-4">
               <Store className="w-5 h-5 text-primary" />
               <h3 className="font-extrabold text-lg text-white">Passo 2: Dados do Comércio</h3>
@@ -342,11 +361,7 @@ function CadastroPage() {
 
             <label className={labelCls}>
               <span>Tipo de Comércio</span>
-              <select
-                value={tipo}
-                onChange={(e) => setTipo(e.target.value)}
-                className={inputCls}
-              >
+              <select value={tipo} onChange={(e) => setTipo(e.target.value)} className={inputCls}>
                 <option value="Lanchonete">🍔 Lanchonete / Hamburgueria</option>
                 <option value="Pizzaria">🍕 Pizzaria</option>
                 <option value="Açaí / Sorvetes">🍨 Doceria / Açaí / Sorvetes</option>
@@ -374,7 +389,8 @@ function CadastroPage() {
             </div>
 
             <p className="text-xs text-zinc-400 leading-relaxed mb-4">
-              Escolha a cor predominante do seu cardápio. Ela será injetada como cor principal nas interações, botões e destaques.
+              Escolha a cor predominante do seu cardápio. Ela será injetada como cor principal nas
+              interações, botões e destaques.
             </p>
 
             <div className="grid grid-cols-1 gap-2">
@@ -386,14 +402,18 @@ function CadastroPage() {
                     type="button"
                     onClick={() => setSelectedColor(color.name)}
                     className={`w-full flex items-center justify-between p-3.5 rounded-xl border transition ${
-                      isSelected ? "border-primary bg-primary/10 ring-1 ring-primary" : "border-zinc-800 bg-zinc-950/40 hover:bg-zinc-800/40"
+                      isSelected
+                        ? "border-primary bg-primary/10 ring-1 ring-primary"
+                        : "border-zinc-800 bg-zinc-950/40 hover:bg-zinc-800/40"
                     }`}
                   >
                     <div className="flex items-center gap-3">
                       <div className={`w-5 h-5 rounded-full ${color.bg} shadow-md`} />
                       <span className="text-sm font-bold text-white">{color.name}</span>
                     </div>
-                    {isSelected && <span className="text-xs text-primary font-black">Selecionado</span>}
+                    {isSelected && (
+                      <span className="text-xs text-primary font-black">Selecionado</span>
+                    )}
                   </button>
                 );
               })}
@@ -418,12 +438,20 @@ function CadastroPage() {
             </div>
             <div className="space-y-1">
               <h3 className="text-2xl font-black text-white">Cardápio Pronto!</h3>
-              <p className="text-xs text-zinc-400">Tudo foi configurado com sucesso no nosso ecossistema.</p>
+              <p className="text-xs text-zinc-400">
+                Tudo foi configurado com sucesso no nosso ecossistema.
+              </p>
             </div>
             <div className="p-4 bg-zinc-950 rounded-2xl border border-zinc-800 text-xs text-zinc-400 leading-relaxed text-left space-y-2">
               <span className="font-extrabold text-white block">🚀 Proximidades:</span>
-              <p>O link do seu cardápio foi gerado sob status <span className="font-bold text-amber-500">pendente</span>.</p>
-              <p>Acesse o painel administrativo agora para adicionar produtos, testar seu cardápio no visualizador e ativar a publicação oficial!</p>
+              <p>
+                O link do seu cardápio foi gerado sob status{" "}
+                <span className="font-bold text-amber-500">pendente</span>.
+              </p>
+              <p>
+                Acesse o painel administrativo agora para adicionar produtos, testar seu cardápio no
+                visualizador e ativar a publicação oficial!
+              </p>
             </div>
             <button
               onClick={() => navigate({ to: "/admin" })}

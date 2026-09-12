@@ -97,21 +97,9 @@ function read<T>(key: string, fallback: T, forcedLojaId?: string | null): T {
     const realKey = scopedKey(key, forcedLojaId);
     const raw = localStorage.getItem(realKey);
     if (raw) return JSON.parse(raw) as T;
-    // Migração: se a chave escopada está vazia mas existe legado global,
-    // copia o legado para o escopo atual UMA vez (evita loja nova vazia
-    // herdando lixo de outra loja já carregada depois do cloud sync).
-    if (realKey !== key) {
-      const legacy = localStorage.getItem(key);
-      if (legacy) {
-        try {
-          const parsed = JSON.parse(legacy) as T;
-          localStorage.setItem(realKey, legacy);
-          return parsed;
-        } catch {
-          // ignora e retorna fallback
-        }
-      }
-    }
+    // Sem migração de chaves globais legadas: copiar o global para o escopo
+    // fazia loja NOVA herdar produtos/config de outra loja no mesmo navegador
+    // (ex: cadastro novo abria com os lanches do BrutusPub).
     return fallback;
   } catch {
     return fallback;
@@ -250,4 +238,46 @@ export const storage = {
 
 export function useStorageVersion() {
   return KEYS;
+}
+
+/**
+ * Inicializa uma loja NOVA com estado limpo: zera o escopo local, trava o
+ * activeId e cria a linha `store_data` vazia no banco. Sem isso, a loja nova
+ * herdava produtos/config de outra loja que usou o mesmo navegador
+ * (ex: cadastro novo abria com os lanches do BrutusPub) e o primeiro
+ * salvamento gravava essa cópia na linha da loja nova.
+ */
+export async function initCleanStore(lojaId: string, partial?: Partial<Settings>) {
+  const settings: Settings = { ...DEFAULT_SETTINGS, ...partial };
+  const clean: StoreDataJSON = {
+    settings,
+    products: [],
+    delivery_locations: [],
+    global_addons: [],
+    campaigns: [],
+  };
+  if (typeof window !== "undefined") {
+    setActiveLojaId(lojaId);
+    try {
+      sessionStorage.setItem("insano.admin.lojaId", lojaId);
+    } catch {}
+    localStorage.setItem(`${KEYS.settings}.${lojaId}`, JSON.stringify(clean.settings));
+    localStorage.setItem(`${KEYS.products}.${lojaId}`, JSON.stringify(clean.products));
+    localStorage.setItem(
+      `${KEYS.deliveryLocations}.${lojaId}`,
+      JSON.stringify(clean.delivery_locations),
+    );
+    localStorage.setItem(`${KEYS.globalAddons}.${lojaId}`, JSON.stringify(clean.global_addons));
+    localStorage.setItem(`${KEYS.campaigns}.${lojaId}`, JSON.stringify(clean.campaigns));
+    window.dispatchEvent(new CustomEvent("insano-storage"));
+  }
+  if (supabase) {
+    const { error } = await supabase
+      .from("store_data")
+      .upsert(
+        { loja_id: lojaId, data: clean, updated_at: new Date().toISOString() },
+        { onConflict: "loja_id" },
+      );
+    if (error) console.warn("Erro ao inicializar store_data da loja nova:", error.message);
+  }
 }

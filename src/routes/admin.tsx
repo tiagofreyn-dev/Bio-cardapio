@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { storage, setActiveLojaId } from "@/lib/storage";
+import { storage, setActiveLojaId, initCleanStore } from "@/lib/storage";
 import { useStorageSync } from "@/hooks/use-storage";
 import type {
   Product,
@@ -300,23 +300,19 @@ function AdminPage() {
             if (sd.global_addons) storage.setGlobalAddons(sd.global_addons);
             if (sd.campaigns) storage.setCampaigns(sd.campaigns);
           } else {
-            // Se nao tiver JSON, carrega configurações padrão do banco relacional (fallback)
-            const mappedSettings = {
+            // Loja sem linha no store_data (nova): inicializa TUDO zerado.
+            // Só setar settings deixava produtos de outra loja no escopo local.
+            await initCleanStore(currentLojaId, {
               storeName: storeData.nome,
               whatsapp: storeData.whatsapp || "5546999999999",
               isOpen: storeData.esta_aberta !== false,
-              loyaltyMinOrder: 30,
-              loyaltyGoal: 10,
               deliveryFee: storeData.taxa_entrega || 0,
               pixKey: storeData.chave_pix || "",
               pixName: storeData.titular_pix || "",
-              adminPassword: "1234",
-              mayoPrice: 2,
               storeAddress: storeData.endereco || "",
               logoUrl: storeData.logo_url || "",
               deliveryTime: "30-60",
-            };
-            storage.setSettings(mappedSettings);
+            });
           }
 
           // Update browser page title
@@ -389,8 +385,12 @@ function AdminPage() {
       setStore(finalStore);
       setAuthType("email");
       setUserEmail(data.user.email || null);
-      setIsAuthenticated(true);
-      setActiveLojaId(finalStore.id);
+      // Loja auto-criada agora: começa zerada (sem herdar nada de outra loja).
+      if (!storeData) {
+        await initCleanStore(finalStore.id, { storeName: finalStore.nome });
+      } else {
+        setActiveLojaId(finalStore.id);
+      }
       sessionStorage.setItem("insano.admin.auth", "true");
       sessionStorage.setItem("insano.admin.lojaId", finalStore.id);
       sessionStorage.setItem("insano.admin.authType", "email");
