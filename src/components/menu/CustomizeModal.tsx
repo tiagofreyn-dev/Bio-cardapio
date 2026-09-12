@@ -31,6 +31,26 @@ export function CustomizeModal({
       pricing_logic: isString ? "sum" : (g as any).pricing_logic
     };
   }).filter(g => g.options.length > 0);
+
+  // Inject Global Addons if the product allows them
+  if (product.allowed_addons && product.allowed_addons.length > 0) {
+    const globalAddons = storage.getGlobalAddons();
+    const allowedOptions = product.allowed_addons.map(id => {
+      const ga = globalAddons.find(a => a.id === id);
+      return ga ? { id: ga.id, name: ga.name, price: ga.price } : null;
+    }).filter(Boolean) as { id: string, name: string, price: number }[];
+
+    if (allowedOptions.length > 0) {
+      choiceGroups.push({
+        id: "global_addons_group",
+        name: "Adicionais Globais",
+        options: allowedOptions,
+        min_choices: 0,
+        max_choices: 99,
+        pricing_logic: "sum" as any
+      });
+    }
+  }
   
   const [selections, setSelections] = useState<Record<string, Record<string, number>>>({});
 
