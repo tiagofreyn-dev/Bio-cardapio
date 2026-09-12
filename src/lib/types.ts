@@ -83,6 +83,7 @@ export interface Settings {
   loyaltyActive?: boolean;
   cobranca_automatica?: boolean;
   categoryOrder?: string[];
+  categoryEmojis?: Record<string, string>;
   logoUrl?: string;
   deliveryTime?: string;
   choiceGroupTemplates?: ChoiceGroup[];
@@ -159,7 +160,7 @@ export interface Loja {
   slug: string;
   tipo: string;
   cor_tema: string;
-  status_assinatura: 'pendente' | 'ativo';
+  status_assinatura: "pendente" | "ativo";
   whatsapp?: string;
   endereco?: string;
   taxa_entrega: number;
@@ -176,4 +177,3 @@ export interface StoreDataJSON {
   global_addons: GlobalAddon[];
   campaigns: Campaign[];
 }
-

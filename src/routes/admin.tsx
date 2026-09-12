@@ -1084,10 +1084,10 @@ function GeneralTab({
         </Field>
       </Card>
 
-      <Card title="Ordem das Categorias">
+      <Card title="Categorias: ordem e emojis">
         <p className="text-[11px] text-zinc-400 mb-4">
-          Escolha a ordem em que as categorias vão aparecer no seu cardápio. Para mover, use as
-          setinhas.
+          Escolha a ordem em que as categorias vão aparecer no seu cardápio (setinhas) e o emoji de
+          cada aba. Digite um emoji, deixe vazio para sem emoji, ou use ↺ para voltar ao automático.
         </p>
         <div className="space-y-2">
           {(() => {
@@ -1103,10 +1103,46 @@ function GeneralTab({
                 {ordered.map((cat, idx) => (
                   <div
                     key={cat}
-                    className="flex items-center justify-between p-3 bg-zinc-900 border border-zinc-800 rounded-xl"
+                    className="flex items-center gap-2 p-3 bg-zinc-900 border border-zinc-800 rounded-xl"
                   >
-                    <span className="font-bold text-sm text-white">{cat}</span>
-                    <div className="flex gap-1">
+                    <input
+                      value={settings.categoryEmojis?.[cat] ?? ""}
+                      placeholder={(() => {
+                        const trimmed = cat.trim();
+                        const first = Array.from(trimmed)[0] || "";
+                        return /[\uD800-\uDBFF]/.test(first) || /^\p{Emoji}/u.test(first)
+                          ? first
+                          : "😋";
+                      })()}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        update({
+                          categoryEmojis: { ...(settings.categoryEmojis || {}), [cat]: val },
+                        });
+                      }}
+                      onBlur={() => autoSave(storage.getSettings())}
+                      maxLength={8}
+                      title="Emoji da categoria (vazio = sem emoji)"
+                      className="w-11 h-10 shrink-0 text-center text-xl bg-zinc-950 ring-1 ring-border rounded-lg outline-none focus:ring-primary placeholder:opacity-60"
+                    />
+                    <span className="font-bold text-sm text-white flex-1 min-w-0 truncate">
+                      {cat}
+                    </span>
+                    <div className="flex gap-1 shrink-0">
+                      <button
+                        type="button"
+                        title="Voltar ao emoji automático"
+                        onClick={() => {
+                          const next = { ...(settings.categoryEmojis || {}) };
+                          delete next[cat];
+                          const fresh = { ...storage.getSettings(), categoryEmojis: next };
+                          update({ categoryEmojis: next });
+                          autoSave(fresh);
+                        }}
+                        className="w-8 h-8 flex items-center justify-center bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white rounded-lg transition text-sm"
+                      >
+                        ↺
+                      </button>
                       <button
                         type="button"
                         disabled={idx === 0}
@@ -1622,6 +1658,16 @@ function ProductsTab({
       if (idx >= 0) list[idx] = p;
       else list.push(p);
       storage.setProducts(list);
+
+      // Categoria nova entra no fim da ordem (em vez de pular para o início
+      // pela ordenação alfabética). O dono ajusta a posição na aba Geral.
+      if (p.category) {
+        const freshSettings = storage.getSettings();
+        const order = freshSettings.categoryOrder || [];
+        if (!order.includes(p.category)) {
+          storage.setSettings({ ...freshSettings, categoryOrder: [...order, p.category] });
+        }
+      }
 
       // Reload preview
       const iframe = document.getElementById("live-cardapio-preview") as HTMLIFrameElement;
