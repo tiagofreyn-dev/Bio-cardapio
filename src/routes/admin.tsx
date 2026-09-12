@@ -1092,7 +1092,7 @@ function GeneralTab({
         <div className="space-y-2">
           {(() => {
             const allCats = Array.from(new Set((products || []).map((p) => p.category))).filter(
-              Boolean,
+              (c) => Boolean(c) && c !== "🔥 Promoções",
             );
             const ordered = [...(settings.categoryOrder || []).filter((c) => allCats.includes(c))];
             for (const c of allCats) {
@@ -1631,6 +1631,11 @@ function ProductsTab({
 
   async function save(p: Product) {
     if (!supabase || !lojaId) return;
+    // Tudo salvo pela aba Promoções vira destaque no topo do cardápio
+    // (seção Destaques), em vez de aparecer como aba no meio das categorias.
+    if (isPromoMode) {
+      p = { ...p, category: "🔥 Promoções", is_featured: true };
+    }
     setLoading(true);
     try {
       const payload: any = {

@@ -209,7 +209,10 @@ function DynamicCardapio() {
 
   const categoriesList = useMemo(() => {
     const list = products || [];
-    const uniqueCats = Array.from(new Set(list.map((p) => p.category))).filter(Boolean);
+    // "🔥 Promoções" não é aba: promoção aparece junto dos Destaques no topo.
+    const uniqueCats = Array.from(new Set(list.map((p) => p.category))).filter(
+      (c) => Boolean(c) && c !== "🔥 Promoções",
+    );
 
     return uniqueCats.sort((a, b) => {
       // 1. Usa a ordem customizada, se existir
@@ -271,7 +274,9 @@ function DynamicCardapio() {
   }, [products, category, categoriesList]);
   const featured = useMemo(() => {
     const list = products || [];
-    return list.filter((p) => p.is_featured);
+    // Promoção conta como destaque (inclui as antigas, salvas antes do
+    // flag is_featured existir para a aba Promoções).
+    return list.filter((p) => p.is_featured || p.category === "🔥 Promoções");
   }, [products]);
   const lancamentos = useMemo(() => {
     const list = products || [];
