@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect } from "react";
 import type { CartItem, Campaign, DeliveryLocation } from "@/lib/types";
 import { brl } from "@/lib/format";
-import { storage } from "@/lib/storage";
+import { storage, getActiveLojaId } from "@/lib/storage";
 import { useStorageSync } from "@/hooks/use-storage";
 import { X, Minus, Plus, Trash2, Copy, Check, MapPin } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -10,7 +10,11 @@ type Delivery = "retirada" | "entrega";
 type Payment = "Pix" | "Cartão" | "Dinheiro";
 
 function safeUUID() {
-  if (typeof window !== "undefined" && window.crypto && typeof window.crypto.randomUUID === "function") {
+  if (
+    typeof window !== "undefined" &&
+    window.crypto &&
+    typeof window.crypto.randomUUID === "function"
+  ) {
     return window.crypto.randomUUID();
   }
   return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
@@ -47,8 +51,8 @@ export function CartDrawer({
   const [isRescuing, setIsRescuing] = useState(false);
   const [activeCampaign, setActiveCampaign] = useState<Campaign | null>(null);
   const [copied, setCopied] = useState(false);
-  
-  const [locations, setLocations] = useState<DeliveryLocation[]>([]);
+
+  const locations = useStorageSync(() => storage.getDeliveryLocations()) || [];
   const [selectedLocation, setSelectedLocation] = useState<DeliveryLocation | null>(null);
 
   const [isRedirecting, setIsRedirecting] = useState(false);
@@ -71,6 +75,18 @@ export function CartDrawer({
   }
 
   useEffect(() => {
+    const availablePayments = (["Pix", "Cartão", "Dinheiro"] as Payment[]).filter((p) => {
+      if (p === "Pix") return settings?.acceptsPix !== false;
+      if (p === "Cartão") return settings?.acceptsCard !== false;
+      if (p === "Dinheiro") return settings?.acceptsCash !== false;
+      return true;
+    });
+    if (availablePayments.length > 0 && !availablePayments.includes(payment)) {
+      setPayment(availablePayments[0]);
+    }
+  }, [settings?.acceptsPix, settings?.acceptsCard, settings?.acceptsCash]);
+
+  useEffect(() => {
     let savedDistrictStr = "";
     try {
       const savedName = localStorage.getItem("insano.user.name");
@@ -79,7 +95,7 @@ export function CartDrawer({
       const savedNumber = localStorage.getItem("insano.user.number");
       const savedDistrict = localStorage.getItem("insano.user.district");
       const savedRef = localStorage.getItem("insano.user.ref");
-      
+
       if (savedName) setName(savedName);
       if (savedPhone) setPhone(savedPhone);
       if (savedStreet) setStreet(savedStreet);
@@ -91,55 +107,24 @@ export function CartDrawer({
       if (savedRef) setRef(savedRef);
     } catch {}
 
-    const lojaId = typeof window !== "undefined" ? localStorage.getItem("insano.tenant.activeId") : null;
+    const lojaId =
+      typeof window !== "undefined" ? localStorage.getItem("insano.tenant.activeId") : null;
 
-    // Buscar campanha ativa no Supabase
-    async function fetchCampaign() {
-      try {
-        if (!supabase || !lojaId) return;
-        const { data, error } = await supabase
-          .from("campaigns")
-          .select("*")
-          .eq("loja_id", lojaId)
-          .eq("is_active", true)
-          .maybeSingle();
+    // Buscar campanha ativa no JSON Storage
+    const storedCampaigns = storage.getCampaigns() || [];
+    const active = storedCampaigns.find((c) => c.is_active);
+    if (active) setActiveCampaign(active);
 
-        if (error) throw error;
-        if (data) setActiveCampaign(data);
-      } catch (err) {
-        console.error("Erro ao buscar campanha ativa:", err);
+    // Pré-selecionar se já tiver bairro salvo que corresponde a algum cadastrado
+    if (savedDistrictStr) {
+      const storedLocations = storage.getDeliveryLocations() || [];
+      const matched = storedLocations.find((d: any) => d.name === savedDistrictStr);
+      if (matched) {
+        setSelectedLocation(matched);
+      } else {
+        setDistrict("");
       }
     }
-
-    // Buscar locais e taxas de entrega dinâmicas
-    async function fetchLocations() {
-      try {
-        if (!supabase || !lojaId) return;
-        const { data, error } = await supabase
-          .from("delivery_locations")
-          .select("*")
-          .eq("loja_id", lojaId)
-          .order("name", { ascending: true });
-        if (error) throw error;
-        if (data) {
-          setLocations(data);
-          // Pré-selecionar se já tiver bairro salvo que corresponde a algum cadastrado
-          if (savedDistrictStr) {
-            const matched = data.find((d: any) => d.name === savedDistrictStr);
-            if (matched) {
-              setSelectedLocation(matched);
-            } else {
-              setDistrict("");
-            }
-          }
-        }
-      } catch (err) {
-        console.error("Erro ao buscar locais de entrega:", err);
-      }
-    }
-
-    fetchCampaign();
-    fetchLocations();
   }, []);
 
   const subtotal = useMemo(() => items.reduce((s, i) => s + i.price * i.qty, 0), [items]);
@@ -147,10 +132,15 @@ export function CartDrawer({
   const deliveryFee = delivery === "entrega" ? activeDeliveryFee : 0;
 
   const canRedeem = points >= settings.loyaltyGoal;
-  const cheapest = useMemo(() => (items.length ? Math.min(...items.map((i) => i.price)) : 0), [items]);
+  const cheapest = useMemo(
+    () => (items.length ? Math.min(...items.map((i) => i.price)) : 0),
+    [items],
+  );
 
   const rewardProd = useMemo(() => {
-    return (settings?.loyaltyRewardId && Array.isArray(products)) ? products.find((p) => p.id === settings.loyaltyRewardId) : null;
+    return settings?.loyaltyRewardId && Array.isArray(products)
+      ? products.find((p) => p.id === settings.loyaltyRewardId)
+      : null;
   }, [settings?.loyaltyRewardId, products]);
 
   const hasRewardInCart = useMemo(() => {
@@ -166,13 +156,26 @@ export function CartDrawer({
   }, [redeem, canRedeem, rewardProd, hasRewardInCart, cheapest]);
 
   const total = Math.max(0, subtotal - discount) + deliveryFee;
-  const willEarnPoint = subtotal > settings.loyaltyMinOrder && !redeem;
+
+  // Cooldown de Fidelidade (1 hora) — escopado por loja para não bloquear
+  // o cliente de pontuar na Loja B porque pediu na Loja A.
+  const cooldownKey =
+    typeof window !== "undefined" && getActiveLojaId()
+      ? `insano.loyalty.lastOrderAt.${getActiveLojaId()}`
+      : "insano.loyalty.lastOrderAt";
+  const lastOrderAt =
+    typeof window !== "undefined" ? Number(localStorage.getItem(cooldownKey) || 0) : 0;
+  const isCooldownActive = Date.now() - lastOrderAt < 60 * 60 * 1000;
+  const willEarnPoint = subtotal > settings.loyaltyMinOrder && !redeem && !isCooldownActive;
+
   const isCampaignEligible = activeCampaign && subtotal >= activeCampaign.min_value;
 
   function buildMessage() {
     const lines: string[] = [];
     if (redeem && canRedeem) {
-      lines.push("🚨🚨 ATENÇÃO: PEDIDO COM RESGATE DE LANCHE GRÁTIS! O CARTÃO FIDELIDADE DESTE CLIENTE FOI ZERADO NO SISTEMA! 🚨🚨");
+      lines.push(
+        "🚨🚨 ATENÇÃO: PEDIDO COM RESGATE DE LANCHE GRÁTIS! O CARTÃO FIDELIDADE DESTE CLIENTE FOI ZERADO NO SISTEMA! 🚨🚨",
+      );
       lines.push("");
     }
     const storeName = settings?.storeName || "Comércio";
@@ -185,7 +188,9 @@ export function CartDrawer({
       lines.push(`• ${i.qty}x ${i.name} (${brl(i.price * i.qty)})`);
       if (i.selectedChoices && i.selectedChoices.length > 0) {
         i.selectedChoices.forEach((addon) => {
-          lines.push(`   - ${addon.groupName}: ${addon.qty > 1 ? addon.qty + 'x ' : ''}${addon.optionName} (${brl(addon.price)})`);
+          lines.push(
+            `   - ${addon.groupName}: ${addon.qty > 1 ? addon.qty + "x " : ""}${addon.optionName} (${brl(addon.price)})`,
+          );
         });
       } else if (i.adicionaisSelecionados && i.adicionaisSelecionados.length > 0) {
         i.adicionaisSelecionados.forEach((addon) => {
@@ -202,14 +207,18 @@ export function CartDrawer({
     }
     lines.push("");
     lines.push("💰 *PAGAMENTO:*");
-    lines.push(`*Forma:* ${payment}${payment === "Dinheiro" && change ? ` (Troco para ${change})` : ""}`);
+    lines.push(
+      `*Forma:* ${payment}${payment === "Dinheiro" && change ? ` (Troco para ${change})` : ""}`,
+    );
     if (payment === "Pix" && settings?.pixKey) {
       lines.push(`*Chave PIX:* ${settings.pixKey}`);
       lines.push(`*Titular:* ${settings.pixName}`);
     }
     if (redeem && canRedeem) {
       if (rewardProd) {
-        lines.push(`🎁 *PEDIDO DE RESGATE: GANHOU 1x ${rewardProd.name.toUpperCase()} DO CARTÃO FIDELIDADE!*`);
+        lines.push(
+          `🎁 *PEDIDO DE RESGATE: GANHOU 1x ${rewardProd.name.toUpperCase()} DO CARTÃO FIDELIDADE!*`,
+        );
       } else {
         lines.push("🎁 *PEDIDO DE RESGATE: GANHOU 1 LANCHE GRÁTIS DO CARTÃO FIDELIDADE!*");
       }
@@ -230,7 +239,9 @@ export function CartDrawer({
 
     if (isCampaignEligible) {
       lines.push("");
-      lines.push("🎟️ *PARABÉNS! Você está participando do Sorteio da Semana! Seu nome e número foram registrados no sistema.*");
+      lines.push(
+        "🎟️ *PARABÉNS! Você está participando do Sorteio da Semana! Seu nome e número foram registrados no sistema.*",
+      );
     }
 
     return lines.join("\n");
@@ -263,13 +274,42 @@ export function CartDrawer({
       }
     } catch {}
 
-    const lojaId = typeof window !== "undefined" ? localStorage.getItem("insano.tenant.activeId") : null;
+    const lojaId = typeof window !== "undefined" ? getActiveLojaId() : null;
 
     // Salvar pedido no histórico geral para o Dashboard Financeiro
-    if (supabase) {
+    // (sempre com loja_id: sem isso o faturamento misturava entre lojas)
+    if (supabase && lojaId) {
       try {
-        const itemsSummary = items.map(i => `${i.qty}x ${i.name}`).join(", ") + 
-          (observation.trim() ? ` (Obs: ${observation.trim()})` : "");
+        let itemsSummary = items
+          .map((i) => {
+            let line = `${i.qty}x ${i.name}`;
+            const parts: string[] = [];
+            if (i.selectedChoices && i.selectedChoices.length > 0) {
+              parts.push(
+                ...i.selectedChoices.map((c) =>
+                  c.qty > 1 ? `${c.qty}x ${c.optionName}` : c.optionName,
+                ),
+              );
+            }
+            if (i.adicionaisSelecionados && i.adicionaisSelecionados.length > 0) {
+              parts.push(...i.adicionaisSelecionados.map((a) => a.nome));
+            }
+            if (parts.length > 0) line += ` (${parts.join(", ")})`;
+            return line;
+          })
+          .join(" | ");
+
+        if (observation.trim()) {
+          itemsSummary += `\n📝 Obs: ${observation.trim()}`;
+        }
+
+        itemsSummary += `\n📞 Fone: ${phone.trim()}`;
+        if (delivery === "entrega") {
+          itemsSummary += `\n📍 Entrega: ${street.trim()}, ${number.trim()} - ${district.trim()}`;
+          if (ref.trim()) itemsSummary += ` (Ref: ${ref.trim()})`;
+        } else {
+          itemsSummary += `\n🚶 Retirada no local`;
+        }
         const { error } = await supabase.from("orders_history").insert({
           loja_id: lojaId,
           client_name: name.trim(),
@@ -279,7 +319,7 @@ export function CartDrawer({
           delivery_fee: deliveryFee,
           total_price: total,
           is_fidelidade_resgate: !!(redeem && canRedeem),
-          items_summary: itemsSummary
+          items_summary: itemsSummary,
         });
         if (error) throw error;
       } catch (err) {
@@ -294,24 +334,28 @@ export function CartDrawer({
           campaign_id: activeCampaign.id,
           client_name: name.trim(),
           client_phone: phone.trim(),
-          order_total: total
+          order_total: total,
         });
         if (error) throw error;
       } catch (err) {
         console.error("Erro ao registrar participante no Supabase:", err);
       }
     }
-    
+
     if (redeem && canRedeem) {
       if (rewardProd && !hasRewardInCart) {
-        alert(`Para resgatar seu prêmio, você precisa adicionar 1x ${rewardProd.name} na sua sacola!`);
+        alert(
+          `Para resgatar seu prêmio, você precisa adicionar 1x ${rewardProd.name} na sua sacola!`,
+        );
         setIsSubmitting(false);
         return;
       }
       setIsRescuing(true);
       storage.resetLoyalty();
-      
-      const redeemedItem = rewardProd || items.reduce((prev, curr) => (prev.price < curr.price ? prev : curr), items[0]);
+
+      const redeemedItem =
+        rewardProd ||
+        items.reduce((prev, curr) => (prev.price < curr.price ? prev : curr), items[0]);
       storage.addRedemption({
         id: safeUUID(),
         date: new Date().toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }),
@@ -328,7 +372,7 @@ export function CartDrawer({
         setRedirectUrl(url);
         setIsRescuing(false);
         setIsRedirecting(true);
-        
+
         const isIframe = typeof window !== "undefined" && window.self !== window.top;
         if (isIframe) {
           window.open(url, "_blank");
@@ -343,15 +387,20 @@ export function CartDrawer({
       return;
     } else if (willEarnPoint) {
       storage.addLoyaltyPoint();
+      try {
+        localStorage.setItem(cooldownKey, Date.now().toString());
+      } catch {}
+    } else if (subtotal > settings.loyaltyMinOrder && !redeem && isCooldownActive) {
+      console.warn("Pontuação de fidelidade bloqueada por Cooldown de segurança (1 hora).");
     }
-    
+
     const message = buildMessage();
     const text = encodeURIComponent(message);
     const url = `https://api.whatsapp.com/send?phone=${settings.whatsapp}&text=${text}`;
     setRawMessage(message);
     setRedirectUrl(url);
     setIsRedirecting(true);
-    
+
     const isIframe = typeof window !== "undefined" && window.self !== window.top;
     if (isIframe) {
       window.open(url, "_blank");
@@ -365,29 +414,40 @@ export function CartDrawer({
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center"
+      onClick={onClose}
+    >
       {isRescuing && (
         <div className="fixed inset-0 z-[60] bg-black/90 flex flex-col items-center justify-center text-center p-6 space-y-4">
           <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
           <h2 className="text-2xl font-extrabold text-primary">Prêmio resgatado com sucesso!</h2>
-          <p className="text-white text-lg">Seu cartão foi reiniciado.<br/>Redirecionando para o WhatsApp...</p>
+          <p className="text-white text-lg">
+            Seu cartão foi reiniciado.
+            <br />
+            Redirecionando para o WhatsApp...
+          </p>
         </div>
       )}
       {isRedirecting && (
-        <div className="fixed inset-0 z-[60] bg-black/95 backdrop-blur-md flex flex-col items-center justify-center text-center p-6 space-y-6 animate-fade-in" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-[60] bg-black/95 backdrop-blur-md flex flex-col items-center justify-center text-center p-6 space-y-6 animate-fade-in"
+          onClick={(e) => e.stopPropagation()}
+        >
           <div className="w-20 h-20 rounded-full bg-emerald-500/10 flex items-center justify-center ring-2 ring-emerald-500/30 animate-pulse">
             <span className="text-4xl animate-bounce">📲</span>
           </div>
-          
+
           <div className="space-y-2 max-w-sm">
             <h2 className="text-2xl font-black text-white">Enviando para o WhatsApp</h2>
             <p className="text-sm text-zinc-400">
-              Estamos te redirecionando para enviar o seu pedido automaticamente no WhatsApp da lanchonete!
+              Estamos te redirecionando para enviar o seu pedido automaticamente no WhatsApp da
+              lanchonete!
             </p>
           </div>
 
           <div className="w-full max-w-xs space-y-3 pt-2">
-            <a 
+            <a
               href={redirectUrl}
               onClick={(e) => {
                 try {
@@ -400,7 +460,7 @@ export function CartDrawer({
               <span>Abrir WhatsApp Novamente 📲</span>
             </a>
 
-            <button 
+            <button
               type="button"
               onClick={handleCopyOrderText}
               className="w-full h-11 rounded-xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-white font-extrabold text-xs flex items-center justify-center gap-2 transition active:scale-[0.98]"
@@ -418,7 +478,7 @@ export function CartDrawer({
               )}
             </button>
 
-            <button 
+            <button
               type="button"
               onClick={() => {
                 onClear();
@@ -433,14 +493,20 @@ export function CartDrawer({
           </div>
 
           <div className="text-[10px] text-zinc-600 max-w-xs leading-relaxed pt-4 border-t border-zinc-900">
-            💡 Dica: Se o WhatsApp não abrir sozinho, clique no botão verde ou use a opção de "Copiar Texto" e cole diretamente no chat do estabelecimento!
+            💡 Dica: Se o WhatsApp não abrir sozinho, clique no botão verde ou use a opção de
+            "Copiar Texto" e cole diretamente no chat do estabelecimento!
           </div>
         </div>
       )}
-      <div onClick={(e) => e.stopPropagation()} className="w-full sm:max-w-lg bg-background rounded-t-3xl sm:rounded-3xl ring-1 ring-border max-h-[95vh] overflow-y-auto">
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full sm:max-w-lg bg-background rounded-t-3xl sm:rounded-3xl ring-1 ring-border max-h-[95vh] overflow-y-auto"
+      >
         <div className="sticky top-0 z-10 bg-background flex items-center justify-between p-4 border-b border-border">
           <h3 className="font-extrabold text-lg">Sua Sacola</h3>
-          <button onClick={onClose} className="p-2 text-muted-foreground"><X className="w-5 h-5" /></button>
+          <button onClick={onClose} className="p-2 text-muted-foreground">
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         <div className="p-4 space-y-4">
@@ -453,29 +519,50 @@ export function CartDrawer({
                   <div className="flex justify-between items-start gap-2">
                     <div className="flex-1 min-w-0">
                       <p className="font-bold text-sm">{i.name}</p>
-                      {i.selectedChoices && Array.isArray(i.selectedChoices) && i.selectedChoices.length > 0 ? (
+                      {i.selectedChoices &&
+                      Array.isArray(i.selectedChoices) &&
+                      i.selectedChoices.length > 0 ? (
                         <div className="mt-1 text-[11px] text-muted-foreground space-y-0.5">
                           {i.selectedChoices.map((addon) => (
-                            <p key={addon.groupId + addon.optionId}>• {addon.groupName}: {addon.qty > 1 ? addon.qty + 'x ' : ''}{addon.optionName} ({brl(addon.price)})</p>
+                            <p key={addon.groupId + addon.optionId}>
+                              • {addon.groupName}: {addon.qty > 1 ? addon.qty + "x " : ""}
+                              {addon.optionName} ({brl(addon.price)})
+                            </p>
                           ))}
                         </div>
                       ) : (
-                        i.adicionaisSelecionados && Array.isArray(i.adicionaisSelecionados) && i.adicionaisSelecionados.length > 0 && (
+                        i.adicionaisSelecionados &&
+                        Array.isArray(i.adicionaisSelecionados) &&
+                        i.adicionaisSelecionados.length > 0 && (
                           <div className="mt-1 text-[11px] text-muted-foreground space-y-0.5">
                             {i.adicionaisSelecionados.map((addon) => (
-                              <p key={addon?.nome || "Opcional"}>• + {addon?.nome || "Opcional"} ({brl(addon?.preco)})</p>
+                              <p key={addon?.nome || "Opcional"}>
+                                • + {addon?.nome || "Opcional"} ({brl(addon?.preco)})
+                              </p>
                             ))}
                           </div>
                         )
                       )}
                       <p className="text-primary font-extrabold mt-1">{brl(i.price * i.qty)}</p>
                     </div>
-                    <button onClick={() => onRemove(i.id)} className="text-muted-foreground p-1"><Trash2 className="w-4 h-4" /></button>
+                    <button onClick={() => onRemove(i.id)} className="text-muted-foreground p-1">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
                   <div className="flex items-center gap-3 mt-2">
-                    <button onClick={() => onUpdate(i.id, i.qty - 1)} className="w-7 h-7 rounded-full bg-muted flex items-center justify-center"><Minus className="w-3 h-3" /></button>
+                    <button
+                      onClick={() => onUpdate(i.id, i.qty - 1)}
+                      className="w-7 h-7 rounded-full bg-muted flex items-center justify-center"
+                    >
+                      <Minus className="w-3 h-3" />
+                    </button>
                     <span className="font-bold text-sm w-5 text-center">{i.qty}</span>
-                    <button onClick={() => onUpdate(i.id, i.qty + 1)} className="w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center"><Plus className="w-3 h-3" /></button>
+                    <button
+                      onClick={() => onUpdate(i.id, i.qty + 1)}
+                      className="w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center"
+                    >
+                      <Plus className="w-3 h-3" />
+                    </button>
                   </div>
                 </li>
               ))}
@@ -491,26 +578,50 @@ export function CartDrawer({
               )}
               {settings.loyaltyActive !== false && canRedeem && (
                 <label className="flex items-start gap-2 p-3 rounded-xl bg-primary/10 ring-1 ring-primary cursor-pointer">
-                  <input type="checkbox" checked={redeem} onChange={(e) => setRedeem(e.target.checked)} className="mt-0.5 w-4 h-4 accent-primary" />
+                  <input
+                    type="checkbox"
+                    checked={redeem}
+                    onChange={(e) => setRedeem(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 accent-primary"
+                  />
                   <span className="text-sm font-semibold">
-                    🎁 Resgatar meu prêmio: {rewardProd ? `1x ${rewardProd.name} Grátis` : "1 Lanche Grátis (Zera o mais barato)"}
+                    🎁 Resgatar meu prêmio:{" "}
+                    {rewardProd
+                      ? `1x ${rewardProd.name} Grátis`
+                      : "1 Lanche Grátis (Zera o mais barato)"}
                   </span>
                 </label>
               )}
 
               {isCampaignEligible && (
                 <div className="rounded-xl bg-red-950/40 text-red-500 border border-red-500/30 p-3 text-sm font-semibold animate-pulse flex items-start gap-2">
-                  {activeCampaign.image && (activeCampaign.image.startsWith("http") || activeCampaign.image.startsWith("/")) ? (
-                    <img src={activeCampaign.image} className="w-10 h-10 object-cover rounded-lg shrink-0 ring-1 ring-red-500/30 mt-0.5" />
+                  {activeCampaign.image &&
+                  (activeCampaign.image.startsWith("http") ||
+                    activeCampaign.image.startsWith("/")) ? (
+                    <img
+                      src={activeCampaign.image}
+                      className="w-10 h-10 object-cover rounded-lg shrink-0 ring-1 ring-red-500/30 mt-0.5"
+                    />
                   ) : (
                     <span className="text-xl shrink-0 mt-0.5">{activeCampaign.image || "🎉"}</span>
                   )}
                   <div>
-                    <span className="font-extrabold text-white text-xs uppercase tracking-wider block mb-0.5">Campanha Ativa: {activeCampaign.title}</span>
-                    <span className="text-xs text-zinc-300">Finalize este pedido para ganhar seu Número da Sorte e concorrer!</span>
+                    <span className="font-extrabold text-white text-xs uppercase tracking-wider block mb-0.5">
+                      Campanha Ativa: {activeCampaign.title}
+                    </span>
+                    <span className="text-xs text-zinc-300">
+                      Finalize este pedido para ganhar seu Número da Sorte e concorrer!
+                    </span>
                     {activeCampaign.ends_at && (
                       <span className="text-[10px] text-red-450 block font-black uppercase mt-1">
-                        ⚡ Encerra em {new Date(activeCampaign.ends_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}!
+                        ⚡ Encerra em{" "}
+                        {new Date(activeCampaign.ends_at).toLocaleString("pt-BR", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                        !
                       </span>
                     )}
                   </div>
@@ -520,16 +631,32 @@ export function CartDrawer({
               <section className="space-y-2">
                 <h4 className="font-bold text-sm">Dados de entrega</h4>
                 <Input placeholder="Nome" value={name} onChange={setName} />
-                <Input placeholder="Telefone de contato (com DDD)" value={phone} onChange={setPhone} />
+                <Input
+                  placeholder="Telefone de contato (com DDD)"
+                  value={phone}
+                  onChange={setPhone}
+                />
                 <div className="grid grid-cols-2 gap-2">
-                  <button onClick={() => setDelivery("entrega")} className={`h-10 rounded-xl text-sm font-semibold ring-1 ${delivery === "entrega" ? "bg-primary text-primary-foreground ring-primary" : "bg-surface ring-border text-muted-foreground"}`}>Entrega (+{brl(activeDeliveryFee)})</button>
-                  <button onClick={() => setDelivery("retirada")} className={`h-10 rounded-xl text-sm font-semibold ring-1 ${delivery === "retirada" ? "bg-primary text-primary-foreground ring-primary" : "bg-surface ring-border text-muted-foreground"}`}>Retirada</button>
+                  <button
+                    onClick={() => setDelivery("entrega")}
+                    className={`h-10 rounded-xl text-sm font-semibold ring-1 ${delivery === "entrega" ? "bg-primary text-primary-foreground ring-primary" : "bg-surface ring-border text-muted-foreground"}`}
+                  >
+                    Entrega (+{brl(activeDeliveryFee)})
+                  </button>
+                  <button
+                    onClick={() => setDelivery("retirada")}
+                    className={`h-10 rounded-xl text-sm font-semibold ring-1 ${delivery === "retirada" ? "bg-primary text-primary-foreground ring-primary" : "bg-surface ring-border text-muted-foreground"}`}
+                  >
+                    Retirada
+                  </button>
                 </div>
                 {delivery === "retirada" && settings.storeAddress && (
                   <div className="p-3 rounded-xl bg-surface ring-1 ring-border text-xs space-y-1 mt-2 flex items-start gap-2">
                     <MapPin className="w-4 h-4 text-primary shrink-0 mt-0.5" />
                     <div>
-                      <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block">Endereço para Retirada:</span>
+                      <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block">
+                        Endereço para Retirada:
+                      </span>
                       <p className="text-white font-bold">{settings.storeAddress}</p>
                     </div>
                   </div>
@@ -551,9 +678,15 @@ export function CartDrawer({
                           className="w-full h-11 px-3 rounded-xl bg-input text-foreground ring-1 ring-border focus:ring-primary outline-none text-sm appearance-none cursor-pointer pr-8"
                           required
                         >
-                          <option value="" disabled>Bairro...</option>
+                          <option value="" disabled>
+                            Bairro...
+                          </option>
                           {locations.map((loc) => (
-                            <option key={loc.id} value={loc.name} className="bg-zinc-900 text-white">
+                            <option
+                              key={loc.id}
+                              value={loc.name}
+                              className="bg-zinc-900 text-white"
+                            >
                               {loc.name} (+{brl(loc.fee)})
                             </option>
                           ))}
@@ -581,9 +714,22 @@ export function CartDrawer({
               <section className="space-y-2">
                 <h4 className="font-bold text-sm">Forma de pagamento</h4>
                 <div className="grid grid-cols-3 gap-2">
-                  {(["Pix", "Cartão", "Dinheiro"] as Payment[]).map((p) => (
-                    <button key={p} onClick={() => setPayment(p)} className={`h-10 rounded-xl text-sm font-semibold ring-1 ${payment === p ? "bg-primary text-primary-foreground ring-primary" : "bg-surface ring-border text-muted-foreground"}`}>{p}</button>
-                  ))}
+                  {(["Pix", "Cartão", "Dinheiro"] as Payment[])
+                    .filter((p) => {
+                      if (p === "Pix") return settings.acceptsPix !== false;
+                      if (p === "Cartão") return settings.acceptsCard !== false;
+                      if (p === "Dinheiro") return settings.acceptsCash !== false;
+                      return true;
+                    })
+                    .map((p) => (
+                      <button
+                        key={p}
+                        onClick={() => setPayment(p)}
+                        className={`h-10 rounded-xl text-sm font-semibold ring-1 ${payment === p ? "bg-primary text-primary-foreground ring-primary" : "bg-surface ring-border text-muted-foreground"}`}
+                      >
+                        {p}
+                      </button>
+                    ))}
                 </div>
                 {payment === "Dinheiro" && (
                   <Input placeholder="Troco para quanto?" value={change} onChange={setChange} />
@@ -592,7 +738,9 @@ export function CartDrawer({
                   <div className="p-4 rounded-2xl bg-zinc-900 border border-zinc-800 text-sm space-y-3 relative overflow-hidden shadow-inner">
                     <div className="flex items-center justify-between gap-3">
                       <div className="space-y-0.5 min-w-0 flex-1">
-                        <span className="text-[10px] uppercase font-bold text-zinc-400 tracking-wider block">Chave PIX (Copiar e Colar)</span>
+                        <span className="text-[10px] uppercase font-bold text-zinc-400 tracking-wider block">
+                          Chave PIX (Copiar e Colar)
+                        </span>
                         <span className="font-extrabold text-white text-sm select-all tracking-tight break-all block pr-1">
                           {settings.pixKey}
                         </span>
@@ -601,8 +749,8 @@ export function CartDrawer({
                         type="button"
                         onClick={handleCopyPix}
                         className={`w-10 h-10 rounded-xl flex items-center justify-center transition active:scale-95 shrink-0 shadow-md ${
-                          copied 
-                            ? "bg-emerald-500 text-black shadow-emerald-500/20" 
+                          copied
+                            ? "bg-emerald-500 text-black shadow-emerald-500/20"
                             : "bg-primary text-primary-foreground hover:bg-primary/95 hover:shadow-primary/10"
                         }`}
                       >
@@ -616,7 +764,9 @@ export function CartDrawer({
 
                     <div className="flex justify-between items-center text-xs pt-2 border-t border-zinc-800/60">
                       <span className="text-zinc-400">Titular da Conta</span>
-                      <span className="font-bold text-zinc-200">{settings.pixName || settings.storeName}</span>
+                      <span className="font-bold text-zinc-200">
+                        {settings.pixName || settings.storeName}
+                      </span>
                     </div>
 
                     {copied && (
@@ -630,7 +780,9 @@ export function CartDrawer({
 
               <section className="rounded-xl bg-surface ring-1 ring-border p-3 space-y-1 text-sm">
                 <Row label="Subtotal" value={brl(subtotal)} />
-                {discount > 0 && <Row label="Desconto fidelidade" value={`-${brl(discount)}`} success />}
+                {discount > 0 && (
+                  <Row label="Desconto fidelidade" value={`-${brl(discount)}`} success />
+                )}
                 {deliveryFee > 0 && <Row label="Taxa de entrega" value={brl(deliveryFee)} />}
                 <div className="h-px bg-border my-1" />
                 <Row label="Total" value={brl(total)} bold />
@@ -650,7 +802,15 @@ export function CartDrawer({
   );
 }
 
-function Input({ placeholder, value, onChange }: { placeholder: string; value: string; onChange: (v: string) => void }) {
+function Input({
+  placeholder,
+  value,
+  onChange,
+}: {
+  placeholder: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
   return (
     <input
       placeholder={placeholder}
@@ -661,11 +821,25 @@ function Input({ placeholder, value, onChange }: { placeholder: string; value: s
   );
 }
 
-function Row({ label, value, bold, success }: { label: string; value: string; bold?: boolean; success?: boolean }) {
+function Row({
+  label,
+  value,
+  bold,
+  success,
+}: {
+  label: string;
+  value: string;
+  bold?: boolean;
+  success?: boolean;
+}) {
   return (
     <div className="flex justify-between">
       <span className={success ? "text-success" : "text-muted-foreground"}>{label}</span>
-      <span className={`${bold ? "font-extrabold text-primary text-base" : ""} ${success ? "text-success font-semibold" : ""}`}>{value}</span>
+      <span
+        className={`${bold ? "font-extrabold text-primary text-base" : ""} ${success ? "text-success font-semibold" : ""}`}
+      >
+        {value}
+      </span>
     </div>
   );
 }

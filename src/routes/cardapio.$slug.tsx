@@ -10,22 +10,24 @@ import { CartFooter } from "@/components/menu/CartFooter";
 import { CartDrawer } from "@/components/menu/CartDrawer";
 import type { CartItem, Category, Product, Campaign, Loja } from "@/lib/types";
 import { brl } from "@/lib/format";
-import { storage } from "@/lib/storage";
+import { storage, setActiveLojaId } from "@/lib/storage";
 import { useStorageSync } from "@/hooks/use-storage";
 import { supabase } from "@/lib/supabase";
 import { AlertCircle, Lock, ArrowLeft, RefreshCw } from "lucide-react";
 
 export const Route = createFileRoute("/cardapio/$slug")({
   head: ({ params }) => ({
-    meta: [
-      { title: `Carregando Cardápio — ${params.slug}` },
-    ],
+    meta: [{ title: `Carregando Cardápio — ${params.slug}` }],
   }),
   component: DynamicCardapio,
 });
 
 function safeUUID() {
-  if (typeof window !== "undefined" && window.crypto && typeof window.crypto.randomUUID === "function") {
+  if (
+    typeof window !== "undefined" &&
+    window.crypto &&
+    typeof window.crypto.randomUUID === "function"
+  ) {
     return window.crypto.randomUUID();
   }
   return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
@@ -33,8 +35,12 @@ function safeUUID() {
 
 function DynamicCardapio() {
   const { slug } = Route.useParams();
-  const isPreview = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("preview") === "true";
-  const isDemo = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("demo") === "true";
+  const isPreview =
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("preview") === "true";
+  const isDemo =
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("demo") === "true";
   const [store, setStore] = useState<Loja | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeCampaign, setActiveCampaign] = useState<Campaign | null>(null);
@@ -70,11 +76,16 @@ function DynamicCardapio() {
 
         setStore(storeData);
 
+        // Trava o escopo ANTES de escrever no storage. Antes o código escrevia
+        // nas chaves globais e só depois setava o activeId, então o cardápio
+        // de uma loja sobrescrevia os dados da outra no mesmo navegador.
+        setActiveLojaId(storeData.id);
+
         const isTrialActive = (() => {
           if (!storeData.criado_em) return false;
           const createdDate = new Date(storeData.criado_em).getTime();
           const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000;
-          return (Date.now() - createdDate) < sevenDaysInMs;
+          return Date.now() - createdDate < sevenDaysInMs;
         })();
 
         // Sincroniza dados e configurações da loja
@@ -90,34 +101,53 @@ function DynamicCardapio() {
 
           if (unifiedData && unifiedData.data) {
             const sd = unifiedData.data;
-            
+
             // Override settings with dynamic store data for the top-level tenant logic
             const mappedSettings = {
               ...(sd.settings || {}),
               storeName: storeData.nome,
-              whatsapp: isDemo ? "5546999999999" : (storeData.whatsapp || sd.settings?.whatsapp || "5546999999999"),
+              whatsapp: isDemo
+                ? "5546999999999"
+                : storeData.whatsapp || sd.settings?.whatsapp || "5546999999999",
               isOpen: storeData.esta_aberta !== false,
-              pixKey: isDemo ? "demo-pix-key@saas.com" : (storeData.chave_pix || sd.settings?.pixKey || ""),
-              pixName: isDemo ? "Demonstração Cardápio Digital" : (storeData.titular_pix || sd.settings?.pixName || ""),
+              pixKey: isDemo
+                ? "demo-pix-key@saas.com"
+                : storeData.chave_pix || sd.settings?.pixKey || "",
+              pixName: isDemo
+                ? "Demonstração Cardápio Digital"
+                : storeData.titular_pix || sd.settings?.pixName || "",
               storeAddress: storeData.endereco || sd.settings?.storeAddress || "",
               deliveryFee: Number(storeData.taxa_entrega) || sd.settings?.deliveryFee || 0,
             };
 
-            localStorage.setItem("insano.settings", JSON.stringify(mappedSettings));
-            localStorage.setItem("insano.products", JSON.stringify(sd.products || []));
-            localStorage.setItem("insano.delivery_locations", JSON.stringify(sd.delivery_locations || []));
-            localStorage.setItem("insano.global_addons", JSON.stringify(sd.global_addons || []));
-            localStorage.setItem("insano.campaigns", JSON.stringify(sd.campaigns || []));
+            // Escrita local escopada SEM sync para a nuvem: visitante do
+            // cardápio não pode disparar upsert em store_data.
+            const lid = storeData.id;
+            localStorage.setItem(`insano.settings.${lid}`, JSON.stringify(mappedSettings));
+            localStorage.setItem(`insano.products.${lid}`, JSON.stringify(sd.products || []));
+            localStorage.setItem(
+              `insano.delivery_locations.${lid}`,
+              JSON.stringify(sd.delivery_locations || []),
+            );
+            localStorage.setItem(
+              `insano.global_addons.${lid}`,
+              JSON.stringify(sd.global_addons || []),
+            );
+            localStorage.setItem(`insano.campaigns.${lid}`, JSON.stringify(sd.campaigns || []));
           } else {
-             // Fallback para fallback vazio caso a loja seja nova e ainda não tenha JSON salvo
-             localStorage.setItem("insano.settings", JSON.stringify({
-               storeName: storeData.nome,
-               whatsapp: storeData.whatsapp || "5546999999999"
-             }));
-             localStorage.setItem("insano.products", "[]");
-             localStorage.setItem("insano.delivery_locations", "[]");
-             localStorage.setItem("insano.global_addons", "[]");
-             localStorage.setItem("insano.campaigns", "[]");
+            // Fallback para fallback vazio caso a loja seja nova e ainda não tenha JSON salvo
+            const lid = storeData.id;
+            localStorage.setItem(
+              `insano.settings.${lid}`,
+              JSON.stringify({
+                storeName: storeData.nome,
+                whatsapp: storeData.whatsapp || "5546999999999",
+              }),
+            );
+            localStorage.setItem(`insano.products.${lid}`, "[]");
+            localStorage.setItem(`insano.delivery_locations.${lid}`, "[]");
+            localStorage.setItem(`insano.global_addons.${lid}`, "[]");
+            localStorage.setItem(`insano.campaigns.${lid}`, "[]");
           }
 
           localStorage.setItem("insano.tenant.activeId", storeData.id);
@@ -151,32 +181,36 @@ function DynamicCardapio() {
     }
   }, [store]);
 
-  // Carregar carrinho e campanha
+  // Carregar carrinho e campanha (escopados por loja para não misturar pedidos)
   useEffect(() => {
+    if (!store?.id) return;
     try {
-      const raw = localStorage.getItem("insano.cart");
+      const raw = localStorage.getItem(`insano.cart.${store.id}`);
       if (raw) setCart(JSON.parse(raw));
+      else setCart([]);
     } catch {}
 
     // Load active campaign directly from the synced storage
-    const campaignsRaw = localStorage.getItem("insano.campaigns");
-    if (campaignsRaw) {
-      try {
+    try {
+      const campaignsRaw = localStorage.getItem(`insano.campaigns.${store.id}`);
+      if (campaignsRaw) {
         const campaigns = JSON.parse(campaignsRaw) as Campaign[];
-        const active = campaigns.find(c => c.is_active);
+        const active = campaigns.find((c) => c.is_active);
         if (active) setActiveCampaign(active);
-      } catch (err) {}
-    }
-  }, []);
+        else setActiveCampaign(null);
+      }
+    } catch {}
+  }, [store?.id]);
 
   useEffect(() => {
-    localStorage.setItem("insano.cart", JSON.stringify(cart));
-  }, [cart]);
+    if (!store?.id) return;
+    localStorage.setItem(`insano.cart.${store.id}`, JSON.stringify(cart));
+  }, [cart, store?.id]);
 
   const categoriesList = useMemo(() => {
     const list = products || [];
     const uniqueCats = Array.from(new Set(list.map((p) => p.category))).filter(Boolean);
-    
+
     return uniqueCats.sort((a, b) => {
       // 1. Usa a ordem customizada, se existir
       if (settings?.categoryOrder && settings.categoryOrder.length > 0) {
@@ -188,9 +222,15 @@ function DynamicCardapio() {
       }
 
       // 2. Fallback para a ordenação padrão (promoções, açaí, sorvete, alfabética)
-      const normA = a.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-      const normB = b.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-      
+      const normA = a
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase();
+      const normB = b
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase();
+
       const isPromoA = a === "🔥 Promoções";
       const isPromoB = b === "🔥 Promoções";
       if (isPromoA && !isPromoB) return -1;
@@ -221,12 +261,13 @@ function DynamicCardapio() {
 
   const filtered = useMemo(() => {
     const list = products || [];
-    const activeCategory = category && category !== "todos"
-      ? category
-      : (categoriesList.length > 0 ? categoriesList[0] : "");
-    return activeCategory
-      ? list.filter((p) => p.category === activeCategory)
-      : list;
+    const activeCategory =
+      category && category !== "todos"
+        ? category
+        : categoriesList.length > 0
+          ? categoriesList[0]
+          : "";
+    return activeCategory ? list.filter((p) => p.category === activeCategory) : list;
   }, [products, category, categoriesList]);
   const featured = useMemo(() => {
     const list = products || [];
@@ -247,7 +288,10 @@ function DynamicCardapio() {
     if (p.customizable) {
       setCustomizing(p);
     } else {
-      setCart((c) => [...c, { id: safeUUID(), productId: p.id, name: p.name, price: p.price, qty: 1 }]);
+      setCart((c) => [
+        ...c,
+        { id: safeUUID(), productId: p.id, name: p.name, price: p.price, qty: 1 },
+      ]);
     }
   }
 
@@ -287,7 +331,7 @@ function DynamicCardapio() {
     if (!store.criado_em) return false;
     const createdDate = new Date(store.criado_em).getTime();
     const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000;
-    return (Date.now() - createdDate) < sevenDaysInMs;
+    return Date.now() - createdDate < sevenDaysInMs;
   })();
 
   // BANNER DE BLOQUEIO (INDISPONÍVEL): se isBlocked ou status_assinatura bloqueado
@@ -319,15 +363,25 @@ function DynamicCardapio() {
         <div className="px-4 pt-4">
           <div className="bg-gradient-to-r from-red-950/70 via-red-900/60 to-red-950/70 border-2 border-red-500/50 rounded-2xl p-4 shadow-[0_10px_25px_rgba(239,68,68,0.15)] relative overflow-hidden animate-pulse">
             <div className="relative z-10 flex items-center gap-3">
-              {activeCampaign.image && (activeCampaign.image.startsWith("http") || activeCampaign.image.startsWith("/")) ? (
-                <img src={activeCampaign.image} className="w-14 h-14 object-cover rounded-xl shrink-0 ring-2 ring-red-500/50" />
+              {activeCampaign.image &&
+              (activeCampaign.image.startsWith("http") || activeCampaign.image.startsWith("/")) ? (
+                <img
+                  src={activeCampaign.image}
+                  className="w-14 h-14 object-cover rounded-xl shrink-0 ring-2 ring-red-500/50"
+                />
               ) : (
                 <span className="text-3xl shrink-0">{activeCampaign.image || "🏆"}</span>
               )}
               <div className="text-left">
-                <h4 className="font-black text-white text-xs sm:text-sm uppercase tracking-wider">Sorteio Ativo: {activeCampaign.title}</h4>
+                <h4 className="font-black text-white text-xs sm:text-sm uppercase tracking-wider">
+                  Sorteio Ativo: {activeCampaign.title}
+                </h4>
                 <p className="text-[11px] sm:text-xs text-zinc-300 mt-0.5">
-                  Faça um pedido a partir de <span className="font-extrabold text-primary">{brl(activeCampaign.min_value)}</span> e participe automaticamente!
+                  Faça um pedido a partir de{" "}
+                  <span className="font-extrabold text-primary">
+                    {brl(activeCampaign.min_value)}
+                  </span>{" "}
+                  e participe automaticamente!
                 </p>
               </div>
             </div>
@@ -340,14 +394,19 @@ function DynamicCardapio() {
 
       {featured.length > 0 && (
         <section className="pt-4 pb-2">
-          <h2 className="px-4 font-extrabold text-lg mb-3" translate="no">🔥 Destaques da Semana</h2>
+          <h2 className="px-4 font-extrabold text-lg mb-3" translate="no">
+            🔥 Destaques da Semana
+          </h2>
           <div className="flex gap-3 overflow-x-auto px-4 pb-4 no-scrollbar snap-x">
             {featured.map((p) => {
               const out = !p.available;
               return (
-                <article key={p.id} className={`w-[160px] sm:w-[180px] shrink-0 snap-start flex flex-col p-3 rounded-2xl bg-surface ring-1 ring-border ${out ? "opacity-60" : ""} h-[240px]`}>
+                <article
+                  key={p.id}
+                  className={`w-[160px] sm:w-[180px] shrink-0 snap-start flex flex-col p-3 rounded-2xl bg-surface ring-1 ring-border ${out ? "opacity-60" : ""} h-[240px]`}
+                >
                   <div className="w-full h-28 rounded-xl bg-gradient-to-br from-primary/20 to-surface-elevated flex items-center justify-center overflow-hidden text-5xl mb-3 shrink-0">
-                    {p.image && (p.image.startsWith('http') || p.image.startsWith('/')) ? (
+                    {p.image && (p.image.startsWith("http") || p.image.startsWith("/")) ? (
                       <img src={p.image} alt={p.name} className="w-full h-full object-cover" />
                     ) : (
                       p.image
@@ -374,14 +433,19 @@ function DynamicCardapio() {
       )}
       {lancamentos.length > 0 && (
         <section className="pt-2 pb-2">
-          <h2 className="px-4 font-extrabold text-lg mb-3" translate="no">🚀 Lançamentos da Semana</h2>
+          <h2 className="px-4 font-extrabold text-lg mb-3" translate="no">
+            🚀 Lançamentos da Semana
+          </h2>
           <div className="flex gap-3 overflow-x-auto px-4 pb-4 no-scrollbar snap-x">
             {lancamentos.map((p) => {
               const out = !p.available;
               return (
-                <article key={p.id} className={`w-[160px] sm:w-[180px] shrink-0 snap-start flex flex-col p-3 rounded-2xl bg-surface ring-1 ring-border ${out ? "opacity-60" : ""} h-[240px]`}>
+                <article
+                  key={p.id}
+                  className={`w-[160px] sm:w-[180px] shrink-0 snap-start flex flex-col p-3 rounded-2xl bg-surface ring-1 ring-border ${out ? "opacity-60" : ""} h-[240px]`}
+                >
                   <div className="w-full h-28 rounded-xl bg-gradient-to-br from-primary/20 to-surface-elevated flex items-center justify-center overflow-hidden text-5xl mb-3 shrink-0">
-                    {p.image && (p.image.startsWith('http') || p.image.startsWith('/')) ? (
+                    {p.image && (p.image.startsWith("http") || p.image.startsWith("/")) ? (
                       <img src={p.image} alt={p.name} className="w-full h-full object-cover" />
                     ) : (
                       p.image
@@ -410,9 +474,16 @@ function DynamicCardapio() {
       {settings.loyaltyActive !== false && <LoyaltyCard />}
       <CategoryBar value={category} onChange={setCategory} categories={categoriesList} />
       <main className="px-4 py-4 space-y-3">
-        {filtered.length === 0 && <p className="text-center text-muted-foreground py-8">Nenhum item nesta categoria.</p>}
+        {filtered.length === 0 && (
+          <p className="text-center text-muted-foreground py-8">Nenhum item nesta categoria.</p>
+        )}
         {filtered.map((p) => (
-          <ProductCard key={p.id} product={p} onAdd={() => handleAdd(p)} disabled={!settings.isOpen} />
+          <ProductCard
+            key={p.id}
+            product={p}
+            onAdd={() => handleAdd(p)}
+            disabled={!settings.isOpen}
+          />
         ))}
       </main>
 
@@ -423,49 +494,66 @@ function DynamicCardapio() {
             <div className="absolute -bottom-10 -left-10 w-24 h-24 bg-primary/20 rounded-full blur-2xl"></div>
             <span className="text-3xl mb-1 animate-bounce">🍔</span>
             <h3 className="font-extrabold text-primary text-lg">Novidades em Breve!</h3>
-            <p className="text-xs text-muted-foreground font-medium px-4">Estamos preparando novos lanches deliciosos para o nosso cardápio. Aguarde!</p>
+            <p className="text-xs text-muted-foreground font-medium px-4">
+              Estamos preparando novos lanches deliciosos para o nosso cardápio. Aguarde!
+            </p>
           </div>
         </div>
       )}
       <footer className="mt-8 mb-4 flex flex-col items-center justify-center gap-1.5 text-center px-4">
         <p className="text-sm font-black text-white">{settings.storeName}</p>
-        <p className="text-xs text-zinc-500">📍 {settings.storeAddress || "Endereço não cadastrado"}</p>
-        <p className="text-[10px] text-zinc-650 mt-4">Cardápio Digital © 2026. Todos os direitos reservados.</p>
+        <p className="text-xs text-zinc-500">
+          📍 {settings.storeAddress || "Endereço não cadastrado"}
+        </p>
+        <p className="text-[10px] text-zinc-650 mt-4">
+          Cardápio Digital © 2026. Todos os direitos reservados.
+        </p>
       </footer>
 
       {customizing && (
-        <CustomizeModal 
-          product={customizing} 
-          onClose={() => setCustomizing(null)} 
+        <CustomizeModal
+          product={customizing}
+          onClose={() => setCustomizing(null)}
           onConfirm={(finalPrice, additionsText, selectedChoices) => {
             try {
               const namePlus = (customizing.name || "Item") + additionsText;
-              
-              setCart((c) => [...c, {
-                id: safeUUID(),
-                productId: customizing.id,
-                name: namePlus,
-                price: finalPrice,
-                qty: 1,
-                selectedChoices: selectedChoices,
-              }]);
+
+              setCart((c) => [
+                ...c,
+                {
+                  id: safeUUID(),
+                  productId: customizing.id,
+                  name: namePlus,
+                  price: finalPrice,
+                  qty: 1,
+                  selectedChoices: selectedChoices,
+                },
+              ]);
               setCustomizing(null);
             } catch (err) {
               console.error("ERRO COMPLETO NO CARRINHO:", err);
               alert("Erro ao adicionar item ao carrinho. Detalhes salvos no console.");
               setCustomizing(null);
             }
-          }} 
+          }}
         />
       )}
 
-      {count > 0 && <CartFooter count={count} subtotal={subtotal} onOpen={() => setCartOpen(true)} />}
+      {count > 0 && (
+        <CartFooter count={count} subtotal={subtotal} onOpen={() => setCartOpen(true)} />
+      )}
 
       {cartOpen && (
         <CartDrawer
           items={cart}
           onClose={() => setCartOpen(false)}
-          onUpdate={(id, qty) => setCart((c) => (qty <= 0 ? c.filter((i) => i.id !== id) : c.map((i) => (i.id === id ? { ...i, qty } : i))))}
+          onUpdate={(id, qty) =>
+            setCart((c) =>
+              qty <= 0
+                ? c.filter((i) => i.id !== id)
+                : c.map((i) => (i.id === id ? { ...i, qty } : i)),
+            )
+          }
           onRemove={(id) => setCart((c) => c.filter((i) => i.id !== id))}
           onClear={() => setCart([])}
         />

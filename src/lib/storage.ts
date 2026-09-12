@@ -1,4 +1,13 @@
-import type { Product, Settings, CustomerLoyalty } from "./types";
+import type {
+  Product,
+  Settings,
+  CustomerLoyalty,
+  DeliveryLocation,
+  GlobalAddon,
+  Campaign,
+  Participant,
+  StoreDataJSON,
+} from "./types";
 import { supabase } from "./supabase";
 
 const KEYS = {
@@ -6,11 +15,44 @@ const KEYS = {
   customers: "insano.loyalty.customers",
   settings: "insano.settings",
   products: "insano.products",
+  deliveryLocations: "insano.delivery_locations",
+  globalAddons: "insano.global_addons",
+  campaigns: "insano.campaigns",
+  participants: "insano.participants",
   redemptions: "insano.redemptions",
   campaignWinners: "insano.campaign.winners",
+  activeTenant: "insano.tenant.activeId",
 };
 
-const SYNCABLE_KEYS = [KEYS.settings, KEYS.products, KEYS.redemptions, KEYS.customers, KEYS.campaignWinners];
+// Chaves que DEVEM ser isoladas por loja. Sem isso, abrir o admin da
+// Loja A e depois o da Loja B no mesmo navegador mistura os dados
+// (foi o bug: header mostrava "BrutusPub" mas os campos mostravam
+// "Brasa 277", porque settings vinha do localStorage global).
+// Fidelidade/resgates/clientes também são por loja: o mesmo celular pode
+// ter 5 pontos na Brasa e 0 na Brutus.
+const SCOPED_KEYS = new Set([
+  KEYS.settings,
+  KEYS.products,
+  KEYS.deliveryLocations,
+  KEYS.globalAddons,
+  KEYS.campaigns,
+  KEYS.loyalty,
+  KEYS.customers,
+  KEYS.participants,
+  KEYS.redemptions,
+  KEYS.campaignWinners,
+]);
+
+const SYNCABLE_KEYS = [
+  KEYS.settings,
+  KEYS.products,
+  KEYS.deliveryLocations,
+  KEYS.globalAddons,
+  KEYS.campaigns,
+  KEYS.redemptions,
+  KEYS.customers,
+  KEYS.campaignWinners,
+];
 
 const DEFAULT_SETTINGS: Settings = {
   storeName: "Insano Lanches",
@@ -28,59 +70,125 @@ const DEFAULT_SETTINGS: Settings = {
   deliveryTime: "30-60",
 };
 
-const DEFAULT_PRODUCTS: Product[] = [
-  { id: "p1", name: "X-Insano Duplo", description: "2 burgers 150g, cheddar, bacon, cebola caramelizada", price: 38.9, image: "🍔", category: "hamburgueres", available: true, customizable: true },
-  { id: "p2", name: "X-Bacon Smash", description: "Burger smash, muito bacon, cheddar e maionese da casa", price: 32.5, image: "🥓", category: "hamburgueres", available: true, customizable: true },
-  { id: "p3", name: "X-Salada Clássico", description: "Burger 150g, queijo, alface, tomate e molho especial", price: 28.0, image: "🍔", category: "hamburgueres", available: true, customizable: true },
-  { id: "p4", name: "Insano Monster", description: "3 burgers, triplo cheddar, bacon, onion rings, costela", price: 54.9, image: "👹", category: "hamburgueres", available: true, customizable: true },
-  { id: "p5", name: "Batata Frita Grande", description: "Porção generosa crocante por fora, macia por dentro", price: 22.0, image: "🍟", category: "porcoes", available: true, customizable: false },
-  { id: "p6", name: "Batata c/ Cheddar e Bacon", description: "Batata coberta com cheddar cremoso e bacon", price: 32.0, image: "🧀", category: "porcoes", available: true, customizable: false },
-  { id: "p7", name: "Onion Rings", description: "Anéis de cebola empanados crocantes", price: 24.0, image: "🧅", category: "porcoes", available: true, customizable: false },
-  { id: "p8", name: "Coca-Cola Lata 350ml", description: "Gelada", price: 7.0, image: "🥤", category: "bebidas", available: true, customizable: false },
-  { id: "p9", name: "Guaraná Lata 350ml", description: "Gelado", price: 6.5, image: "🥤", category: "bebidas", available: true, customizable: false },
-  { id: "p10", name: "Suco Natural Laranja", description: "500ml natural", price: 10.0, image: "🍊", category: "bebidas", available: true, customizable: false },
-];
+const DEFAULT_PRODUCTS: Product[] = [];
 
-function read<T>(key: string, fallback: T): T {
+export function getActiveLojaId(): string | null {
+  if (typeof window === "undefined") return null;
+  // sessionStorage tem prioridade no admin (por aba), localStorage é fallback / cardápio público
+  return sessionStorage.getItem("insano.admin.lojaId") || localStorage.getItem(KEYS.activeTenant);
+}
+
+export function setActiveLojaId(lojaId: string) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(KEYS.activeTenant, lojaId);
+}
+
+/** Retorna a chave real no localStorage, com sufixo por loja quando aplicável. */
+function scopedKey(base: string, forcedLojaId?: string | null): string {
+  if (!SCOPED_KEYS.has(base)) return base;
+  const lojaId = forcedLojaId ?? getActiveLojaId();
+  if (!lojaId) return base;
+  return `${base}.${lojaId}`;
+}
+
+function read<T>(key: string, fallback: T, forcedLojaId?: string | null): T {
   if (typeof window === "undefined") return fallback;
   try {
-    const raw = localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : fallback;
+    const realKey = scopedKey(key, forcedLojaId);
+    const raw = localStorage.getItem(realKey);
+    if (raw) return JSON.parse(raw) as T;
+    // Migração: se a chave escopada está vazia mas existe legado global,
+    // copia o legado para o escopo atual UMA vez (evita loja nova vazia
+    // herdando lixo de outra loja já carregada depois do cloud sync).
+    if (realKey !== key) {
+      const legacy = localStorage.getItem(key);
+      if (legacy) {
+        try {
+          const parsed = JSON.parse(legacy) as T;
+          localStorage.setItem(realKey, legacy);
+          return parsed;
+        } catch {
+          // ignora e retorna fallback
+        }
+      }
+    }
+    return fallback;
   } catch {
     return fallback;
   }
 }
 
-async function syncToCloud(key: string, value: any) {
-  if (!supabase || !SYNCABLE_KEYS.includes(key)) return;
+// Aggregates all syncable keys into the StoreDataJSON structure and saves to Supabase
+async function syncToCloud(forcedLojaId?: string | null) {
+  if (!supabase) return;
+  const lojaId = forcedLojaId ?? getActiveLojaId();
+  if (!lojaId) return;
+
+  const storeData: StoreDataJSON = {
+    settings: read<Settings>(KEYS.settings, DEFAULT_SETTINGS, lojaId),
+    products: read<Product[]>(KEYS.products, DEFAULT_PRODUCTS, lojaId),
+    delivery_locations: read<DeliveryLocation[]>(KEYS.deliveryLocations, [], lojaId),
+    global_addons: read<GlobalAddon[]>(KEYS.globalAddons, [], lojaId),
+    campaigns: read<Campaign[]>(KEYS.campaigns, [], lojaId),
+  };
+
   try {
-    await supabase.from("store_data").upsert({ key, value, updated_at: new Date().toISOString() });
+    await supabase.from("store_data").upsert(
+      {
+        loja_id: lojaId,
+        data: storeData,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "loja_id" },
+    );
   } catch (err) {
     console.warn("Erro ao sincronizar com o Supabase:", err);
   }
 }
 
-function write<T>(key: string, value: T) {
+function write<T>(key: string, value: T, skipCloudSync = false) {
   if (typeof window === "undefined") return;
-  localStorage.setItem(key, JSON.stringify(value));
+  // Captura o lojaId ANTES de escrever: evita que o iframe de preview
+  // ou outra aba troque o activeId no meio do caminho e o sync vá para a loja errada.
+  const lojaId = getActiveLojaId();
+  const realKey = scopedKey(key, lojaId);
+  localStorage.setItem(realKey, JSON.stringify(value));
   window.dispatchEvent(new CustomEvent("insano-storage"));
-  syncToCloud(key, value);
+  if (!skipCloudSync && SYNCABLE_KEYS.includes(key)) {
+    syncToCloud(lojaId);
+  }
 }
 
 export const storage = {
   getLoyaltyPoints: () => read<number>(KEYS.loyalty, 0),
-  setLoyaltyPoints: (n: number) => write(KEYS.loyalty, Math.max(0, n)),
-  addLoyaltyPoint: () => write(KEYS.loyalty, storage.getLoyaltyPoints() + 1),
-  resetLoyalty: () => write(KEYS.loyalty, 0),
+  setLoyaltyPoints: (n: number) => write(KEYS.loyalty, Math.max(0, n), true),
+  addLoyaltyPoint: () => write(KEYS.loyalty, storage.getLoyaltyPoints() + 1, true),
+  resetLoyalty: () => write(KEYS.loyalty, 0, true),
 
   getCustomers: () => read<CustomerLoyalty[]>(KEYS.customers, []),
   setCustomers: (c: CustomerLoyalty[]) => write(KEYS.customers, c),
 
-  getSettings: (): Settings => ({ ...DEFAULT_SETTINGS, ...read<Partial<Settings>>(KEYS.settings, {}) }),
+  getSettings: (): Settings => ({
+    ...DEFAULT_SETTINGS,
+    ...read<Partial<Settings>>(KEYS.settings, {}),
+  }),
   setSettings: (s: Settings) => write(KEYS.settings, s),
 
   getProducts: (): Product[] => read<Product[]>(KEYS.products, DEFAULT_PRODUCTS),
   setProducts: (p: Product[]) => write(KEYS.products, p),
+
+  getDeliveryLocations: (): DeliveryLocation[] =>
+    read<DeliveryLocation[]>(KEYS.deliveryLocations, []),
+  setDeliveryLocations: (dl: DeliveryLocation[]) => write(KEYS.deliveryLocations, dl),
+
+  getGlobalAddons: (): GlobalAddon[] => read<GlobalAddon[]>(KEYS.globalAddons, []),
+  setGlobalAddons: (ga: GlobalAddon[]) => write(KEYS.globalAddons, ga),
+
+  getCampaigns: (): Campaign[] => read<Campaign[]>(KEYS.campaigns, []),
+  setCampaigns: (c: Campaign[]) => write(KEYS.campaigns, c),
+
+  getParticipants: (): Participant[] => read<Participant[]>(KEYS.participants, []),
+  setParticipants: (p: Participant[]) => write(KEYS.participants, p),
 
   getRedemptions: () => read<import("./types").Redemption[]>(KEYS.redemptions, []),
   addRedemption: (r: import("./types").Redemption) => {
@@ -96,32 +204,43 @@ export const storage = {
 
   syncFromCloud: async () => {
     if (!supabase) return;
+    const lojaId = getActiveLojaId();
+    if (!lojaId) return;
+
     try {
-      const { data, error } = await supabase.from("store_data").select("*");
+      const { data, error } = await supabase
+        .from("store_data")
+        .select("data")
+        .eq("loja_id", lojaId)
+        .maybeSingle();
       if (error) throw error;
-      if (data && data.length > 0) {
+
+      if (data && data.data) {
+        const storeData = data.data as StoreDataJSON;
         let changed = false;
-        for (const row of data) {
-          if (SYNCABLE_KEYS.includes(row.key)) {
-            const localVal = localStorage.getItem(row.key);
-            const cloudValStr = JSON.stringify(row.value);
-            if (localVal !== cloudValStr) {
-              localStorage.setItem(row.key, cloudValStr);
-              changed = true;
-            }
+
+        const syncKey = (key: string, value: any) => {
+          const realKey = scopedKey(key, lojaId);
+          const localVal = localStorage.getItem(realKey);
+          const cloudValStr = JSON.stringify(value ?? []);
+          if (localVal !== cloudValStr) {
+            localStorage.setItem(realKey, cloudValStr);
+            changed = true;
           }
-        }
+        };
+
+        syncKey(KEYS.settings, storeData.settings);
+        syncKey(KEYS.products, storeData.products);
+        syncKey(KEYS.deliveryLocations, storeData.delivery_locations);
+        syncKey(KEYS.globalAddons, storeData.global_addons);
+        syncKey(KEYS.campaigns, storeData.campaigns);
+
         if (changed) {
           window.dispatchEvent(new CustomEvent("insano-storage"));
         }
-      } else if (data && data.length === 0) {
-        // O banco de dados em nuvem está vazio! Vamos subir os dados locais do administrador!
-        for (const key of SYNCABLE_KEYS) {
-          const localVal = localStorage.getItem(key);
-          if (localVal) {
-            await syncToCloud(key, JSON.parse(localVal));
-          }
-        }
+      } else {
+        // Banco vazio para esta loja, subir dados padrão locais
+        await syncToCloud(lojaId);
       }
     } catch (err) {
       console.warn("Erro ao buscar dados do Supabase:", err);
@@ -130,6 +249,5 @@ export const storage = {
 };
 
 export function useStorageVersion() {
-  // returns a hook helper
   return KEYS;
 }
