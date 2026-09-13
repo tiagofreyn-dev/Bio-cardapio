@@ -86,14 +86,16 @@ function MasterAdminPage() {
     checkSession();
   }, []);
 
-  // 2. Fetch All Stores
+  // 2. Fetch All Stores — ULTRA-LEVE: projeção + limite 100.
+  // Antes: select * sem limite (com 50-1000 lojas = MBs por load).
   async function loadStores() {
     try {
       if (!supabase) return;
       const { data, error } = await supabase
         .from("lojas")
-        .select("*")
-        .order("criado_em", { ascending: false });
+        .select("id,nome,slug,tipo,cor_tema,taxa_entrega,status_assinatura,cobranca_automatica,criado_em")
+        .order("criado_em", { ascending: false })
+        .limit(100);
 
       if (error) throw error;
       setStores(data || []);
@@ -147,11 +149,12 @@ function MasterAdminPage() {
         sessionStorage.setItem("insano.master.auth", "true");
         sessionStorage.setItem("insano.master.email", trimmedEmail);
 
-        // Load stores
+        // Load stores — ULTRA-LEVE: projeção + limite
         const { data: lojasData, error: lojasError } = await supabase
           .from("lojas")
-          .select("*")
-          .order("criado_em", { ascending: false });
+          .select("id,nome,slug,tipo,cor_tema,taxa_entrega,status_assinatura,cobranca_automatica,criado_em")
+          .order("criado_em", { ascending: false })
+          .limit(100);
 
         if (lojasError) throw lojasError;
         setStores(lojasData || []);
@@ -171,8 +174,9 @@ function MasterAdminPage() {
         setUser(data.user);
         const { data: lojasData, error: lojasError } = await supabase
           .from("lojas")
-          .select("*")
-          .order("criado_em", { ascending: false });
+          .select("id,nome,slug,tipo,cor_tema,taxa_entrega,status_assinatura,cobranca_automatica,criado_em")
+          .order("criado_em", { ascending: false })
+          .limit(100);
 
         if (lojasError) throw lojasError;
         setStores(lojasData || []);
@@ -216,7 +220,7 @@ function MasterAdminPage() {
         .from("lojas")
         .update({ cobranca_automatica: newVal })
         .eq("id", lojaId)
-        .select();
+        .select("id");
 
       if (error) throw error;
       
@@ -245,7 +249,7 @@ function MasterAdminPage() {
         .from("lojas")
         .update({ status_assinatura: newStatus })
         .eq("id", lojaId)
-        .select();
+        .select("id");
 
       if (error) throw error;
 
@@ -294,7 +298,7 @@ function MasterAdminPage() {
         .from("lojas")
         .delete()
         .eq("id", lojaId)
-        .select();
+        .select("id");
 
       if (error) throw error;
       

@@ -107,10 +107,48 @@ function read<T>(key: string, fallback: T, forcedLojaId?: string | null): T {
 }
 
 // Aggregates all syncable keys into the StoreDataJSON structure and saves to Supabase
+// ULTRA-LEVE: debounce de 2s + coalescência. 50 edições rápidas = 1 upsert,
+// não 50. Sem isso, cada tecla digitada no admin reescrevia o JSONB inteiro
+// (100KB-1MB) e estourava o limite do Supabase.
+let _syncTimer: ReturnType<typeof setTimeout> | null = null;
+let _syncPendingLoja: string | null = null;
+let _syncInFlight = false;
+const SYNC_DEBOUNCE_MS = 2000;
+
+function scheduleSync(lojaId: string | null) {
+  if (!lojaId || !supabase) return;
+  _syncPendingLoja = lojaId;
+  if (_syncTimer) clearTimeout(_syncTimer);
+  _syncTimer = setTimeout(() => {
+    _syncTimer = null;
+    const target = _syncPendingLoja;
+    _syncPendingLoja = null;
+    if (target) void syncToCloud(target);
+  }, SYNC_DEBOUNCE_MS);
+}
+
+/** Força o envio imediato (usado em save explícito / unmount). */
+export function flushSync() {
+  if (_syncTimer) {
+    clearTimeout(_syncTimer);
+    _syncTimer = null;
+  }
+  const target = _syncPendingLoja ?? getActiveLojaId();
+  _syncPendingLoja = null;
+  if (target) return syncToCloud(target);
+  return Promise.resolve();
+}
+
 async function syncToCloud(forcedLojaId?: string | null) {
   if (!supabase) return;
   const lojaId = forcedLojaId ?? getActiveLojaId();
   if (!lojaId) return;
+  // Evita upserts concorrentes (write durante write = 2x egress).
+  if (_syncInFlight) {
+    scheduleSync(lojaId);
+    return;
+  }
+  _syncInFlight = true;
 
   const storeData: StoreDataJSON = {
     settings: read<Settings>(KEYS.settings, DEFAULT_SETTINGS, lojaId),
@@ -131,6 +169,14 @@ async function syncToCloud(forcedLojaId?: string | null) {
     );
   } catch (err) {
     console.warn("Erro ao sincronizar com o Supabase:", err);
+  } finally {
+    _syncInFlight = false;
+    // Se chegou escrita durante o voo, agenda uma última sincronização.
+    if (_syncPendingLoja) {
+      const pending = _syncPendingLoja;
+      _syncPendingLoja = null;
+      scheduleSync(pending);
+    }
   }
 }
 
@@ -143,7 +189,8 @@ function write<T>(key: string, value: T, skipCloudSync = false) {
   localStorage.setItem(realKey, JSON.stringify(value));
   window.dispatchEvent(new CustomEvent("insano-storage"));
   if (!skipCloudSync && SYNCABLE_KEYS.includes(key)) {
-    syncToCloud(lojaId);
+    // ULTRA-LEVE: agenda em vez de disparar na hora.
+    scheduleSync(lojaId);
   }
 }
 

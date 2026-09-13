@@ -276,37 +276,54 @@ export function CartDrawer({
 
     const lojaId = typeof window !== "undefined" ? getActiveLojaId() : null;
 
+    // ULTRA-LEVE: rate-limit 15s por telefone + truncate do resumo.
+    // Antes: 2 inserts sem limite, items_summary podia passar de 10KB/linha.
+    // Com 50 lojas em horário de pico isso virava enxurrada de writes.
+    if (typeof window !== "undefined") {
+      try {
+        const rlKey = `insano.order.rl.${lojaId || "noloja"}.${phone.trim()}`;
+        const last = Number(localStorage.getItem(rlKey) || 0);
+        if (Date.now() - last < 15000) {
+          alert("Aguarde alguns segundos antes de enviar outro pedido.");
+          setIsSubmitting(false);
+          return;
+        }
+        localStorage.setItem(rlKey, Date.now().toString());
+      } catch {}
+    }
+
     // Salvar pedido no histórico geral para o Dashboard Financeiro
     // (sempre com loja_id: sem isso o faturamento misturava entre lojas)
     if (supabase && lojaId) {
       try {
         let itemsSummary = items
           .map((i) => {
-            let line = `${i.qty}x ${i.name}`;
+            let line = `${i.qty}x ${String(i.name || "Item").slice(0, 80)}`;
             const parts: string[] = [];
             if (i.selectedChoices && i.selectedChoices.length > 0) {
               parts.push(
-                ...i.selectedChoices.map((c) =>
-                  c.qty > 1 ? `${c.qty}x ${c.optionName}` : c.optionName,
+                ...i.selectedChoices.slice(0, 10).map((c: any) =>
+                  (c as any).qty > 1 ? `${(c as any).qty}x ${String(c.optionName).slice(0, 40)}` : String(c.optionName).slice(0, 40),
                 ),
               );
             }
             if (i.adicionaisSelecionados && i.adicionaisSelecionados.length > 0) {
-              parts.push(...i.adicionaisSelecionados.map((a) => a.nome));
+              parts.push(...i.adicionaisSelecionados.slice(0, 10).map((a) => String(a.nome).slice(0, 40)));
             }
             if (parts.length > 0) line += ` (${parts.join(", ")})`;
             return line;
           })
-          .join(" | ");
+          .join(" | ")
+          .slice(0, 1500);
 
         if (observation.trim()) {
-          itemsSummary += `\n📝 Obs: ${observation.trim()}`;
+          itemsSummary += `\n📝 Obs: ${observation.trim().slice(0, 300)}`;
         }
 
-        itemsSummary += `\n📞 Fone: ${phone.trim()}`;
+        itemsSummary += `\n📞 Fone: ${phone.trim().slice(0, 20)}`;
         if (delivery === "entrega") {
-          itemsSummary += `\n📍 Entrega: ${street.trim()}, ${number.trim()} - ${district.trim()}`;
-          if (ref.trim()) itemsSummary += ` (Ref: ${ref.trim()})`;
+          itemsSummary += `\n📍 Entrega: ${street.trim().slice(0, 80)}, ${number.trim().slice(0, 10)} - ${district.trim().slice(0, 40)}`;
+          if (ref.trim()) itemsSummary += ` (Ref: ${ref.trim().slice(0, 60)})`;
         } else {
           itemsSummary += `\n🚶 Retirada no local`;
         }

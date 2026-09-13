@@ -6,12 +6,38 @@ const supabaseUrl = process.env.VITE_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || "";
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+// Idempotência em memória: retries do provedor dentro de 10min não
+// geram novo UPDATE (economiza writes e evita flip-flop de status).
+const _seenEvents = new Map<string, number>();
+function isDuplicate(eventId: string): boolean {
+  const now = Date.now();
+  for (const [k, t] of _seenEvents) if (now - t > 10 * 60 * 1000) _seenEvents.delete(k);
+  if (_seenEvents.has(eventId)) return true;
+  _seenEvents.set(eventId, now);
+  return false;
+}
+
 export const Route = createFileRoute("/api/webhooks/stripe")({
   server: {
     handlers: {
       POST: async ({ request }) => {
         try {
+          // ULTRA-LEVE + SEGURANÇA: exige segredo do webhook.
+          // Antes: qualquer POST com {reference} flipava status da loja
+          // e cada retry gerava 1 write. Agora sem segredo = 401 sem DB.
+          const webhookSecret = process.env.CAKTO_WEBHOOK_SECRET || process.env.STRIPE_WEBHOOK_SECRET || "";
+          const provided =
+            request.headers.get("x-webhook-secret") ||
+            request.headers.get("x-cakto-secret") ||
+            new URL(request.url).searchParams.get("secret") ||
+            "";
+          if (webhookSecret && provided !== webhookSecret) {
+            return new Response("Unauthorized", { status: 401 });
+          }
           const rawBody = await request.text();
+          if (rawBody.length > 20000) {
+            return new Response("Payload too large", { status: 413 });
+          }
           let payload: any;
           try {
             payload = JSON.parse(rawBody);
@@ -28,6 +54,16 @@ export const Route = createFileRoute("/api/webhooks/stripe")({
           // O identificador da loja (lojaId) passamos via checkout param 'ext' ou 'ref',
           // que a Cakto retorna em payload.reference ou metadata
           const ref = payload.reference || payload.metadata?.ref || payload.ref;
+          // Dedup por event-id (Cakto/Stripe reenviam em retry).
+          const eventId = String(
+            payload.id || payload.event_id || payload.eventId || `${eventType}:${ref}`,
+          );
+          if (isDuplicate(eventId)) {
+            return new Response(JSON.stringify({ received: true, deduplicated: true }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            });
+          }
           
           if (ref) {
             // A Cakto envia status como 'active', 'approved', 'paid', 'completed' para pago

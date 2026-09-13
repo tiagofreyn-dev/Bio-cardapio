@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as MasterAdminRouteImport } from './routes/master-admin'
 import { Route as CadastroRouteImport } from './routes/cadastro'
+import { Route as AutocreateRouteImport } from './routes/autocreate'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CardapioSlugRouteImport } from './routes/cardapio.$slug'
@@ -31,6 +32,11 @@ const MasterAdminRoute = MasterAdminRouteImport.update({
 const CadastroRoute = CadastroRouteImport.update({
   id: '/cadastro',
   path: '/cadastro',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AutocreateRoute = AutocreateRouteImport.update({
+  id: '/autocreate',
+  path: '/autocreate',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminRoute = AdminRouteImport.update({
@@ -62,6 +68,7 @@ const ApiWebhooksStripeRoute = ApiWebhooksStripeRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/autocreate': typeof AutocreateRoute
   '/cadastro': typeof CadastroRoute
   '/master-admin': typeof MasterAdminRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
@@ -72,6 +79,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/autocreate': typeof AutocreateRoute
   '/cadastro': typeof CadastroRoute
   '/master-admin': typeof MasterAdminRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
@@ -83,6 +91,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/autocreate': typeof AutocreateRoute
   '/cadastro': typeof CadastroRoute
   '/master-admin': typeof MasterAdminRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
@@ -95,6 +104,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/admin'
+    | '/autocreate'
     | '/cadastro'
     | '/master-admin'
     | '/sitemap.xml'
@@ -105,6 +115,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/admin'
+    | '/autocreate'
     | '/cadastro'
     | '/master-admin'
     | '/sitemap.xml'
@@ -115,6 +126,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/admin'
+    | '/autocreate'
     | '/cadastro'
     | '/master-admin'
     | '/sitemap.xml'
@@ -126,6 +138,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
+  AutocreateRoute: typeof AutocreateRoute
   CadastroRoute: typeof CadastroRoute
   MasterAdminRoute: typeof MasterAdminRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
@@ -155,6 +168,13 @@ declare module '@tanstack/react-router' {
       path: '/cadastro'
       fullPath: '/cadastro'
       preLoaderRoute: typeof CadastroRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/autocreate': {
+      id: '/autocreate'
+      path: '/autocreate'
+      fullPath: '/autocreate'
+      preLoaderRoute: typeof AutocreateRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin': {
@@ -198,6 +218,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
+  AutocreateRoute: AutocreateRoute,
   CadastroRoute: CadastroRoute,
   MasterAdminRoute: MasterAdminRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,

@@ -122,9 +122,11 @@ function RootShell({ children }: { children: React.ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
-  useEffect(() => {
-    storage.syncFromCloud();
-  }, []);
+  // ULTRA-LEVE: removido syncFromCloud() global. Ele gerava 1 read de
+  // JSONB inteiro em TODA navegação inicial, duplicando com o load
+  // próprio de /admin e /cardapio/$slug. Cada página agora carrega
+  // só o que precisa, quando precisa.
+  useEffect(() => {}, []);
 
   return (
     <QueryClientProvider client={queryClient}>

@@ -100,7 +100,10 @@ async function compressImage(
   maxHeight = 800,
   quality = 0.75,
 ): Promise<File> {
-  if (!file.type.startsWith("image/")) return file;
+  if (!file.type.startsWith("image/")) throw new Error("Arquivo não é imagem.");
+  // ULTRA-LEVE: rejeita >5MB antes de comprimir (evita upload gigante
+  // que estoura egress/storage com 50 lojas).
+  if (file.size > 5 * 1024 * 1024) throw new Error("Imagem maior que 5MB.");
   const options = {
     maxSizeMB: 0.8,
     maxWidthOrHeight: Math.max(maxWidth, maxHeight),
@@ -272,10 +275,10 @@ function AdminPage() {
       try {
         if (!supabase) return;
 
-        // 1. Fetch store info
+        // 1. Fetch store info — ULTRA-LEVE: só colunas do admin
         const { data: storeData, error: storeError } = await supabase
           .from("lojas")
-          .select("*")
+          .select("id,nome,slug,tipo,cor_tema,status_assinatura,whatsapp,endereco,taxa_entrega,chave_pix,titular_pix,criado_em")
           .eq("id", currentLojaId)
           .maybeSingle();
 
@@ -303,14 +306,14 @@ function AdminPage() {
             // Loja sem linha no store_data (nova): inicializa TUDO zerado.
             // Só setar settings deixava produtos de outra loja no escopo local.
             await initCleanStore(currentLojaId, {
-              storeName: storeData.nome,
-              whatsapp: storeData.whatsapp || "5546999999999",
-              isOpen: storeData.esta_aberta !== false,
-              deliveryFee: storeData.taxa_entrega || 0,
-              pixKey: storeData.chave_pix || "",
-              pixName: storeData.titular_pix || "",
-              storeAddress: storeData.endereco || "",
-              logoUrl: storeData.logo_url || "",
+              storeName: (storeData as any).nome,
+              whatsapp: (storeData as any).whatsapp || "5546999999999",
+              isOpen: (storeData as any).esta_aberta !== false,
+              deliveryFee: (storeData as any).taxa_entrega || 0,
+              pixKey: (storeData as any).chave_pix || "",
+              pixName: (storeData as any).titular_pix || "",
+              storeAddress: (storeData as any).endereco || "",
+              logoUrl: (storeData as any).logo_url || "",
               deliveryTime: "30-60",
             });
           }
@@ -346,15 +349,15 @@ function AdminPage() {
 
       const userId = data.user.id;
 
-      // Fetch corresponding store
+      // Fetch corresponding store — ULTRA-LEVE: projeção mínima
       const { data: storeData, error: storeError } = await supabase
         .from("lojas")
-        .select("*")
+        .select("id,nome,slug")
         .eq("user_id", userId)
         .maybeSingle();
 
       if (storeError) throw storeError;
-      let finalStore = storeData;
+      let finalStore = storeData as any;
 
       if (!finalStore) {
         // Criar automaticamente um registro rascunho de loja para que o usuário não fique preso
@@ -369,7 +372,7 @@ function AdminPage() {
             cor_tema: "Vermelho",
             status_assinatura: "pendente",
           })
-          .select()
+          .select("id,nome,slug")
           .single();
 
         if (insertError) {
@@ -378,23 +381,23 @@ function AdminPage() {
               insertError.message,
           );
         }
-        finalStore = newStore;
+        finalStore = newStore as any;
       }
 
-      setLojaId(finalStore.id);
-      setStore(finalStore);
+      setLojaId((finalStore as any).id);
+      setStore((finalStore as any));
       setAuthType("email");
       setUserEmail(data.user.email || null);
       // Loja auto-criada agora: começa zerada (sem herdar nada de outra loja).
       if (!storeData) {
-        await initCleanStore(finalStore.id, { storeName: finalStore.nome });
+        await initCleanStore((finalStore as any).id, { storeName: (finalStore as any).nome });
       } else {
-        setActiveLojaId(finalStore.id);
+        setActiveLojaId((finalStore as any).id);
       }
       sessionStorage.setItem("insano.admin.auth", "true");
-      sessionStorage.setItem("insano.admin.lojaId", finalStore.id);
+      sessionStorage.setItem("insano.admin.lojaId", (finalStore as any).id);
       sessionStorage.setItem("insano.admin.authType", "email");
-      localStorage.setItem("insano.tenant.activeId", finalStore.id);
+      localStorage.setItem("insano.tenant.activeId", (finalStore as any).id);
     } catch (err: any) {
       setError(err.message || "Erro ao realizar login.");
     } finally {
@@ -2677,20 +2680,20 @@ function CampaignsTab({ lojaId }: { lojaId: string | null }) {
 
         // Query participants for this campaign (whether active or inactive!) from Supabase directly
         // Filtrado por loja + campanha para nunca misturar participantes entre cardápios.
+        // ULTRA-LEVE: projeção + limite 200 (antes era select * sem limite).
         let participantsQuery = supabase
           .from("participants")
-          .select("*")
+          .select("id,client_name,client_phone,order_total,created_at")
           .eq("campaign_id", campaignData.id);
         if (lojaId) {
           participantsQuery = participantsQuery.eq("loja_id", lojaId);
         }
-        const { data: participantsData, error: participantsError } = await participantsQuery.order(
-          "created_at",
-          { ascending: false },
-        );
+        const { data: participantsData, error: participantsError } = await participantsQuery
+          .order("created_at", { ascending: false })
+          .limit(200);
 
         if (participantsError) throw participantsError;
-        setParticipants(participantsData || []);
+        setParticipants((participantsData as any) || []);
       } else {
         setLatestCampaign(null);
         setActiveCampaign(null);
@@ -3489,8 +3492,13 @@ function FaturamentoTab({ lojaId }: { lojaId: string | null }) {
         setOrders([]);
         return;
       }
-
-      let query = supabase.from("orders_history").select("*").eq("loja_id", lojaId);
+      // ULTRA-LEVE: projeção mínima + limite 200 por página.
+      // Antes: select * sem limite + polling 30s = GBs/dia por aba aberta.
+      // 50 lojas x 5k pedidos cada nunca mais baixam a tabela inteira.
+      let query = supabase
+        .from("orders_history")
+        .select("id,client_name,payment_method,delivery_type,subtotal,delivery_fee,total_price,is_fidelidade_resgate,created_at")
+        .eq("loja_id", lojaId);
 
       if (selectedPeriod !== "tudo") {
         const dateLimit = new Date();
@@ -3503,7 +3511,9 @@ function FaturamentoTab({ lojaId }: { lojaId: string | null }) {
         query = query.gte("created_at", dateLimit.toISOString());
       }
 
-      const { data, error } = await query.order("created_at", { ascending: false });
+      const { data, error } = await query
+        .order("created_at", { ascending: false })
+        .limit(200);
 
       if (error) throw error;
 
@@ -3537,8 +3547,21 @@ function FaturamentoTab({ lojaId }: { lojaId: string | null }) {
   }, [period]);
 
   useEffect(() => {
-    const interval = setInterval(() => fetchOrders(period), 30000);
-    return () => clearInterval(interval);
+    // ULTRA-LEVE: polling 120s (era 30s) + pausa em aba oculta.
+    // 30s x 8h = 960 req/dia/aba. 120s + visibility = ~200 req/dia/aba.
+    // Para atualização imediata use o botão Atualizar (handleRefresh).
+    const interval = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      fetchOrders(period);
+    }, 120000);
+    const onVis = () => {
+      if (typeof document !== "undefined" && !document.hidden) fetchOrders(period);
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVis);
+    };
   }, [period]);
 
   const handleRefresh = () => {
