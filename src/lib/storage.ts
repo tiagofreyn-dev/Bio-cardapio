@@ -112,7 +112,7 @@ function read<T>(key: string, fallback: T, forcedLojaId?: string | null): T {
 // (100KB-1MB) e estourava o limite do Supabase.
 let _syncTimer: ReturnType<typeof setTimeout> | null = null;
 let _syncPendingLoja: string | null = null;
-let _syncInFlight = false;
+let _syncInFlight: Promise<void> | null = null;
 const SYNC_DEBOUNCE_MS = 2000;
 
 function scheduleSync(lojaId: string | null) {
@@ -127,29 +127,34 @@ function scheduleSync(lojaId: string | null) {
   }, SYNC_DEBOUNCE_MS);
 }
 
-/** Força o envio imediato (usado em save explícito / unmount). */
-export function flushSync() {
+/** Força o envio imediato e SÓ resolve depois que o banco confirmou.
+ * Usado antes de recarregar o preview: sem o await, o iframe buscava
+ * o dado velho e sobrescrevia o localStorage compartilhado (o destaque
+ * "aparecia 1s e sumia"). */
+export async function flushSync() {
   if (_syncTimer) {
     clearTimeout(_syncTimer);
     _syncTimer = null;
   }
+  // Espera um upsert em andamento terminar primeiro.
+  if (_syncInFlight) {
+    try {
+      await _syncInFlight;
+    } catch {}
+    // O voo anterior pode ter reagendado um pendente: traz para agora.
+    if (_syncTimer) {
+      clearTimeout(_syncTimer);
+      _syncTimer = null;
+    }
+  }
   const target = _syncPendingLoja ?? getActiveLojaId();
   _syncPendingLoja = null;
-  if (target) return syncToCloud(target);
-  return Promise.resolve();
+  if (target) await syncToCloud(target);
 }
 
-async function syncToCloud(forcedLojaId?: string | null) {
+/** O upsert real (lê o localStorage na hora, sempre fresco). */
+async function doSync(lojaId: string) {
   if (!supabase) return;
-  const lojaId = forcedLojaId ?? getActiveLojaId();
-  if (!lojaId) return;
-  // Evita upserts concorrentes (write durante write = 2x egress).
-  if (_syncInFlight) {
-    scheduleSync(lojaId);
-    return;
-  }
-  _syncInFlight = true;
-
   const storeData: StoreDataJSON = {
     settings: read<Settings>(KEYS.settings, DEFAULT_SETTINGS, lojaId),
     products: read<Product[]>(KEYS.products, DEFAULT_PRODUCTS, lojaId),
@@ -169,15 +174,29 @@ async function syncToCloud(forcedLojaId?: string | null) {
     );
   } catch (err) {
     console.warn("Erro ao sincronizar com o Supabase:", err);
-  } finally {
-    _syncInFlight = false;
+  }
+}
+
+async function syncToCloud(forcedLojaId?: string | null) {
+  if (!supabase) return;
+  const lojaId = forcedLojaId ?? getActiveLojaId();
+  if (!lojaId) return;
+  // Evita upserts concorrentes (write durante write = 2x egress):
+  // só agenda; o flushSync executa o pendente na hora quando preciso.
+  if (_syncInFlight) {
+    scheduleSync(lojaId);
+    return;
+  }
+  _syncInFlight = doSync(lojaId).finally(() => {
+    _syncInFlight = null;
     // Se chegou escrita durante o voo, agenda uma última sincronização.
     if (_syncPendingLoja) {
       const pending = _syncPendingLoja;
       _syncPendingLoja = null;
       scheduleSync(pending);
     }
-  }
+  });
+  await _syncInFlight;
 }
 
 function write<T>(key: string, value: T, skipCloudSync = false) {

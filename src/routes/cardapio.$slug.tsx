@@ -56,16 +56,25 @@ function DynamicCardapio() {
   // 1. Carregar Dados do Tenant a partir do Supabase
   // ULTRA-LEVE: projeção de colunas (sem select *), cache local 5min por
   // slug (evita 2 reads por pageview), AbortController p/ slug trocado.
+  // O cache é DESLIGADO no preview do admin (?preview=true) e na demo:
+  // o iframe recarrega a cada edição e precisa ver o dado fresco —
+  // com cache ele mostrava fidelidade/destaque antigos.
   useEffect(() => {
     const ctrl = new AbortController();
+    const useCache =
+      typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).get("preview") !== "true" &&
+      new URLSearchParams(window.location.search).get("demo") !== "true";
     async function loadStore() {
       setLoading(true);
       try {
         if (!supabase) return;
 
-        // Cache público: 5 min. 10k visitas com 30% retorno = -30% reads.
+        // Cache público: 5 min (desligado no preview/demo — ver acima).
+        // 10k visitas com 30% retorno = -30% reads.
         const cacheKey = `insano.cardapio.cache.${slug}`;
         try {
+          if (useCache) {
           const raw = sessionStorage.getItem(cacheKey);
           if (raw) {
             const cached = JSON.parse(raw);
@@ -85,6 +94,7 @@ function DynamicCardapio() {
               return;
             }
           }
+          } // end if (useCache)
         } catch {}
 
         // Buscar loja por slug — só colunas usadas na página pública
@@ -185,8 +195,10 @@ function DynamicCardapio() {
           // Disparar evento para recarregar componentes reativos
           window.dispatchEvent(new CustomEvent("insano-storage"));
 
-          // Salva cache de 5min (ultra-leve: evita re-fetch em Voltar/Voltar)
+          // Salva cache de 5min (ultra-leve: evita re-fetch em Voltar/Voltar).
+          // Pulado no preview/demo para o admin ver a edição na hora.
           try {
+            if (useCache) {
             const sdCache = unifiedData?.data as any;
             sessionStorage.setItem(
               cacheKey,
@@ -209,6 +221,7 @@ function DynamicCardapio() {
                 campaigns: sdCache?.campaigns || [],
               }),
             );
+            } // end if (useCache)
           } catch {}
         }
       } catch (err) {

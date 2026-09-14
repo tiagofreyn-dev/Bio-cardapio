@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { storage, setActiveLojaId, initCleanStore } from "@/lib/storage";
+import { storage, setActiveLojaId, initCleanStore, flushSync } from "@/lib/storage";
 import { useStorageSync } from "@/hooks/use-storage";
 import type {
   Product,
@@ -146,6 +146,33 @@ function safeUUID() {
     return window.crypto.randomUUID();
   }
   return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+}
+
+// Recarrega o iframe de preview do cardápio com dado fresco.
+// Por quê: o sync normal do storage tem debounce de 2s (ultra-light) e
+// a página pública tem cache de 5min — recarregar o iframe na hora,
+// sem flush nem cache-buster, mostrava fidelidade/destaque antigos.
+// Além disso o iframe escreve no MESMO localStorage do admin: se ele
+// carrega antes do upsert terminar, traz o dado velho e o hook
+// useStorageSync (que escuta o evento "storage" cross-document)
+// reverte a tela — o destaque "aparecia 1s e sumia".
+// O flush aqui é só em ação explícita (salvar, alternar destaque etc),
+// a digitação continua com debounce e segue leve.
+async function reloadPreview() {
+  if (typeof document === "undefined") return;
+  try {
+    await flushSync();
+  } catch {}
+  const iframe = document.getElementById("live-cardapio-preview") as HTMLIFrameElement | null;
+  if (!iframe || !iframe.src) return;
+  try {
+    const url = new URL(iframe.src, window.location.origin);
+    url.searchParams.set("t", Date.now().toString());
+    if (!url.searchParams.has("preview")) url.searchParams.set("preview", "true");
+    iframe.src = url.toString();
+  } catch {
+    iframe.src = iframe.src;
+  }
 }
 
 function AdminPage() {
@@ -766,10 +793,7 @@ function AdminPage() {
               </span>
               <button
                 onClick={() => {
-                  const iframe = document.getElementById(
-                    "live-cardapio-preview",
-                  ) as HTMLIFrameElement;
-                  if (iframe) iframe.src = iframe.src;
+                  reloadPreview();
                 }}
                 className="p-1 rounded-lg bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-400 hover:text-white transition active:scale-95"
                 title="Recarregar Preview"
@@ -919,9 +943,8 @@ function GeneralTab({
 
       if (error) throw error;
 
-      // Recarregar preview
-      const iframe = document.getElementById("live-cardapio-preview") as HTMLIFrameElement;
-      if (iframe) iframe.src = iframe.src;
+      // Recarregar preview (com dado fresco — ver reloadPreview)
+      reloadPreview();
     } catch (err: any) {
       console.error("Erro ao salvar automaticamente no Supabase:", err.message);
     } finally {
@@ -1677,9 +1700,8 @@ function ProductsTab({
         }
       }
 
-      // Reload preview
-      const iframe = document.getElementById("live-cardapio-preview") as HTMLIFrameElement;
-      if (iframe) iframe.src = iframe.src;
+      // Reload preview (com dado fresco — ver reloadPreview)
+      reloadPreview();
     } catch (err: any) {
       alert("Erro ao salvar produto: " + err.message);
     } finally {
@@ -1697,9 +1719,8 @@ function ProductsTab({
       const list = products.map((x) => (x.id === p.id ? { ...x, available: nextVal } : x));
       storage.setProducts(list);
 
-      // Reload preview
-      const iframe = document.getElementById("live-cardapio-preview") as HTMLIFrameElement;
-      if (iframe) iframe.src = iframe.src;
+      // Reload preview (com dado fresco — ver reloadPreview)
+      reloadPreview();
     } catch (err: any) {
       alert("Erro ao alternar disponibilidade: " + err.message);
     }
@@ -1713,9 +1734,8 @@ function ProductsTab({
       const list = products.map((x) => (x.id === p.id ? { ...x, is_featured: nextVal } : x));
       storage.setProducts(list);
 
-      // Reload preview
-      const iframe = document.getElementById("live-cardapio-preview") as HTMLIFrameElement;
-      if (iframe) iframe.src = iframe.src;
+      // Reload preview (com dado fresco — ver reloadPreview)
+      reloadPreview();
     } catch (err: any) {
       alert("Erro ao alternar destaque: " + err.message);
     }
@@ -1729,9 +1749,8 @@ function ProductsTab({
       const list = products.map((x) => (x.id === p.id ? { ...x, is_lancamento: nextVal } : x));
       storage.setProducts(list);
 
-      // Reload preview
-      const iframe = document.getElementById("live-cardapio-preview") as HTMLIFrameElement;
-      if (iframe) iframe.src = iframe.src;
+      // Reload preview (com dado fresco — ver reloadPreview)
+      reloadPreview();
     } catch (err: any) {
       alert(
         "Erro ao alternar lançamento: " +
@@ -1818,11 +1837,8 @@ function ProductsTab({
                             storage.setProducts(products.filter((x) => x.id !== p.id));
                             setDeletingId(null);
 
-                            // Reload preview
-                            const iframe = document.getElementById(
-                              "live-cardapio-preview",
-                            ) as HTMLIFrameElement;
-                            if (iframe) iframe.src = iframe.src;
+                            // Reload preview (com dado fresco — ver reloadPreview)
+                            reloadPreview();
                           } catch (err: any) {
                             alert("Erro ao excluir produto: " + err.message);
                           }
@@ -1914,11 +1930,8 @@ function ProductsTab({
                               storage.setProducts(products.filter((x) => x.id !== p.id));
                               setDeletingId(null);
 
-                              // Reload preview
-                              const iframe = document.getElementById(
-                                "live-cardapio-preview",
-                              ) as HTMLIFrameElement;
-                              if (iframe) iframe.src = iframe.src;
+                              // Reload preview (com dado fresco — ver reloadPreview)
+                              reloadPreview();
                             } catch (err: any) {
                               alert("Erro ao excluir produto: " + err.message);
                             }
