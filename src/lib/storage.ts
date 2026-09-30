@@ -81,13 +81,49 @@ const DEFAULT_PRODUCTS: Product[] = [];
 
 export function getActiveLojaId(): string | null {
   if (typeof window === "undefined") return null;
-  // sessionStorage tem prioridade no admin (por aba), localStorage é fallback / cardápio público
-  return sessionStorage.getItem("insano.admin.lojaId") || localStorage.getItem(KEYS.activeTenant);
+  // Prioridade por ABA (sessionStorage): admin > cardápio > global.
+  // Sem isso, 2 lojas abertas (2 abas ou admin + cardápio) se contaminam:
+  // o localStorage é COMPARTILHADO entre abas, então a aba B sobrescrevia
+  // o activeId e a aba A passava a ler/escrever no escopo da B
+  // (banners da loja A aparecendo na B). Cada aba agora trava o seu escopo.
+  // O cardápio público ainda limpa a chave admin (clearAdminScope) para
+  // nunca herdar o escopo do admin na mesma aba.
+  return (
+    sessionStorage.getItem("insano.admin.lojaId") ||
+    sessionStorage.getItem("insano.cardapio.lojaId") ||
+    localStorage.getItem(KEYS.activeTenant)
+  );
 }
 
 export function setActiveLojaId(lojaId: string) {
   if (typeof window === "undefined") return;
   localStorage.setItem(KEYS.activeTenant, lojaId);
+}
+
+/** Trava o escopo do CARDÁPIO PÚBLICO nesta aba (imune a outras abas). */
+export function setCardapioLojaId(lojaId: string) {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem("insano.cardapio.lojaId", lojaId);
+  } catch {}
+  setActiveLojaId(lojaId);
+}
+
+/** Cardápio público nunca deve herdar o escopo do admin (mesma aba). */
+export function clearAdminScope() {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.removeItem("insano.admin.lojaId");
+  } catch {}
+}
+
+/** Logout do admin: limpa as travas da aba para não vazar para a próxima. */
+export function clearTabScope() {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.removeItem("insano.admin.lojaId");
+    sessionStorage.removeItem("insano.cardapio.lojaId");
+  } catch {}
 }
 
 /** Retorna a chave real no localStorage, com sufixo por loja quando aplicável. */

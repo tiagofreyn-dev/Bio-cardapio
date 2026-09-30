@@ -410,6 +410,8 @@ function AdminPage() {
       sessionStorage.removeItem("insano.admin.auth");
       sessionStorage.removeItem("insano.admin.lojaId");
       sessionStorage.removeItem("insano.admin.authType");
+      // Não vazar o escopo desta loja para a próxima sessão/aba.
+      sessionStorage.removeItem("insano.cardapio.lojaId");
     }
     setIsAuthenticated(false);
     setLojaId(null);
@@ -693,8 +695,11 @@ function GeneralTab({
 }) {
   const settings = useStorageSync(() => storage.getSettings());
   const products = useStorageSync(() => storage.getProducts());
+  // Merge SEMPRE sobre o fresco do storage (não o `settings` do closure):
+  // com 2 lojas no mesmo navegador o closure stale espalhava os dados
+  // de uma loja no escopo da outra (ex: banners/logo trocados).
   const update = (patch: Partial<typeof settings>) =>
-    storage.setSettings({ ...settings, ...patch });
+    storage.setSettings({ ...storage.getSettings(), ...patch });
 
   const [locLoading, setLocLoading] = useState(true);
   const [locError, setLocError] = useState<string | null>(null);
@@ -727,8 +732,11 @@ function GeneralTab({
         data: { publicUrl },
       } = supabase.storage.from("products-images").getPublicUrl(data.path);
 
-      const updatedSettings = { ...settings, logoUrl: publicUrl };
-      update({ logoUrl: publicUrl });
+      // Fresco + flush: mesmo vetor de contaminação dos banners (closure
+      // stale gravava a logo com os dados de outra loja junto).
+      const updatedSettings = { ...storage.getSettings(), logoUrl: publicUrl };
+      storage.setSettings(updatedSettings);
+      await flushSync();
       await autoSave(updatedSettings);
     } catch (err: any) {
       alert("Erro ao enviar imagem do logo: " + err.message);

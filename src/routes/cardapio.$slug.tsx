@@ -12,7 +12,7 @@ import { CartFooter } from "@/components/menu/CartFooter";
 import { CartDrawer } from "@/components/menu/CartDrawer";
 import type { CartItem, Category, Product, Campaign, Loja } from "@/lib/types";
 import { brl } from "@/lib/format";
-import { storage, setActiveLojaId } from "@/lib/storage";
+import { storage, setCardapioLojaId, clearAdminScope } from "@/lib/storage";
 import { useStorageSync } from "@/hooks/use-storage";
 import { supabase } from "@/lib/supabase";
 import { AlertCircle, Lock, ArrowLeft, RefreshCw } from "lucide-react";
@@ -63,6 +63,9 @@ function DynamicCardapio() {
   // com cache ele mostrava fidelidade/destaque antigos.
   useEffect(() => {
     const ctrl = new AbortController();
+    // Anti-contaminação entre lojas: esta aba é PÚBLICA (slug), então
+    // descarta qualquer escopo de admin e vai travar no id desta loja.
+    clearAdminScope();
     const useCache =
       typeof window !== "undefined" &&
       new URLSearchParams(window.location.search).get("preview") !== "true" &&
@@ -82,7 +85,7 @@ function DynamicCardapio() {
             const cached = JSON.parse(raw);
             if (cached && Date.now() - cached.at < 5 * 60 * 1000 && cached.store) {
               setStore(cached.store);
-              setActiveLojaId(cached.store.id);
+              setCardapioLojaId(cached.store.id);
               const lid: string = cached.store.id;
               localStorage.setItem(`insano.settings.${lid}`, JSON.stringify(cached.mappedSettings || {}));
               localStorage.setItem(`insano.products.${lid}`, JSON.stringify(cached.products || []));
@@ -118,7 +121,7 @@ function DynamicCardapio() {
         // Trava o escopo ANTES de escrever no storage. Antes o código escrevia
         // nas chaves globais e só depois setava o activeId, então o cardápio
         // de uma loja sobrescrevia os dados da outra no mesmo navegador.
-        setActiveLojaId(storeData.id);
+        setCardapioLojaId(storeData.id);
 
         // Sincroniza dados e configurações da loja
         if (storeData) {
