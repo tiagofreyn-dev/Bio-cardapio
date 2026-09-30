@@ -131,6 +131,13 @@
     mask-image: linear-gradient(to right, transparent, black 4%, black 96%, transparent);
     -webkit-mask-image: linear-gradient(to right, transparent, black 4%, black 96%, transparent);
   }
+
+  /* Zoom lento pra banner de foto única não ficar parado */
+  @keyframes kenburns {
+    from { transform: scale(1); }
+    to { transform: scale(1.08); }
+  }
+  .animate-kenburns { animation: kenburns 10s ease-in-out infinite alternate; }
 }
 
 @keyframes shake-bounce {

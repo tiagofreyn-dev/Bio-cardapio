@@ -1,34 +1,37 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 
 // Carrossel ultra-leve de fotos dos pratos (sem lib externa, sem reads extras).
 // Recebe até 5 imagens já vindas do settings (store_data JSON).
 // - Foto inteira sem corte (object-contain + fundo desfocado)
-// - Troca sozinha a cada `intervalMs` (padrão 4s), com dots + setas + swipe
+// - Troca sozinha a cada `intervalMs` (padrão 2.8s), com dots + setas + swipe
+// - NÃO pausa no hover: só para com o lightbox aberto
 // - Clique expande em tela cheia (lightbox com anterior/próxima)
 // - No PC a largura é limitada (max-w-3xl) pra não ocupar a página inteira
+// - Com 1 foto só: zoom lento (Ken Burns) pra não ficar parado
 export function BannerCarousel({
   images,
   storeName,
-  intervalMs = 4000,
+  intervalMs = 2800,
 }: {
   images: string[];
   storeName: string;
   intervalMs?: number;
 }) {
   const [idx, setIdx] = useState(0);
-  const [paused, setPaused] = useState(false);
   const [expanded, setExpanded] = useState<number | null>(null);
+  const touchX = useRef<number | null>(null);
 
   useEffect(() => {
     setIdx(0);
   }, [images.length]);
 
-  // Autoplay lateral (pausa no hover / no lightbox aberto)
+  // Autoplay lateral: só para com o lightbox aberto (hover NÃO pausa —
+  // era isso que deixava o banner "parado" no PC com o mouse em cima).
   useEffect(() => {
-    if (images.length <= 1 || paused || expanded !== null) return;
+    if (images.length <= 1 || expanded !== null) return;
     const t = setInterval(() => setIdx((i) => (i + 1) % images.length), intervalMs);
     return () => clearInterval(t);
-  }, [images.length, intervalMs, paused, expanded]);
+  }, [images.length, intervalMs, expanded]);
 
   const close = useCallback(() => setExpanded(null), []);
   const step = useCallback(
@@ -86,10 +89,16 @@ export function BannerCarousel({
     <>
       <section
         className="px-4 pt-3"
-        onMouseEnter={() => setPaused(true)}
-        onMouseLeave={() => setPaused(false)}
-        onTouchStart={() => setPaused(true)}
-        onTouchEnd={() => setTimeout(() => setPaused(false), 3000)}
+        onTouchStart={(e) => {
+          touchX.current = e.touches[0]?.clientX ?? null;
+        }}
+        onTouchEnd={(e) => {
+          if (touchX.current === null || images.length <= 1) return;
+          const dx = (e.changedTouches[0]?.clientX ?? 0) - touchX.current;
+          touchX.current = null;
+          if (Math.abs(dx) < 40) return;
+          setIdx((cur) => (cur + (dx < 0 ? 1 : -1) + images.length) % images.length);
+        }}
       >
         {/* limite de largura no PC: antes ocupava a página inteira */}
         <div className="mx-auto w-full max-w-3xl">
@@ -100,7 +109,22 @@ export function BannerCarousel({
               title="Clique para ampliar"
               className={`${box} block cursor-zoom-in`}
             >
-              {slide(images[0], 0, true)}
+              <div className="relative w-full h-full overflow-hidden">
+                <img
+                  src={images[0]}
+                  alt=""
+                  aria-hidden
+                  className="absolute inset-0 w-full h-full object-cover blur-2xl opacity-40 scale-110"
+                  loading="eager"
+                />
+                {/* zoom lento pra foto única não ficar parada */}
+                <img
+                  src={images[0]}
+                  alt={`Destaque de ${storeName}`}
+                  className="relative w-full h-full object-contain animate-kenburns"
+                  loading="eager"
+                />
+              </div>
               <span className="absolute bottom-2 right-2 text-[10px] font-bold bg-black/60 text-white px-2 py-1 rounded-lg backdrop-blur">
                 ⤢ ampliar
               </span>

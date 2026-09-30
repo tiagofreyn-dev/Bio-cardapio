@@ -1077,7 +1077,7 @@ function GeneralTab({
             )}
             <p className="text-[10px] text-zinc-500 leading-relaxed">
               As fotos são comprimidas (máx. 1280px, ~0.5MB) e passam sozinhas no
-              topo do cardápio a cada 4 segundos. Use fotos bonitas dos pratos e doces.
+              topo do cardápio a cada ~3 segundos. Use fotos bonitas dos pratos e doces.
             </p>
           </div>
         </Field>

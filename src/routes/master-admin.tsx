@@ -926,7 +926,7 @@ function CarrosseisTab({ stores }: { stores: Loja[] }) {
       <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-4 space-y-3">
         <div>
           <h4 className="font-extrabold text-sm text-white">🖼️ Carrossel por loja</h4>
-          <p className="text-[11px] text-zinc-400">Inspeção sob demanda (1 select só ao escolher a loja). Troca sozinha a cada ~4s no cardápio.</p>
+          <p className="text-[11px] text-zinc-400">Inspeção sob demanda (1 select só ao escolher a loja). Troca sozinha a cada ~3s no cardápio.</p>
         </div>
         <select value={lojaId} onChange={(e) => { setLojaId(e.target.value); load(e.target.value); }} className="w-full h-11 rounded-xl bg-zinc-950 border border-zinc-800 px-3 text-xs font-bold">
           <option value="">Escolha a loja...</option>
