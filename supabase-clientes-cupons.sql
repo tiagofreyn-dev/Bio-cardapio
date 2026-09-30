@@ -36,8 +36,12 @@ CREATE TABLE IF NOT EXISTS public.broadcast_log (
   total INT NOT NULL DEFAULT 0,
   ok_count INT NOT NULL DEFAULT 0,
   message TEXT NOT NULL DEFAULT '',
+  image_url TEXT NOT NULL DEFAULT '',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+-- Foto do disparo (propaganda): URL pública comprimida (webp ~200KB).
+-- Para bancos já criados:
+ALTER TABLE public.broadcast_log ADD COLUMN IF NOT EXISTS image_url TEXT NOT NULL DEFAULT '';
 CREATE INDEX IF NOT EXISTS idx_broadcast_loja_day ON public.broadcast_log (loja_id, created_at DESC);
 
 -- 4. RLS: escrita pública mínima (checkout faz upsert sem login),

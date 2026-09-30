@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import imageCompression from "browser-image-compression";
 import { supabase } from "@/lib/supabase";
 import type { Loja } from "@/lib/types";
 import {
@@ -688,6 +689,49 @@ function SponsorsTab() {
   const [slogan, setSlogan] = useState("");
   const [emoji, setEmoji] = useState("📢");
   const [gradient, setGradient] = useState(GRADIENTS[0]);
+  const [imageUrl, setImageUrl] = useState("");
+  const [uploading, setUploading] = useState(false);
+
+  function storagePathFromPublicUrl(url: string): string | null {
+    if (!url) return null;
+    const m = url.match(/\/products-images\/(.+?)(?:\?.*)?$/);
+    return m ? m[1] : null;
+  }
+
+  // Foto da propaganda com MÍNIMO de storage: 800px, webp, teto ~150KB.
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) return alert("Arquivo não é imagem.");
+    if (file.size > 5 * 1024 * 1024) return alert("Imagem maior que 5MB.");
+    if (!supabase) return alert("Supabase não configurado.");
+    setUploading(true);
+    try {
+      const compressed = await imageCompression(file, {
+        maxSizeMB: 0.15,
+        maxWidthOrHeight: 800,
+        useWebWorker: true,
+        fileType: "image/webp",
+        initialQuality: 0.65,
+      } as any);
+      const webp = new File([compressed as Blob], file.name.replace(/\.[^/.]+$/, "") + ".webp", { type: "image/webp" });
+      // Apaga a anterior para não acumular lixo no storage.
+      const oldPath = storagePathFromPublicUrl(imageUrl);
+      if (oldPath) {
+        try { await supabase.storage.from("products-images").remove([oldPath]); } catch {}
+      }
+      const fileName = `sponsor-${Date.now()}-${Math.floor(Math.random() * 9999)}.webp`;
+      const { data, error } = await supabase.storage.from("products-images").upload(fileName, webp);
+      if (error) throw error;
+      const { data: { publicUrl } } = supabase.storage.from("products-images").getPublicUrl(data.path);
+      setImageUrl(publicUrl);
+    } catch (err: any) {
+      alert("Erro ao enviar foto: " + (err?.message || err));
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  }
 
   async function load() {
     if (!supabase) return;
@@ -696,13 +740,13 @@ function SponsorsTab() {
     try {
       const { data, error } = await supabase
         .from("sponsor_banners")
-        .select("id,nome,slogan,emoji,gradient,active,position")
+        .select("id,nome,slogan,emoji,gradient,image_url,active,position")
         .order("position", { ascending: true })
         .limit(30);
       if (error) throw error;
       setItems(data || []);
     } catch (err: any) {
-      if (err?.code === "42P01") setMissing(true);
+      if (err?.code === "42P01" || String(err?.message || "").includes("image_url")) setMissing(true);
       else alert("Erro: " + (err?.message || err));
     } finally {
       setLoading(false);
@@ -722,11 +766,13 @@ function SponsorsTab() {
         slogan: slogan.trim().slice(0, 80),
         emoji: emoji.trim().slice(0, 8) || "📢",
         gradient,
+        image_url: imageUrl.trim().slice(0, 500) || "",
         position: items.length,
       });
       if (error) throw error;
       setNome("");
       setSlogan("");
+      setImageUrl("");
       await load();
       try {
         sessionStorage.removeItem("insano.sponsors.cache");
@@ -741,7 +787,7 @@ function SponsorsTab() {
       <div className="rounded-2xl bg-amber-500/10 border border-amber-500/30 p-5 space-y-2">
         <h4 className="font-extrabold text-sm text-amber-400">📢 Ative os patrocinados (1 clique)</h4>
         <p className="text-xs text-zinc-300">
-          Rode <code className="font-mono bg-black/40 px-1 rounded">supabase-master.sql</code> no SQL Editor do Supabase (1 vez).
+          Rode <code className="font-mono bg-black/40 px-1 rounded">supabase-master.sql</code> no SQL Editor do Supabase de novo (a coluna de foto é nova).
         </p>
         <button onClick={load} className="h-9 px-4 rounded-xl bg-amber-500 text-black text-xs font-extrabold">
           Já executei — recarregar
@@ -754,21 +800,48 @@ function SponsorsTab() {
     <section className="space-y-4">
       <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-4 space-y-3">
         <div>
-          <h4 className="font-extrabold text-sm text-white">📢 Patrocinados globais (stand by)</h4>
+          <h4 className="font-extrabold text-sm text-white">📢 Patrocinados globais (ativo no cardápio)</h4>
           <p className="text-[11px] text-zinc-400">
-            Em stand by no cardápio até você ativar. Quando ligado, aparece em todas as lojas com 1 select em cache de 10min.
+            Aparece em todas as lojas com 1 select em cache de 10min. Foto opcional (webp ~150KB). Sem foto, mostra o emoji no degradê.
           </p>
         </div>
-        <form onSubmit={add} className="flex flex-col sm:flex-row gap-2">
-          <input value={emoji} onChange={(e) => setEmoji(e.target.value)} placeholder="📢" className="w-full sm:w-16 h-10 rounded-xl bg-zinc-950 border border-zinc-800 px-3 text-sm text-center" />
-          <input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Nome: Barbearia Corte Fino" className="flex-1 h-10 rounded-xl bg-zinc-950 border border-zinc-800 px-3 text-xs font-bold" />
-          <input value={slogan} onChange={(e) => setSlogan(e.target.value)} placeholder="Slogan: Corte + barba R$ 50" className="flex-1 h-10 rounded-xl bg-zinc-950 border border-zinc-800 px-3 text-xs" />
-          <select value={gradient} onChange={(e) => setGradient(e.target.value)} className="h-10 rounded-xl bg-zinc-950 border border-zinc-800 px-2 text-[11px]">
-            {GRADIENTS.map((g) => (
-              <option key={g} value={g}>{g.split(" ")[0].replace("from-", "")}</option>
-            ))}
-          </select>
-          <button type="submit" className="h-10 px-4 rounded-xl bg-primary text-primary-foreground text-xs font-extrabold">Adicionar</button>
+        <form onSubmit={add} className="flex flex-col gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
+            {imageUrl ? (
+              <div className="relative w-16 h-10 shrink-0 rounded-xl overflow-hidden ring-1 ring-zinc-700">
+                <img src={imageUrl} alt="Foto" className="w-full h-full object-cover" />
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const oldPath = storagePathFromPublicUrl(imageUrl);
+                    if (supabase && oldPath) {
+                      try { await supabase.storage.from("products-images").remove([oldPath]); } catch {}
+                    }
+                    setImageUrl("");
+                  }}
+                  className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/70 text-white text-xs leading-none"
+                  title="Remover foto"
+                >
+                  ×
+                </button>
+              </div>
+            ) : (
+              <label className="w-full sm:w-auto shrink-0 cursor-pointer h-10 px-3 rounded-xl bg-zinc-950 border border-zinc-800 text-[11px] font-bold flex items-center justify-center hover:border-zinc-600">
+                {uploading ? "Enviando..." : "📷 Foto"}
+                <input type="file" accept="image/*" onChange={handleImageUpload} disabled={uploading} className="hidden" />
+              </label>
+            )}
+            <input value={emoji} onChange={(e) => setEmoji(e.target.value)} placeholder="📢" className="w-full sm:w-16 h-10 rounded-xl bg-zinc-950 border border-zinc-800 px-3 text-sm text-center" />
+            <input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Nome: Barbearia Corte Fino" className="flex-1 h-10 rounded-xl bg-zinc-950 border border-zinc-800 px-3 text-xs font-bold" />
+            <input value={slogan} onChange={(e) => setSlogan(e.target.value)} placeholder="Slogan: Corte + barba R$ 50" className="flex-1 h-10 rounded-xl bg-zinc-950 border border-zinc-800 px-3 text-xs" />
+            <select value={gradient} onChange={(e) => setGradient(e.target.value)} className="h-10 rounded-xl bg-zinc-950 border border-zinc-800 px-2 text-[11px]">
+              {GRADIENTS.map((g) => (
+                <option key={g} value={g}>{g.split(" ")[0].replace("from-", "")}</option>
+              ))}
+            </select>
+            <button type="submit" disabled={uploading} className="h-10 px-4 rounded-xl bg-primary text-primary-foreground text-xs font-extrabold disabled:opacity-50">Adicionar</button>
+          </div>
+          <p className="text-[10px] text-zinc-500">Foto comprimida (máx. 800px, webp ~150KB) no mesmo bucket de produtos — sem bucket novo, sem custo extra.</p>
         </form>
       </div>
 
@@ -777,9 +850,15 @@ function SponsorsTab() {
           <p className="text-center text-zinc-500 text-xs font-bold py-10">{loading ? "Carregando..." : "Nenhum patrocinado — adicione o primeiro acima."}</p>
         ) : (
           <div className="divide-y divide-zinc-800/60">
-            {items.map((s) => (
+            {items.map((s) => {
+              const photo = typeof s.image_url === "string" && (s.image_url.startsWith("http") || s.image_url.startsWith("/")) ? s.image_url : null;
+              return (
               <div key={s.id} className="flex items-center gap-3 px-4 py-3">
-                <div className={`w-10 h-10 rounded-lg bg-gradient-to-r ${s.gradient} flex items-center justify-center text-xl shrink-0`}>{s.emoji}</div>
+                {photo ? (
+                  <img src={photo} alt={s.nome} className="w-10 h-10 rounded-lg object-cover shrink-0 ring-1 ring-white/15" loading="lazy" />
+                ) : (
+                  <div className={`w-10 h-10 rounded-lg bg-gradient-to-r ${s.gradient} flex items-center justify-center text-xl shrink-0`}>{s.emoji}</div>
+                )}
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-black text-white truncate">{s.nome}</p>
                   <p className="text-[11px] text-zinc-400 truncate">{s.slogan}</p>
@@ -798,6 +877,10 @@ function SponsorsTab() {
                 <button
                   onClick={async () => {
                     if (!supabase || !confirm(`Apagar "${s.nome}"?`)) return;
+                    const oldPath = storagePathFromPublicUrl(s.image_url || "");
+                    if (oldPath) {
+                      try { await supabase.storage.from("products-images").remove([oldPath]); } catch {}
+                    }
                     await supabase.from("sponsor_banners").delete().eq("id", s.id);
                     load();
                     try { sessionStorage.removeItem("insano.sponsors.cache"); } catch {}
@@ -807,7 +890,8 @@ function SponsorsTab() {
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -879,6 +963,48 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
   const [msg, setMsg] = useState("🔥 Promoção da semana! Mostre essa msg e ganhe 10% OFF hoje!");
   const [sending, setSending] = useState(false);
   const [last, setLast] = useState<any[]>([]);
+  const [imageUrl, setImageUrl] = useState("");
+  const [uploading, setUploading] = useState(false);
+
+  function storagePathFromPublicUrl(url: string): string | null {
+    if (!url) return null;
+    const m = url.match(/\/products-images\/(.+?)(?:\?.*)?$/);
+    return m ? m[1] : null;
+  }
+
+  // Foto do disparo com MÍNIMO de storage: 1024px, webp, teto ~200KB.
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) return alert("Arquivo não é imagem.");
+    if (file.size > 5 * 1024 * 1024) return alert("Imagem maior que 5MB.");
+    if (!supabase) return alert("Supabase não configurado.");
+    setUploading(true);
+    try {
+      const compressed = await imageCompression(file, {
+        maxSizeMB: 0.2,
+        maxWidthOrHeight: 1024,
+        useWebWorker: true,
+        fileType: "image/webp",
+        initialQuality: 0.7,
+      } as any);
+      const webp = new File([compressed as Blob], file.name.replace(/\.[^/.]+$/, "") + ".webp", { type: "image/webp" });
+      const oldPath = storagePathFromPublicUrl(imageUrl);
+      if (oldPath) {
+        try { await supabase.storage.from("products-images").remove([oldPath]); } catch {}
+      }
+      const fileName = `disparo-${Date.now()}-${Math.floor(Math.random() * 9999)}.webp`;
+      const { data, error } = await supabase.storage.from("products-images").upload(fileName, webp);
+      if (error) throw error;
+      const { data: { publicUrl } } = supabase.storage.from("products-images").getPublicUrl(data.path);
+      setImageUrl(publicUrl);
+    } catch (err: any) {
+      alert("Erro ao enviar foto: " + (err?.message || err));
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  }
 
   async function loadLoja(loja: string) {
     if (!supabase || !loja) return;
@@ -894,7 +1020,7 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
       const { data: bl } = await supabase.from("broadcast_log").select("id").eq("loja_id", loja).gte("created_at", start.toISOString()).limit(11);
       setToday((bl || []).length);
       // Últimos registros
-      const { data: recent } = await supabase.from("broadcast_log").select("id,total,ok_count,message,created_at").eq("loja_id", loja).order("created_at", { ascending: false }).limit(5);
+      const { data: recent } = await supabase.from("broadcast_log").select("id,total,ok_count,message,image_url,created_at").eq("loja_id", loja).order("created_at", { ascending: false }).limit(5);
       setLast(recent || []);
       void logs;
     } catch (err: any) {
@@ -915,25 +1041,56 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
     }
   }
 
-  async function simulate() {
+  async function sendDisparo() {
     if (!supabase || !lojaId) return alert("Escolha a loja.");
-    if (!msg.trim()) return alert("Escreva a mensagem.");
+    if (!msg.trim() && !imageUrl) return alert("Escreva a mensagem ou anexe uma foto.");
     if (today >= 10) return alert("Limite de 10 disparos/dia atingido para esta loja.");
-    if (!confirm(`Simular disparo para ${count ?? "?"} clientes da loja? (Evolution ainda não conectada — registra só o log)`)) return;
+    const cfg = evoCfg();
+    const hasEvo = Boolean(cfg.base && cfg.instance);
+    if (!confirm(hasEvo ? `Enviar para ${count ?? "?"} clientes via Evolution${imageUrl ? " (com foto)" : ""}?` : `Simular disparo para ${count ?? "?"} clientes? (Evolution não conectada — registra só o log)`)) return;
     setSending(true);
     try {
+      let okCount = count || 0;
+      let prefix = "[SIMULAÇÃO] ";
+      // Envio real via Evolution (foto ou texto). Números vêm do banco, 1 por vez.
+      if (hasEvo) {
+        const { data: rows } = await supabase.from("loja_clientes").select("phone").eq("loja_id", lojaId).eq("opt_out", false).limit(500);
+        const nums = (rows || []).map((r: any) => `55${String(r.phone).replace(/\D/g, "").replace(/^55/, "")}`).filter(Boolean);
+        let ok = 0;
+        for (const n of nums) {
+          try {
+            const endpoint = imageUrl
+              ? `${cfg.base}/message/sendMedia/${cfg.instance}`
+              : `${cfg.base}/message/sendText/${cfg.instance}`;
+            const body = imageUrl
+              ? { number: n, mediatype: "image", media: imageUrl, caption: msg.trim().slice(0, 500) }
+              : { number: n, text: msg.trim().slice(0, 500) };
+            const res = await fetch(endpoint, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", apikey: cfg.key },
+              body: JSON.stringify(body),
+            });
+            if (res.ok) ok++;
+          } catch {}
+          // Respiro 300ms entre envios p/ não bloquear a instância.
+          await new Promise((r) => setTimeout(r, 300));
+        }
+        okCount = ok;
+        prefix = imageUrl ? "[EVOLUTION+FOTO] " : "[EVOLUTION] ";
+      }
       const { error } = await supabase.from("broadcast_log").insert({
         loja_id: lojaId,
         total: count || 0,
-        ok_count: count || 0,
-        message: `[SIMULAÇÃO] ${msg.trim().slice(0, 500)}`,
+        ok_count: okCount,
+        message: `${prefix}${msg.trim().slice(0, 500)}`,
+        image_url: imageUrl.slice(0, 500),
       });
       if (error) throw error;
       setToday((t) => t + 1);
       loadLoja(lojaId);
-      alert("Disparo simulado e registrado no log!");
+      alert(hasEvo ? `Disparo enviado: ${okCount}/${count || 0}!` : "Disparo simulado e registrado no log!");
     } catch (err: any) {
-      alert("Erro: " + err.message);
+      alert("Erro: " + (err?.message || err));
     } finally {
       setSending(false);
     }
@@ -960,10 +1117,33 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
         )}
         <textarea value={msg} onChange={(e) => setMsg(e.target.value)} rows={4} maxLength={600} placeholder="Mensagem do disparo..." className="w-full p-3 rounded-xl bg-zinc-950 border border-zinc-800 text-xs outline-none focus:border-primary/50" />
         <p className="text-[10px] text-zinc-500 text-right">{msg.length}/600</p>
+        {imageUrl ? (
+          <div className="relative rounded-xl overflow-hidden ring-1 ring-zinc-700 w-full max-w-xs">
+            <img src={imageUrl} alt="Foto do disparo" className="w-full h-32 object-cover" />
+            <button
+              type="button"
+              onClick={async () => {
+                const oldPath = storagePathFromPublicUrl(imageUrl);
+                if (supabase && oldPath) {
+                  try { await supabase.storage.from("products-images").remove([oldPath]); } catch {}
+                }
+                setImageUrl("");
+              }}
+              className="absolute top-1.5 right-1.5 h-7 px-2.5 rounded-lg bg-black/70 text-white text-[11px] font-bold"
+            >
+              Remover foto
+            </button>
+          </div>
+        ) : (
+          <label className="cursor-pointer h-10 px-4 rounded-xl bg-zinc-950 border border-zinc-800 text-[11px] font-bold flex items-center justify-center hover:border-zinc-600">
+            {uploading ? "Enviando foto..." : "📷 Anexar foto (opcional, webp ~200KB)"}
+            <input type="file" accept="image/*" onChange={handleImageUpload} disabled={uploading || !lojaId} className="hidden" />
+          </label>
+        )}
         <div className="flex gap-2">
           <button onClick={copyNumbers} disabled={!lojaId} className="flex-1 h-10 rounded-xl bg-zinc-800 text-zinc-200 text-xs font-bold ring-1 ring-zinc-700 disabled:opacity-40">Copiar números</button>
-          <button onClick={simulate} disabled={!lojaId || sending || today >= 10} className="flex-1 h-10 rounded-xl bg-emerald-500 text-black text-xs font-extrabold disabled:opacity-40">
-            {sending ? "Registrando..." : "Simular + registrar"}
+          <button onClick={sendDisparo} disabled={!lojaId || sending || uploading || today >= 10} className="flex-1 h-10 rounded-xl bg-emerald-500 text-black text-xs font-extrabold disabled:opacity-40">
+            {sending ? "Enviando..." : imageUrl ? "Enviar com foto" : "Enviar / simular"}
           </button>
         </div>
       </div>
@@ -971,11 +1151,15 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
       {last.length > 0 && (
         <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-4 space-y-2">
           <h5 className="text-xs font-extrabold text-white">Últimos disparos</h5>
-          {last.map((l) => (
-            <div key={l.id} className="text-[11px] text-zinc-400 border-b border-zinc-800/60 pb-2">
-              <span className="font-bold text-zinc-200">{l.ok_count}/{l.total}</span> • {new Date(l.created_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })} • {String(l.message).slice(0, 80)}
+          {last.map((l) => {
+            const photo = typeof l.image_url === "string" && (l.image_url.startsWith("http") || l.image_url.startsWith("/")) ? l.image_url : null;
+            return (
+            <div key={l.id} className="text-[11px] text-zinc-400 border-b border-zinc-800/60 pb-2 flex items-center gap-2">
+              {photo && <img src={photo} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0 ring-1 ring-zinc-700" loading="lazy" />}
+              <span><span className="font-bold text-zinc-200">{l.ok_count}/{l.total}</span> • {new Date(l.created_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })} • {String(l.message).slice(0, 80)}</span>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </section>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { storage, setActiveLojaId, initCleanStore, flushSync } from "@/lib/storage";
 import { useStorageSync } from "@/hooks/use-storage";
@@ -42,7 +42,6 @@ import {
   TrendingUp,
   ShoppingCart,
   Truck,
-  Lock,
   RefreshCw,
   ShieldCheck,
 } from "lucide-react";
@@ -50,6 +49,7 @@ import imageCompression from "browser-image-compression";
 import { supabase } from "@/lib/supabase";
 import { Info, PlayCircle } from "lucide-react";
 import { ThemeToggle } from "@/components/menu/MenuHeader";
+import { CouponsManager } from "@/components/admin/CouponsManager";
 
 export function InfoTooltip({ title, text }: { title?: string; text: string }) {
   const [enabled, setEnabled] = useState(localStorage.getItem("hideHelp") !== "true");
@@ -99,13 +99,14 @@ async function compressImage(
   maxWidth = 800,
   maxHeight = 800,
   quality = 0.75,
+  maxSizeMB = 0.8,
 ): Promise<File> {
   if (!file.type.startsWith("image/")) throw new Error("Arquivo não é imagem.");
   // ULTRA-LEVE: rejeita >5MB antes de comprimir (evita upload gigante
   // que estoura egress/storage com 50 lojas).
   if (file.size > 5 * 1024 * 1024) throw new Error("Imagem maior que 5MB.");
   const options = {
-    maxSizeMB: 0.8,
+    maxSizeMB,
     maxWidthOrHeight: Math.max(maxWidth, maxHeight),
     useWebWorker: true,
     fileType: "image/webp",
@@ -133,6 +134,8 @@ type Tab =
   | "adicionais"
   | "grupos"
   | "promo"
+  | "estoque"
+  | "clientes"
   | "sorteios"
   | "faturamento"
   | "tutorial";
@@ -189,20 +192,8 @@ function AdminPage() {
   const [store, setStore] = useState<import("@/lib/types").Loja | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingStore, setLoadingStore] = useState(false);
-  const [paywallSimulating, setPaywallSimulating] = useState(false);
   const [error, setError] = useState("");
-
-  const [stripeStatus, setStripeStatus] = useState<"sucesso" | "cancelado" | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
-
-  const trialDaysLeft = (() => {
-    if (!store?.criado_em) return 0;
-    const createdDate = new Date(store.criado_em).getTime();
-    const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000;
-    const diff = createdDate + sevenDaysInMs - Date.now();
-    return Math.max(0, Math.ceil(diff / (24 * 60 * 60 * 1000)));
-  })();
-  const isTrialActive = trialDaysLeft > 0;
 
   useEffect(() => {
     async function checkAuthUser() {
@@ -224,18 +215,6 @@ function AdminPage() {
     }
     checkAuthUser();
   }, [isAuthenticated]);
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const searchParams = new URLSearchParams(window.location.search);
-      if (searchParams.get("sucesso") === "true") {
-        setStripeStatus("sucesso");
-      } else if (searchParams.get("cancelado") === "true") {
-        setStripeStatus("cancelado");
-        window.history.replaceState({}, document.title, window.location.pathname);
-      }
-    }
-  }, []);
 
   useEffect(() => {
     async function verifySession() {
@@ -266,23 +245,6 @@ function AdminPage() {
     }
     verifySession();
   }, []);
-
-  // Simulação / Teste: Auto-liberar o plano ativando no banco se retornou de sucesso
-  useEffect(() => {
-    if (!lojaId || !supabase || stripeStatus !== "sucesso") return;
-    supabase
-      .from("lojas")
-      .update({ status_assinatura: "ativo" })
-      .eq("id", lojaId)
-      .then(({ error }) => {
-        if (!error) {
-          setStore((prev) => (prev ? { ...prev, status_assinatura: "ativo" } : null));
-          if (typeof window !== "undefined") {
-            window.history.replaceState({}, document.title, window.location.pathname);
-          }
-        }
-      });
-  }, [lojaId, stripeStatus]);
 
   // Fetch Store and Products scoped to active lojaId
   useEffect(() => {
@@ -361,16 +323,27 @@ function AdminPage() {
     loadAdminStoreData();
   }, [isAuthenticated, lojaId]);
 
-  async function handleLoginEmail(e: React.FormEvent) {
+  async function handleLoginEmail(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!email.trim() || !password.trim()) return;
+    // Lê do DOM (FormData) com fallback para o state: o autopreencher do
+    // navegador às vezes preenche o campo sem avisar o React — o state
+    // ficava vazio e o login morria no `return` abaixo em total silêncio
+    // (o usuário clicava e "nada acontecia").
+    const fd = new FormData(e.currentTarget);
+    const emailVal = ((fd.get("email") as string) || email || "").trim();
+    const passwordVal = ((fd.get("password") as string) || password || "").trim();
+    if (!emailVal || !passwordVal) {
+      setError("Preencha e-mail e senha.");
+      return;
+    }
+    setEmail(emailVal);
     setError("");
     setLoading(true);
     try {
       if (!supabase) throw new Error("Supabase não está configurado.");
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password: password.trim(),
+        email: emailVal,
+        password: passwordVal,
       });
       if (error) throw error;
 
@@ -432,28 +405,6 @@ function AdminPage() {
     }
   }
 
-  async function handleActivateSubscription() {
-    if (!lojaId) return;
-    setPaywallSimulating(true);
-    try {
-      const response = await fetch("/api/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lojaId }),
-      });
-      const data = await response.json();
-      if (data.url) {
-        window.location.href = data.url;
-      } else {
-        alert(data.error || "Erro ao gerar link de pagamento.");
-        setPaywallSimulating(false);
-      }
-    } catch (err: any) {
-      alert("Erro ao redirecionar para o pagamento: " + err.message);
-      setPaywallSimulating(false);
-    }
-  }
-
   function handleLogout() {
     if (typeof window !== "undefined") {
       sessionStorage.removeItem("insano.admin.auth");
@@ -494,6 +445,8 @@ function AdminPage() {
                 <span className="text-[10px] uppercase font-bold text-zinc-500">E-mail</span>
                 <input
                   type="email"
+                  name="email"
+                  autoComplete="email"
                   placeholder="dono@exemplo.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -505,6 +458,8 @@ function AdminPage() {
                 <span className="text-[10px] uppercase font-bold text-zinc-500">Senha</span>
                 <input
                   type="password"
+                  name="password"
+                  autoComplete="current-password"
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -610,12 +565,13 @@ function AdminPage() {
           {(
             [
               ["geral", "⚙️ Geral"],
-              ["tutorial", "📚 Como Usar"],
               ["promo", "🔥 Promoções"],
               ["fidelidade", "🎁 Fidelidade"],
               ["produtos", "🍔 Produtos"],
+              ["estoque", "📦 Estoque"],
               ["adicionais", "➕ Adicionais"],
               ["grupos", "📦 Sabores"],
+              ["clientes", "📱 Clientes"],
               ["sorteios", "🏆 Sorteios"],
               ["faturamento", "📊 Faturamento"],
             ] as [Tab, string][]
@@ -636,96 +592,12 @@ function AdminPage() {
         </div>
       </header>
 
-      {/* Alertas Premium de Retorno de Pagamento do Stripe Checkout */}
-      {stripeStatus === "sucesso" && (
-        <div className="bg-gradient-to-r from-emerald-950/60 via-emerald-900/50 to-emerald-950/60 border-b border-emerald-500/30 px-4 py-3 flex items-center justify-between gap-3 text-center sm:text-left animate-fade-in shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20 text-emerald-400 shrink-0">
-              <Check className="w-5 h-5 animate-bounce" />
-            </div>
-            <div>
-              <h4 className="font-extrabold text-sm text-white">Pagamento Confirmado! 🎉</h4>
-              <p className="text-[11px] text-zinc-300">
-                Sua assinatura foi ativada com sucesso. Seu cardápio digital já está público e
-                pronto para receber pedidos!
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={() => setStripeStatus(null)}
-            className="text-xs font-bold text-zinc-400 hover:text-white transition px-2"
-          >
-            Fechar
-          </button>
-        </div>
-      )}
-
-      {stripeStatus === "cancelado" && (
-        <div className="bg-gradient-to-r from-rose-950/60 via-rose-900/50 to-rose-950/60 border-b border-rose-500/30 px-4 py-3 flex items-center justify-between gap-3 text-center sm:text-left animate-fade-in shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-rose-500/10 flex items-center justify-center border border-rose-500/20 text-rose-400 shrink-0">
-              <Lock className="w-5 h-5" />
-            </div>
-            <div>
-              <h4 className="font-extrabold text-sm text-white">Pagamento Cancelado</h4>
-              <p className="text-[11px] text-zinc-300">
-                A operação de assinatura foi cancelada. Caso queira liberar o cardápio público,
-                ative novamente a qualquer momento.
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={() => setStripeStatus(null)}
-            className="text-xs font-bold text-zinc-400 hover:text-white transition px-2"
-          >
-            Fechar
-          </button>
-        </div>
-      )}
-
-      {/* Paywall Banner se pendente e teste grátis expirou */}
-      {store?.status_assinatura === "pendente" &&
-        store?.cobranca_automatica !== false &&
-        !isTrialActive && (
-          <div className="bg-gradient-to-r from-amber-950/70 via-amber-900/60 to-amber-950/70 border-b border-amber-500/30 px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left relative overflow-hidden backdrop-blur shadow-lg shrink-0 animate-fade-in">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center border border-amber-500/20 text-amber-500 shrink-0">
-                <Lock className="w-5 h-5" />
-              </div>
-              <div>
-                <h4 className="font-extrabold text-sm text-white">
-                  Seu período de teste grátis expirou (Acesso Restrito)
-                </h4>
-                <p className="text-[11px] text-zinc-300">
-                  Seus clientes não conseguem mais ver o seu cardápio. Ative agora o seu plano por
-                  apenas **R$ 99,90/mês** no Stripe para liberar!
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={handleActivateSubscription}
-              disabled={paywallSimulating}
-              className="h-10 px-5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-extrabold text-xs shadow-md transition active:scale-95 shrink-0 flex items-center justify-center gap-1.5 hover:scale-[1.02]"
-            >
-              {paywallSimulating ? "Redirecionando..." : "Ativar Plano (R$ 99,90/mês) 🚀"}
-            </button>
-          </div>
-        )}
-
       {/* Grid Principal de 2 Colunas */}
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
         {/* Painel Esquerdo: Tabs de Gerenciamento */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {tab === "geral" && (
-            <GeneralTab
-              lojaId={lojaId}
-              slug={store?.slug}
-              trialDaysLeft={trialDaysLeft}
-              isTrialActive={isTrialActive}
-              store={store}
-              handleActivateSubscription={handleActivateSubscription}
-              paywallSimulating={paywallSimulating}
-            />
+            <GeneralTab lojaId={lojaId} slug={store?.slug} store={store} />
           )}
           {tab === "fidelidade" && <LoyaltyTab />}
           {tab === "produtos" && (
@@ -744,7 +616,9 @@ function AdminPage() {
             />
           )}
           {tab === "adicionais" && <GlobalAddonsTab />}
+          {tab === "estoque" && <EstoqueTab products={products} />}
           {tab === "grupos" && <GroupsTab lojaId={lojaId} />}
+          {tab === "clientes" && <ClientesTab lojaId={lojaId} />}
           {tab === "sorteios" && <CampaignsTab lojaId={lojaId} />}
           {tab === "faturamento" && <FaturamentoTab lojaId={lojaId} />}
           {tab === "tutorial" && <TutorialTab />}
@@ -811,19 +685,11 @@ function AdminPage() {
 function GeneralTab({
   lojaId,
   slug,
-  trialDaysLeft,
-  isTrialActive,
   store,
-  handleActivateSubscription,
-  paywallSimulating,
 }: {
   lojaId: string | null;
   slug?: string;
-  trialDaysLeft: number;
-  isTrialActive: boolean;
   store: any;
-  handleActivateSubscription: () => void;
-  paywallSimulating: boolean;
 }) {
   const settings = useStorageSync(() => storage.getSettings());
   const products = useStorageSync(() => storage.getProducts());
@@ -838,6 +704,7 @@ function GeneralTab({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [autoSaving, setAutoSaving] = useState(false);
   const [logoUploading, setLogoUploading] = useState(false);
+  const [bannerUploading, setBannerUploading] = useState(false);
   const [showManualUrl, setShowManualUrl] = useState(false);
 
   async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -867,6 +734,87 @@ function GeneralTab({
       alert("Erro ao enviar imagem do logo: " + err.message);
     } finally {
       setLogoUploading(false);
+    }
+  }
+
+  // Extrai o caminho do arquivo no bucket a partir da URL pública.
+  // Usado para apagar o banner antigo ao trocar/remover (não acumular lixo no storage).
+  function storagePathFromPublicUrl(url: string): string | null {
+    if (!url) return null;
+    const m = url.match(/\/products-images\/(.+?)(?:\?.*)?$/);
+    return m ? m[1] : null;
+  }
+
+  async function handleBannerUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const current: string[] = Array.isArray((settings as any).banners)
+      ? (settings as any).banners
+      : settings.bannerUrl
+        ? [settings.bannerUrl]
+        : [];
+    if (current.length >= 5) {
+      alert("Máximo de 5 fotos no carrossel. Remova uma para adicionar outra.");
+      return;
+    }
+    setBannerUploading(true);
+    try {
+      const { supabase } = await import("@/lib/supabase");
+      if (!supabase) {
+        throw new Error("Supabase não está configurado.");
+      }
+      const next = [...current];
+      // ULTRA-LEVE: no máximo até completar 5, 1 foto por vez.
+      for (const file of Array.from(files).slice(0, 5 - current.length)) {
+        // Bannerão: até 1280px, webp, teto de 0.5MB (respeita o storage).
+        const compressed = await compressImage(file, 1280, 1280, 0.7, 0.5);
+        const ext = compressed.name.split(".").pop();
+        const fileName = `banner-${lojaId || "store"}-${Date.now()}-${Math.floor(Math.random() * 9999)}.${ext}`;
+        const { data, error } = await supabase.storage
+          .from("products-images")
+          .upload(fileName, compressed);
+        if (error) throw error;
+        const {
+          data: { publicUrl },
+        } = supabase.storage.from("products-images").getPublicUrl(data.path);
+        next.push(publicUrl);
+      }
+
+      const updatedSettings = { ...settings, banners: next, bannerUrl: next[0] || "" };
+      update({ banners: next } as any);
+      update({ bannerUrl: next[0] || "" });
+      await autoSave(updatedSettings);
+    } catch (err: any) {
+      alert("Erro ao enviar banner: " + err.message);
+    } finally {
+      setBannerUploading(false);
+      e.target.value = "";
+    }
+  }
+
+  async function handleRemoveBanner(idx?: number) {
+    const current: string[] = Array.isArray((settings as any).banners)
+      ? [...(settings as any).banners]
+      : settings.bannerUrl
+        ? [settings.bannerUrl]
+        : [];
+    if (!current.length) return;
+    try {
+      const { supabase } = await import("@/lib/supabase");
+      const at = typeof idx === "number" ? idx : current.length - 1;
+      const url = current[at];
+      const oldPath = storagePathFromPublicUrl(url);
+      if (supabase && oldPath) {
+        try {
+          await supabase.storage.from("products-images").remove([oldPath]);
+        } catch {}
+      }
+      current.splice(at, 1);
+      update({ banners: current } as any);
+      update({ bannerUrl: current[0] || "" });
+      await autoSave({ ...settings, banners: current, bannerUrl: current[0] || "" });
+    } catch (err: any) {
+      alert("Erro ao remover banner: " + err.message);
     }
   }
 
@@ -1059,6 +1007,68 @@ function GeneralTab({
                 </p>
               )}
             </div>
+          </div>
+        </Field>
+        <Field label="Fotos do carrossel (até 5 — trocam sozinhas no topo)">
+          <div className="space-y-3">
+            {(() => {
+              const list: string[] = Array.isArray((settings as any).banners)
+                ? (settings as any).banners
+                : settings.bannerUrl
+                  ? [settings.bannerUrl]
+                  : [];
+              if (!list.length)
+                return (
+                  <div className="rounded-2xl border-2 border-dashed border-border p-4 text-center">
+                    <p className="text-xs text-muted-foreground font-medium">
+                      Nenhuma foto. O cardápio abre direto no conteúdo.
+                    </p>
+                  </div>
+                );
+              return (
+                <div className="grid grid-cols-3 gap-2">
+                  {list.map((src: string, i: number) => (
+                    <div key={i} className="relative rounded-xl overflow-hidden ring-1 ring-border">
+                      <img src={src} alt={`Banner ${i + 1}`} className="w-full h-20 object-cover" />
+                      <span className="absolute top-1 left-1 text-[10px] font-black bg-black/60 text-white px-1.5 py-0.5 rounded">
+                        {i + 1}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveBanner(i)}
+                        disabled={bannerUploading}
+                        className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/60 text-white text-xs hover:bg-red-600 disabled:opacity-50"
+                        title="Remover esta foto"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+            <div className="flex items-center gap-3">
+              <label className="flex-1 cursor-pointer text-xs font-extrabold text-center py-2.5 px-4 rounded-xl bg-primary text-primary-foreground hover:opacity-90 transition">
+                {bannerUploading ? "Enviando..." : "Adicionar fotos (pratos, doces, lanches)"}
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleBannerUpload}
+                  disabled={bannerUploading}
+                  className="hidden"
+                />
+              </label>
+            </div>
+            {bannerUploading && (
+              <p className="text-xs text-primary font-bold animate-pulse">
+                Comprimindo e enviando banner para o Supabase...
+              </p>
+            )}
+            <p className="text-[10px] text-zinc-500 leading-relaxed">
+              As fotos são comprimidas (máx. 1280px, ~0.5MB) e passam sozinhas no
+              topo do cardápio a cada 4 segundos. Use fotos bonitas dos pratos e doces.
+            </p>
           </div>
         </Field>
         <Field label="Tempo Estimado de Entrega (Minutos)">
@@ -1368,6 +1378,75 @@ function GeneralTab({
                 ))}
               </select>
             </Field>
+          </>
+        )}
+      </Card>
+
+      <Card title="Promoções (1ª compra + frete grátis)">
+        <label className="flex items-center gap-3 cursor-pointer p-3 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-primary/50 transition">
+          <input
+            type="checkbox"
+            checked={settings.promoActive === true}
+            onChange={(e) => {
+              update({ promoActive: e.target.checked });
+              autoSave({ ...settings, promoActive: e.target.checked });
+            }}
+            className="w-5 h-5 accent-primary"
+          />
+          <span className="text-sm font-semibold text-white">Ativar promoções</span>
+        </label>
+        {settings.promoActive === true && (
+          <>
+            <Field label="Desconto % na 1ª compra (dias promo)">
+              <input
+                type="number"
+                min="1"
+                max="100"
+                value={settings.promoDiscountPct ?? 10}
+                onChange={(e) => update({ promoDiscountPct: Number(e.target.value) })}
+                onBlur={() => autoSave(storage.getSettings())}
+                className={inputCls}
+              />
+            </Field>
+            <Field label="Frete grátis p/ recorrentes acima de (R$)">
+              <input
+                type="number"
+                step="0.01"
+                value={settings.promoMinOrderFreeShipping ?? 100}
+                onChange={(e) => update({ promoMinOrderFreeShipping: Number(e.target.value) })}
+                onBlur={() => autoSave(storage.getSettings())}
+                className={inputCls}
+              />
+            </Field>
+            <div className="space-y-1.5">
+              <span className="text-xs font-semibold text-muted-foreground">
+                Dias da promoção
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"].map((d, idx) => {
+                  const days = settings.promoDays?.length ? settings.promoDays : [2, 3];
+                  const on = days.includes(idx);
+                  return (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => {
+                        const next = on ? days.filter((x) => x !== idx) : [...days, idx];
+                        update({ promoDays: next });
+                        autoSave({ ...settings, promoDays: next });
+                      }}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                        on
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "bg-surface-elevated ring-1 ring-border text-muted-foreground hover:text-white"
+                      }`}
+                    >
+                      {d}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </>
         )}
       </Card>
@@ -1762,6 +1841,7 @@ function ProductsTab({
 
   return (
     <section className="space-y-3">
+      {isPromoMode && <CouponsManager />}
       <button
         onClick={() => {
           setIsNew(true);
@@ -1783,6 +1863,19 @@ function ProductsTab({
       >
         <Plus className="w-4 h-4" /> Novo produto
       </button>
+
+      {(() => {
+        const low = (products || []).filter(
+          (p) =>
+            typeof p.stock === "number" && (p.stock as number) <= (p.lowStockThreshold ?? 5),
+        );
+        if (low.length === 0 || isPromoMode) return null;
+        return (
+          <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-bold animate-pulse">
+            ⚠️ Estoque baixo — repor: {low.map((p) => p.name).join(", ")}
+          </div>
+        );
+      })()}
 
       <ul className="space-y-2">
         {(products || [])
@@ -2079,6 +2172,34 @@ function ProductModal({
             className={inputCls}
           />
         </Field>
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="Estoque (vazio = ilimitado)">
+            <input
+              type="number"
+              min="0"
+              value={typeof p.stock === "number" ? p.stock : ""}
+              placeholder="∞"
+              onChange={(e) =>
+                setP({
+                  ...p,
+                  stock: e.target.value === "" ? null : Math.max(0, Number(e.target.value)),
+                })
+              }
+              className={inputCls}
+            />
+          </Field>
+          <Field label="Alerta qdo ≤ (un)">
+            <input
+              type="number"
+              min="1"
+              value={p.lowStockThreshold ?? 5}
+              onChange={(e) =>
+                setP({ ...p, lowStockThreshold: Math.max(1, Number(e.target.value) || 5) })
+              }
+              className={inputCls}
+            />
+          </Field>
+        </div>
         <Field label="Imagem do Produto">
           <div className="flex gap-3 items-center mb-3">
             {p.image && (p.image.startsWith("http") || p.image.startsWith("/")) ? (
@@ -2395,6 +2516,119 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <span className="text-xs font-semibold text-muted-foreground">{label}</span>
       {children}
     </label>
+  );
+}
+function EstoqueTab({ products }: { products: Product[] }) {
+  // Só produtos com stock numérico entram no controle (vazio = ilimitado).
+  // Tudo local + sync com debounce coalescido — zero reads extras no Supabase.
+  const tracked = (products || []).filter((p) => typeof p.stock === "number");
+  const lowCount = tracked.filter(
+    (p) => (p.stock as number) <= (p.lowStockThreshold ?? 5),
+  ).length;
+
+  function adjust(id: string, delta: number) {
+    const list = storage.getProducts().map((p) =>
+      p.id === id && typeof p.stock === "number"
+        ? { ...p, stock: Math.max(0, (p.stock as number) + delta) }
+        : p,
+    );
+    storage.setProducts(list);
+    reloadPreview();
+  }
+
+  if (tracked.length === 0) {
+    return (
+      <section className="p-6 rounded-3xl border-2 border-dashed border-primary/20 bg-primary/5 flex flex-col items-center text-center gap-2">
+        <span className="text-3xl">📦</span>
+        <h3 className="font-extrabold text-white">Nenhum produto com estoque controlado</h3>
+        <p className="text-xs text-muted-foreground max-w-sm">
+          Edite um produto nas abas Produtos/Promoções e preencha o campo{" "}
+          <span className="font-bold text-white">Estoque</span>. Vazio = ilimitado (sem
+          controle).
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center justify-between px-1">
+        <p className="text-xs text-zinc-400 font-bold">
+          {tracked.length} em controle
+          {lowCount > 0 && (
+            <span className="text-amber-400 animate-pulse"> • {lowCount} baixo! Repor</span>
+          )}
+        </p>
+      </div>
+      {tracked.map((p) => {
+        const st = p.stock as number;
+        const threshold = p.lowStockThreshold ?? 5;
+        const out = st <= 0;
+        const low = !out && st <= threshold;
+        return (
+          <div
+            key={p.id}
+            className="p-3 rounded-xl bg-surface ring-1 ring-border flex items-center gap-3"
+          >
+            <div className="w-11 h-11 rounded-lg bg-surface-elevated flex items-center justify-center overflow-hidden text-2xl shrink-0">
+              {(p.image || "").startsWith("http") || (p.image || "").startsWith("/") ? (
+                <img src={p.image} className="w-full h-full object-cover" />
+              ) : (
+                p.image
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-sm truncate">{p.name}</p>
+              <p className="text-xs text-muted-foreground">{p.category}</p>
+              {out ? (
+                <span className="inline-block mt-1 text-[10px] font-black uppercase tracking-wider bg-destructive/15 text-destructive px-2 py-0.5 rounded-full animate-pulse">
+                  Esgotado
+                </span>
+              ) : low ? (
+                <span className="inline-block mt-1 text-[10px] font-black uppercase tracking-wider bg-amber-500/15 text-amber-400 px-2 py-0.5 rounded-full animate-pulse">
+                  Estoque baixo: {st} un
+                </span>
+              ) : (
+                <span className="inline-block mt-1 text-[10px] font-bold text-zinc-400">
+                  {st} un
+                </span>
+              )}
+            </div>
+            <div className="flex flex-col items-end gap-1.5 shrink-0">
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => adjust(p.id, -1)}
+                  className="w-8 h-8 rounded-full bg-muted text-sm font-black active:scale-95"
+                >
+                  −
+                </button>
+                <span className="font-extrabold text-sm w-8 text-center">{st}</span>
+                <button
+                  type="button"
+                  onClick={() => adjust(p.id, 1)}
+                  className="w-8 h-8 rounded-full bg-primary text-primary-foreground text-sm font-black active:scale-95"
+                >
+                  +
+                </button>
+              </div>
+              <div className="flex items-center gap-1">
+                {[5, 10, 20].map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => adjust(p.id, n)}
+                    className="px-2 py-1 rounded-lg bg-surface-elevated ring-1 ring-border text-[10px] font-bold text-muted-foreground hover:text-white active:scale-95"
+                  >
+                    +{n}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </section>
   );
 }
 function GroupsTab({ lojaId }: { lojaId: string | null }) {
@@ -3457,6 +3691,69 @@ function FaturamentoTab({ lojaId }: { lojaId: string | null }) {
   const [orders, setOrders] = useState<OrderHistory[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  // Alerta sonoro de pedido novo (sem realtime: detecção via polling leve).
+  const [soundOn, setSoundOn] = useState(
+    () =>
+      typeof window === "undefined" ||
+      localStorage.getItem("insano.admin.sound") !== "off",
+  );
+  const [newOrder, setNewOrder] = useState<OrderHistory | null>(null);
+  const lastSeenId = useRef<string | null>(null);
+  const soundRef = useRef(soundOn);
+  soundRef.current = soundOn;
+
+  // 3 bipes (660/660/880Hz) via WebAudio — zero rede, zero dependência.
+  function playAlert() {
+    try {
+      const Ctx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const ctx = new Ctx();
+      [660, 660, 880].forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = freq;
+        const t = ctx.currentTime + i * 0.22;
+        gain.gain.setValueAtTime(0.001, t);
+        gain.gain.exponentialRampToValueAtTime(0.4, t + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+        osc.start(t);
+        osc.stop(t + 0.2);
+      });
+      setTimeout(() => void ctx.close(), 1000);
+    } catch {}
+  }
+
+  function toggleSound() {
+    const next = !soundRef.current;
+    setSoundOn(next);
+    try {
+      localStorage.setItem("insano.admin.sound", next ? "on" : "off");
+    } catch {}
+    if (next && typeof window !== "undefined" && "Notification" in window) {
+      try {
+        if (Notification.permission === "default") void Notification.requestPermission();
+      } catch {}
+    }
+  }
+
+  function notifyNewOrder(o: OrderHistory) {
+    setNewOrder(o);
+    if (soundRef.current) playAlert();
+    try {
+      if (
+        typeof window !== "undefined" &&
+        "Notification" in window &&
+        Notification.permission === "granted"
+      ) {
+        new Notification("🔔 Novo pedido!", {
+          body: `${o.client_name} — ${o.total_price}`,
+        });
+      }
+    } catch {}
+  }
 
   function deduplicateOrders(rawOrders: OrderHistory[]): {
     cleanOrders: OrderHistory[];
@@ -3533,6 +3830,17 @@ function FaturamentoTab({ lojaId }: { lojaId: string | null }) {
       const { cleanOrders, duplicatesToDelete } = deduplicateOrders(data || []);
       setOrders(cleanOrders);
 
+      // Detecção de pedido novo via polling (sem realtime = sem custo de socket).
+      // Só dispara após a 1ª carga (lastSeenId já conhecido).
+      if (cleanOrders.length > 0) {
+        const newestId = cleanOrders[0].id;
+        if (lastSeenId.current && newestId !== lastSeenId.current) {
+          const fresh = cleanOrders.find((o) => o.id === newestId);
+          if (fresh) notifyNewOrder(fresh);
+        }
+        lastSeenId.current = newestId;
+      }
+
       // Background deletion of duplicates from Supabase (escopado por loja)
       if (duplicatesToDelete.length > 0 && supabase && lojaId) {
         supabase
@@ -3560,13 +3868,14 @@ function FaturamentoTab({ lojaId }: { lojaId: string | null }) {
   }, [period]);
 
   useEffect(() => {
-    // ULTRA-LEVE: polling 120s (era 30s) + pausa em aba oculta.
-    // 30s x 8h = 960 req/dia/aba. 120s + visibility = ~200 req/dia/aba.
-    // Para atualização imediata use o botão Atualizar (handleRefresh).
+    // ULTRA-LEVE: polling 30s + pausa em aba oculta + refresh ao voltar.
+    // Sem realtime (sockets custam no plano gratuito): pedido novo é detectado
+    // comparando o id mais recente + alerta sonoro local. Projeção mínima +
+    // limite 200 mantidos. ~240 req/dia/aba visível; 0 com aba oculta.
     const interval = setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       fetchOrders(period);
-    }, 120000);
+    }, 30000);
     const onVis = () => {
       if (typeof document !== "undefined" && !document.hidden) fetchOrders(period);
     };
@@ -3656,6 +3965,34 @@ function FaturamentoTab({ lojaId }: { lojaId: string | null }) {
 
   return (
     <section className="space-y-6 text-white font-sans">
+      {newOrder && (
+        <div className="p-4 rounded-2xl bg-emerald-950/60 border-2 border-emerald-500/50 flex flex-col sm:flex-row sm:items-center gap-3 animate-pulse">
+          <div className="flex-1">
+            <p className="font-black text-emerald-300 text-sm">
+              🔔 NOVO PEDIDO: {newOrder.client_name} — {brl(newOrder.total_price)}
+            </p>
+            <p className="text-[11px] text-zinc-300">
+              {newOrder.payment_method} • {newOrder.delivery_type}
+            </p>
+          </div>
+          <div className="flex gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={playAlert}
+              className="px-3 py-1.5 rounded-xl bg-emerald-500 text-black text-xs font-black active:scale-95"
+            >
+              Repetir som
+            </button>
+            <button
+              type="button"
+              onClick={() => setNewOrder(null)}
+              className="px-3 py-1.5 rounded-xl bg-zinc-900 border border-zinc-700 text-xs font-bold text-zinc-300 active:scale-95"
+            >
+              Dispensar
+            </button>
+          </div>
+        </div>
+      )}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-black tracking-tight text-white">
@@ -3694,6 +4031,17 @@ function FaturamentoTab({ lojaId }: { lojaId: string | null }) {
               className={`w-2 h-2 rounded-full bg-emerald-400 ${refreshing ? "animate-ping" : ""}`}
             ></span>
             {refreshing ? "..." : "Atualizar"}
+          </button>
+          <button
+            onClick={toggleSound}
+            title={soundOn ? "Desativar alerta sonoro" : "Ativar alerta sonoro"}
+            className={`px-3 py-2 rounded-xl border text-xs font-bold active:scale-[0.98] transition-all ${
+              soundOn
+                ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+                : "bg-zinc-900 border-zinc-800 text-zinc-500"
+            }`}
+          >
+            {soundOn ? "🔔 Som ON" : "🔕 Som OFF"}
           </button>
           <button
             onClick={handleResetStats}
@@ -3981,6 +4329,219 @@ function FaturamentoTab({ lojaId }: { lojaId: string | null }) {
             </div>
           )}
         </div>
+      </div>
+    </section>
+  );
+}
+
+// Base de telefones da loja — coleta automática no checkout (1 upsert por
+// pedido). ULTRA-LEVE: lista paginada com projeção mínima (sem select *),
+// limite 200 + count head p/ o total. Só carrega ao abrir a aba.
+function ClientesTab({ lojaId }: { lojaId: string | null }) {
+  const [clients, setClients] = useState<
+    { id: string; nome: string; phone: string; orders: number; last_seen: string; opt_out: boolean }[]
+  >([]);
+  const [total, setTotal] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [search, setSearch] = useState("");
+  const [missingTable, setMissingTable] = useState(false);
+
+  async function load() {
+    if (!supabase || !lojaId) return;
+    setLoading(true);
+    setMissingTable(false);
+    try {
+      const [{ data, error }, { count }] = await Promise.all([
+        supabase
+          .from("loja_clientes")
+          .select("id,nome,phone,orders,last_seen,opt_out")
+          .eq("loja_id", lojaId)
+          .order("last_seen", { ascending: false })
+          .limit(200),
+        supabase
+          .from("loja_clientes")
+          .select("id", { count: "exact", head: true })
+          .eq("loja_id", lojaId),
+      ]);
+      if (error) throw error;
+      setClients(data || []);
+      setTotal(count ?? (data || []).length);
+    } catch (err: any) {
+      // Tabela ainda não criada (SQL pendente) — mostra instrução em vez de erro seco.
+      if (err?.code === "42P01" || /loja_clientes/i.test(err?.message || "")) {
+        setMissingTable(true);
+      } else {
+        console.warn("Erro ao carregar clientes:", err?.message);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lojaId]);
+
+  const filtered = clients.filter(
+    (c) =>
+      !search ||
+      c.nome.toLowerCase().includes(search.toLowerCase()) ||
+      c.phone.includes(search.replace(/\D/g, "")),
+  );
+
+  function exportCSV() {
+    const rows = [["nome", "telefone", "pedidos", "ultimo_pedido"]];
+    for (const c of filtered) {
+      if (c.opt_out) continue;
+      rows.push([c.nome, c.phone, String(c.orders), c.last_seen ? new Date(c.last_seen).toLocaleDateString("pt-BR") : ""]);
+    }
+    const csv = rows.map((r) => r.map((x) => `"${String(x).replace(/"/g, '""')}"`).join(";")).join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "clientes.csv";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  function copyPhones() {
+    const nums = filtered.filter((c) => !c.opt_out).map((c) => `55${c.phone.replace(/\D/g, "").replace(/^55/, "")}`);
+    navigator.clipboard?.writeText(nums.join(",")).catch(() => {});
+    alert(`${nums.length} números copiados! Cole no disparo da Evolution.`);
+  }
+
+  if (missingTable) {
+    return (
+      <section className="space-y-4">
+        <div className="rounded-2xl bg-amber-500/10 border border-amber-500/30 p-5 space-y-2">
+          <h4 className="font-extrabold text-sm text-amber-400">📱 Ative a base de clientes (1 clique)</h4>
+          <p className="text-xs text-zinc-300 leading-relaxed">
+            Execute o arquivo <code className="font-mono bg-black/40 px-1 rounded">supabase-clientes-cupons.sql</code> no{" "}
+            <b>SQL Editor</b> do Supabase (1 vez). Depois disso cada pedido salva o telefone aqui
+            automaticamente — sem custo extra por pageview.
+          </p>
+          <button
+            type="button"
+            onClick={load}
+            className="h-9 px-4 rounded-xl bg-amber-500 text-black text-xs font-extrabold"
+          >
+            Já executei — recarregar
+          </button>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="space-y-4">
+      <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-4 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 justify-between">
+          <div>
+            <h4 className="font-extrabold text-sm text-white">
+              📱 Clientes {total !== null && <span className="text-zinc-400">({total})</span>}
+            </h4>
+            <p className="text-[11px] text-zinc-400">
+              Salvo automaticamente a cada pedido. Use p/ disparos no WhatsApp (Evolution).
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={copyPhones}
+              disabled={filtered.length === 0}
+              className="h-9 px-3 rounded-xl bg-emerald-500 text-black text-[11px] font-extrabold disabled:opacity-40"
+            >
+              Copiar p/ disparo
+            </button>
+            <button
+              type="button"
+              onClick={exportCSV}
+              disabled={filtered.length === 0}
+              className="h-9 px-3 rounded-xl bg-zinc-800 text-zinc-200 text-[11px] font-bold ring-1 ring-zinc-700 disabled:opacity-40"
+            >
+              Exportar CSV
+            </button>
+            <button
+              type="button"
+              onClick={load}
+              disabled={loading}
+              className="h-9 w-9 rounded-xl bg-zinc-800 text-zinc-200 ring-1 ring-zinc-700 flex items-center justify-center disabled:opacity-40"
+              title="Recarregar"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+            </button>
+          </div>
+        </div>
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Buscar por nome ou telefone..."
+          className="w-full h-10 rounded-xl bg-zinc-950 border border-zinc-800 px-3 text-xs font-semibold outline-none focus:border-primary/50"
+        />
+      </div>
+
+      <div className="rounded-2xl bg-zinc-900 border border-zinc-800 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead>
+              <tr className="border-b border-zinc-800 text-[10px] uppercase text-zinc-500">
+                <th className="px-4 py-3">Cliente</th>
+                <th className="px-4 py-3">Telefone</th>
+                <th className="px-4 py-3 text-center">Pedidos</th>
+                <th className="px-4 py-3">Último</th>
+                <th className="px-4 py-3 text-center">Disparo</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-800/60">
+              {filtered.map((c) => (
+                <tr key={c.id} className={c.opt_out ? "opacity-45" : ""}>
+                  <td className="px-4 py-3 font-bold text-white max-w-[140px] truncate">{c.nome || "—"}</td>
+                  <td className="px-4 py-3 font-mono text-zinc-300">{c.phone}</td>
+                  <td className="px-4 py-3 text-center font-black text-white">{c.orders}</td>
+                  <td className="px-4 py-3 text-zinc-400 whitespace-nowrap">
+                    {c.last_seen ? new Date(c.last_seen).toLocaleDateString("pt-BR") : "—"}
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <button
+                      type="button"
+                      title={c.opt_out ? "Voltar a incluir nos disparos" : "Não incluir nos disparos"}
+                      onClick={async () => {
+                        if (!supabase) return;
+                        const next = !c.opt_out;
+                        setClients((prev) => prev.map((x) => (x.id === c.id ? { ...x, opt_out: next } : x)));
+                        try {
+                          const { error } = await supabase.from("loja_clientes").update({ opt_out: next }).eq("id", c.id);
+                          if (error) throw error;
+                        } catch (err: any) {
+                          alert("Erro: " + err.message);
+                          setClients((prev) => prev.map((x) => (x.id === c.id ? { ...x, opt_out: !next } : x)));
+                        }
+                      }}
+                      className={`text-[10px] font-extrabold px-2.5 py-1.5 rounded-lg transition ${
+                        c.opt_out
+                          ? "bg-zinc-800 text-zinc-400 hover:text-white"
+                          : "bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/30 hover:bg-emerald-500 hover:text-black"
+                      }`}
+                    >
+                      {c.opt_out ? "Fora" : "Ativo"}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {filtered.length === 0 && (
+            <p className="text-center text-zinc-500 text-xs font-bold py-10">
+              {loading ? "Carregando..." : "Nenhum cliente ainda — o 1º pedido cai aqui sozinho."}
+            </p>
+          )}
+        </div>
+        {total !== null && total > 200 && (
+          <p className="px-4 py-3 text-[10px] text-zinc-500 border-t border-zinc-800">
+            Mostrando os 200 mais recentes de {total} (limite proposital p/ não pesar o plano gratuito).
+          </p>
+        )}
       </div>
     </section>
   );

@@ -7,6 +7,7 @@ interface Sponsor {
   slogan: string;
   emoji: string;
   gradient: string;
+  image_url?: string;
 }
 
 // Fallback local (exibido se o banco ainda não tiver patrocinados ou se o
@@ -58,6 +59,11 @@ const MOCK_SPONSORS: Sponsor[] = [
 ];
 
 function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
+  const photo =
+    typeof sponsor.image_url === "string" &&
+    (sponsor.image_url.startsWith("http") || sponsor.image_url.startsWith("/"))
+      ? sponsor.image_url
+      : null;
   return (
     <div
       className={`relative w-[260px] sm:w-[300px] h-[86px] shrink-0 rounded-xl overflow-hidden bg-gradient-to-r ${sponsor.gradient} ring-1 ring-white/15 shadow-md select-none`}
@@ -65,9 +71,18 @@ function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
       {/* brilho de outdoor */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(255,255,255,0.25),transparent_55%)]" />
       <div className="relative h-full flex items-center gap-3 px-3.5">
-        <div className="w-12 h-12 rounded-lg bg-black/30 backdrop-blur flex items-center justify-center text-2xl shrink-0 ring-1 ring-white/20">
-          {sponsor.emoji}
-        </div>
+        {photo ? (
+          <img
+            src={photo}
+            alt={sponsor.nome}
+            className="w-12 h-12 rounded-lg object-cover shrink-0 ring-1 ring-white/20 bg-black/30"
+            loading="lazy"
+          />
+        ) : (
+          <div className="w-12 h-12 rounded-lg bg-black/30 backdrop-blur flex items-center justify-center text-2xl shrink-0 ring-1 ring-white/20">
+            {sponsor.emoji}
+          </div>
+        )}
         <div className="min-w-0 text-left">
           <p className="text-white font-black text-[13px] leading-tight truncate">
             {sponsor.nome}
@@ -89,7 +104,7 @@ export function SponsorCarousel() {
   const [isLive, setIsLive] = useState(false);
 
   // ULTRA-LEVE: 1 select projetado, cache 10min em sessionStorage.
-  // Continua em STAND BY no cardápio (ver cardapio.$slug) até o master ativar.
+  // Ativo no cardápio: o master liga/desliga na aba 📢 Patrocinados.
   useEffect(() => {
     if (!supabase) return;
     try {
@@ -107,7 +122,7 @@ export function SponsorCarousel() {
       try {
         const { data, error } = await supabase
           .from("sponsor_banners")
-          .select("id,nome,slogan,emoji,gradient")
+          .select("id,nome,slogan,emoji,gradient,image_url")
           .eq("active", true)
           .order("position", { ascending: true })
           .limit(12);

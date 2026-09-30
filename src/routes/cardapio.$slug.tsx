@@ -2,6 +2,8 @@ import { useMemo, useState, useEffect } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { MenuHeader } from "@/components/menu/MenuHeader";
 import { HeroBanner } from "@/components/menu/HeroBanner";
+import { BannerCarousel, resolveBanners } from "@/components/menu/BannerCarousel";
+import { SponsorCarousel } from "@/components/menu/SponsorCarousel";
 import { LoyaltyCard } from "@/components/menu/LoyaltyCard";
 import { CategoryBar } from "@/components/menu/CategoryBar";
 import { ProductCard } from "@/components/menu/ProductCard";
@@ -117,13 +119,6 @@ function DynamicCardapio() {
         // nas chaves globais e só depois setava o activeId, então o cardápio
         // de uma loja sobrescrevia os dados da outra no mesmo navegador.
         setActiveLojaId(storeData.id);
-
-        const isTrialActive = (() => {
-          if (!storeData.criado_em) return false;
-          const createdDate = new Date(storeData.criado_em).getTime();
-          const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000;
-          return Date.now() - createdDate < sevenDaysInMs;
-        })();
 
         // Sincroniza dados e configurações da loja
         if (storeData) {
@@ -353,9 +348,34 @@ function DynamicCardapio() {
   const count = cart.reduce((s, i) => s + i.qty, 0);
   const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
 
+  // Motor de promoções por loja (100% local: settings já veio no JSON — zero reads).
+  // promoDays: 0=Dom..6=Sab. Desconto % só na 1ª compra em dia promo.
+  const promoDays = settings?.promoDays?.length ? settings.promoDays : [2, 3];
+  const isPromoDay =
+    (settings?.promoActive ?? false) && promoDays.includes(new Date().getDay());
+  const promoPct = settings?.promoDiscountPct ?? 10;
+  const promoFreeMin = settings?.promoMinOrderFreeShipping ?? 100;
+
+  // Estoque local por produto: null/undefined = ilimitado (sem controle).
+  function stockOf(p: Product): number | null {
+    return typeof p.stock === "number" ? (p.stock as number) : null;
+  }
+  function cartQtyFor(productId: string) {
+    return cart.filter((i) => i.productId === productId).reduce((s, i) => s + i.qty, 0);
+  }
+
   function handleAdd(p: Product) {
     if (!settings.isOpen) {
       alert("Loja fechada no momento.");
+      return;
+    }
+    const st = stockOf(p);
+    if (st !== null && st <= 0) {
+      alert(`${p.name} está esgotado no momento.`);
+      return;
+    }
+    if (st !== null && cartQtyFor(p.id) + 1 > st) {
+      alert(`Só restam ${st} un. de ${p.name}.`);
       return;
     }
     if (p.customizable) {
@@ -400,13 +420,6 @@ function DynamicCardapio() {
     );
   }
 
-  const isTrialActive = (() => {
-    if (!store.criado_em) return false;
-    const createdDate = new Date(store.criado_em).getTime();
-    const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000;
-    return Date.now() - createdDate < sevenDaysInMs;
-  })();
-
   // BANNER DE BLOQUEIO (INDISPONÍVEL): se isBlocked ou status_assinatura bloqueado
   if ((store.status_assinatura === "bloqueado" || settings?.isBlocked) && !isPreview) {
     return (
@@ -432,6 +445,14 @@ function DynamicCardapio() {
     <div className="min-h-screen pb-28">
       <MenuHeader storeName={store.nome} isLegacy={false} />
 
+      {/* Carrossel de fotos dos pratos (até 5, troca a cada 4s).
+          100% local: já veio no JSON do store_data — zero reads extras. */}
+      <BannerCarousel images={resolveBanners(settings)} storeName={store.nome} />
+
+      {/* Faixa de patrocinadores globais (1 select leve + cache 10min).
+          O master liga/desliga cada banner na aba 📢 Patrocinados. */}
+      <SponsorCarousel />
+
       {activeCampaign && (
         <div className="px-4 pt-4">
           <div className="bg-gradient-to-r from-red-950/70 via-red-900/60 to-red-950/70 border-2 border-red-500/50 rounded-2xl p-4 shadow-[0_10px_25px_rgba(239,68,68,0.15)] relative overflow-hidden animate-pulse">
@@ -455,6 +476,39 @@ function DynamicCardapio() {
                     {brl(activeCampaign.min_value)}
                   </span>{" "}
                   e participe automaticamente!
+                  {activeCampaign.ends_at && (
+                    <span className="block font-bold text-red-300 mt-0.5">
+                      Compre até{" "}
+                      {new Date(activeCampaign.ends_at).toLocaleString("pt-BR", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                  )}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Banner promo da loja (100% local — sem custo Supabase) */}
+      {isPromoDay && (
+        <div className="px-4 pt-4">
+          <div
+            className="bg-gradient-to-r from-emerald-950/70 via-emerald-900/60 to-emerald-950/70 border-2 border-emerald-500/50 rounded-2xl p-4 shadow-[0_10px_25px_rgba(16,185,129,0.15)] relative overflow-hidden"
+            translate="no"
+          >
+            <div className="relative z-10 flex items-center gap-3">
+              <span className="text-3xl shrink-0">🎉</span>
+              <div className="text-left">
+                <h4 className="font-black text-white text-xs sm:text-sm uppercase tracking-wider">
+                  Promoção Ativa! {promoPct}% de desconto na 1ª compra
+                </h4>
+                <p className="text-[11px] sm:text-xs text-zinc-300 mt-0.5">
+                  + FRETE GRÁTIS acima de {brl(promoFreeMin)} para clientes recorrentes!
                 </p>
               </div>
             </div>
@@ -472,7 +526,9 @@ function DynamicCardapio() {
           </h2>
           <div className="flex gap-3 overflow-x-auto px-4 pb-4 no-scrollbar snap-x">
             {featured.map((p) => {
-              const out = !p.available;
+              const st = stockOf(p);
+              const out = !p.available || (st !== null && st <= 0);
+              const low = st !== null && st > 0 && st <= (p.lowStockThreshold ?? 5);
               return (
                 <article
                   key={p.id}
@@ -487,10 +543,15 @@ function DynamicCardapio() {
                   </div>
                   <div className="flex-1 flex flex-col min-w-0">
                     <h4 className="font-bold text-sm leading-tight line-clamp-2">{p.name}</h4>
+                    {low && (
+                      <span className="text-[10px] font-bold text-amber-500 animate-pulse mt-0.5">
+                        Só {st} un!
+                      </span>
+                    )}
                     <div className="mt-auto pt-2 flex items-center justify-between">
                       <span className="text-primary font-extrabold text-sm">{brl(p.price)}</span>
                       <button
-                        disabled={out}
+                        disabled={out || !settings.isOpen}
                         onClick={() => handleAdd(p)}
                         className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground disabled:bg-muted disabled:text-muted-foreground shadow-md active:scale-95 transition"
                       >
@@ -511,12 +572,17 @@ function DynamicCardapio() {
           </h2>
           <div className="flex gap-3 overflow-x-auto px-4 pb-4 no-scrollbar snap-x">
             {lancamentos.map((p) => {
-              const out = !p.available;
+              const st = stockOf(p);
+              const out = !p.available || (st !== null && st <= 0);
+              const low = st !== null && st > 0 && st <= (p.lowStockThreshold ?? 5);
               return (
                 <article
                   key={p.id}
-                  className={`w-[160px] sm:w-[180px] shrink-0 snap-start flex flex-col p-3 rounded-2xl bg-surface ring-1 ring-border ${out ? "opacity-60" : ""} h-[240px]`}
+                  className={`w-[160px] sm:w-[180px] shrink-0 snap-start flex flex-col p-3 rounded-2xl bg-surface ring-1 ring-border relative ${out ? "opacity-60" : ""} h-[240px]`}
                 >
+                  <span className="absolute top-1.5 left-1.5 z-10 text-[9px] font-black uppercase tracking-wider bg-primary text-primary-foreground px-2 py-0.5 rounded-full shadow">
+                    Novo
+                  </span>
                   <div className="w-full h-28 rounded-xl bg-gradient-to-br from-primary/20 to-surface-elevated flex items-center justify-center overflow-hidden text-5xl mb-3 shrink-0">
                     {p.image && (p.image.startsWith("http") || p.image.startsWith("/")) ? (
                       <img src={p.image} alt={p.name} className="w-full h-full object-cover" />
@@ -526,10 +592,15 @@ function DynamicCardapio() {
                   </div>
                   <div className="flex-1 flex flex-col min-w-0">
                     <h4 className="font-bold text-sm leading-tight line-clamp-2">{p.name}</h4>
+                    {low && (
+                      <span className="text-[10px] font-bold text-amber-500 animate-pulse mt-0.5">
+                        Só {st} un!
+                      </span>
+                    )}
                     <div className="mt-auto pt-2 flex items-center justify-between">
                       <span className="text-primary font-extrabold text-sm">{brl(p.price)}</span>
                       <button
-                        disabled={out}
+                        disabled={out || !settings.isOpen}
                         onClick={() => handleAdd(p)}
                         className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground disabled:bg-muted disabled:text-muted-foreground shadow-md active:scale-95 transition"
                       >
@@ -626,11 +697,25 @@ function DynamicCardapio() {
           items={cart}
           onClose={() => setCartOpen(false)}
           onUpdate={(id, qty) =>
-            setCart((c) =>
-              qty <= 0
-                ? c.filter((i) => i.id !== id)
-                : c.map((i) => (i.id === id ? { ...i, qty } : i)),
-            )
+            setCart((c) => {
+              if (qty <= 0) return c.filter((i) => i.id !== id);
+              // Revalida estoque somando os outros itens do mesmo produto (100% local).
+              const item = c.find((i) => i.id === id);
+              if (item) {
+                const prod = products.find((p) => p.id === item.productId);
+                const st = prod ? stockOf(prod) : null;
+                if (st !== null) {
+                  const others = c
+                    .filter((i) => i.id !== id && i.productId === item.productId)
+                    .reduce((s, i) => s + i.qty, 0);
+                  if (others + qty > st) {
+                    alert(`Só restam ${st} un. de ${prod?.name || "este item"}.`);
+                    return c;
+                  }
+                }
+              }
+              return c.map((i) => (i.id === id ? { ...i, qty } : i));
+            })
           }
           onRemove={(id) => setCart((c) => c.filter((i) => i.id !== id))}
           onClear={() => setCart([])}

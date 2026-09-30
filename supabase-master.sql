@@ -13,10 +13,14 @@ CREATE TABLE IF NOT EXISTS public.sponsor_banners (
   slogan TEXT NOT NULL DEFAULT '',
   emoji TEXT NOT NULL DEFAULT '📢',
   gradient TEXT NOT NULL DEFAULT 'from-zinc-700 via-zinc-800 to-zinc-900',
+  image_url TEXT NOT NULL DEFAULT '',
   active BOOLEAN NOT NULL DEFAULT true,
   position INT NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+-- Foto do patrocinado (propaganda): URL pública comprimida (webp ~150KB).
+-- Para bancos já criados:
+ALTER TABLE public.sponsor_banners ADD COLUMN IF NOT EXISTS image_url TEXT NOT NULL DEFAULT '';
 CREATE INDEX IF NOT EXISTS idx_sponsors_active ON public.sponsor_banners (active, position);
 
 ALTER TABLE public.sponsor_banners ENABLE ROW LEVEL SECURITY;
