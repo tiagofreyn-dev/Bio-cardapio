@@ -124,8 +124,38 @@ export function SponsorCarousel() {
 
   // ULTRA-LEVE: 1 select projetado, cache 10min em sessionStorage.
   // Ativo no cardápio: o master liga/desliga na aba 📢 Patrocinados.
+  // Stale-while-revalidate: mostra o cache na hora MAS busca o fresco em
+  // segundo plano — antes o `return` precoce travava em 1 item por 10min
+  // depois que o master adicionava o 2º parceiro.
   useEffect(() => {
-    if (!supabase) return;
+    const sb = supabase;
+    if (!sb) return;
+    let alive = true;
+    async function fetchLive() {
+      if (!sb) return;
+      try {
+        const { data, error } = await sb
+          .from("sponsor_banners")
+          .select("id,nome,slogan,emoji,gradient,image_url")
+          .eq("active", true)
+          .order("position", { ascending: true })
+          .limit(12);
+        if (error) throw error;
+        if (data && data.length > 0 && alive) {
+          const unique = dedupeSponsors(data as Sponsor[]);
+          setSponsors(unique);
+          setIsLive(true);
+          try {
+            sessionStorage.setItem("insano.sponsors.cache", JSON.stringify({ at: Date.now(), items: unique }));
+          } catch {}
+        } else if (alive && data && data.length === 0) {
+          // Banco vazio de verdade: volta pro demo em vez de travar no cache velho
+          try { sessionStorage.removeItem("insano.sponsors.cache"); } catch {}
+        }
+      } catch {
+        // Tabela ainda não criada ou sem linhas: mantém o mock visual.
+      }
+    }
     try {
       const raw = sessionStorage.getItem("insano.sponsors.cache");
       if (raw) {
@@ -133,31 +163,22 @@ export function SponsorCarousel() {
         if (cached && Date.now() - cached.at < 10 * 60 * 1000 && Array.isArray(cached.items) && cached.items.length > 0) {
           setSponsors(dedupeSponsors(cached.items));
           setIsLive(true);
-          return;
+          // Não retorna: revalida em segundo plano pra pegar o 2º parceiro novo
+          void fetchLive();
+          // Revalida de novo ao voltar o foco (master adicionou em outra aba)
+          const onFocus = () => void fetchLive();
+          window.addEventListener("focus", onFocus);
+          return () => {
+            alive = false;
+            window.removeEventListener("focus", onFocus);
+          };
         }
       }
     } catch {}
-    (async () => {
-      try {
-        const { data, error } = await supabase
-          .from("sponsor_banners")
-          .select("id,nome,slogan,emoji,gradient,image_url")
-          .eq("active", true)
-          .order("position", { ascending: true })
-          .limit(12);
-        if (error) throw error;
-        if (data && data.length > 0) {
-          const unique = dedupeSponsors(data as Sponsor[]);
-          setSponsors(unique);
-          setIsLive(true);
-          try {
-            sessionStorage.setItem("insano.sponsors.cache", JSON.stringify({ at: Date.now(), items: unique }));
-          } catch {}
-        }
-      } catch {
-        // Tabela ainda não criada ou sem linhas: mantém o mock visual.
-      }
-    })();
+    void fetchLive();
+    return () => {
+      alive = false;
+    };
   }, []);
 
   // Sem duplicatas reais. O loop infinito só é ligado com 4+ itens —

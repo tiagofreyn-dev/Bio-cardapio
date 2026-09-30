@@ -781,8 +781,9 @@ function GeneralTab({
       }
 
       const updatedSettings = { ...settings, banners: next, bannerUrl: next[0] || "" };
-      update({ banners: next } as any);
-      update({ bannerUrl: next[0] || "" });
+      // 1 único update: o 2º update com `settings` stale sobrescrevia `banners`
+      // de volta pro valor antigo (bug: só salvava 1 foto via bannerUrl).
+      update({ banners: next, bannerUrl: next[0] || "" } as any);
       await autoSave(updatedSettings);
     } catch (err: any) {
       alert("Erro ao enviar banner: " + err.message);
@@ -810,8 +811,8 @@ function GeneralTab({
         } catch {}
       }
       current.splice(at, 1);
-      update({ banners: current } as any);
-      update({ bannerUrl: current[0] || "" });
+      // 1 único update pelo mesmo motivo do upload (stale closure apagava a lista).
+      update({ banners: current, bannerUrl: current[0] || "" } as any);
       await autoSave({ ...settings, banners: current, bannerUrl: current[0] || "" });
     } catch (err: any) {
       alert("Erro ao remover banner: " + err.message);
