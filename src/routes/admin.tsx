@@ -748,10 +748,14 @@ function GeneralTab({
   async function handleBannerUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    const current: string[] = Array.isArray((settings as any).banners)
-      ? (settings as any).banners
-      : settings.bannerUrl
-        ? [settings.bannerUrl]
+    // Lê o FRESCO do localStorage (não o `settings` do closure do render):
+    // 2 uploads seguidos com closure stale faziam o 2º sobrescrever o 1º
+    // ("adiciono outro e ele troca ao invés de somar").
+    const fresh = storage.getSettings();
+    const current: string[] = Array.isArray((fresh as any).banners)
+      ? (fresh as any).banners
+      : fresh.bannerUrl
+        ? [fresh.bannerUrl]
         : [];
     if (current.length >= 5) {
       alert("Máximo de 5 fotos no carrossel. Remova uma para adicionar outra.");
@@ -780,10 +784,12 @@ function GeneralTab({
         next.push(publicUrl);
       }
 
-      const updatedSettings = { ...settings, banners: next, bannerUrl: next[0] || "" };
-      // 1 único update: o 2º update com `settings` stale sobrescrevia `banners`
-      // de volta pro valor antigo (bug: só salvava 1 foto via bannerUrl).
-      update({ banners: next, bannerUrl: next[0] || "" } as any);
+      const updatedSettings = { ...fresh, banners: next, bannerUrl: next[0] || "" };
+      // Escrita direta no storage fresco + flush confirma no banco ANTES do
+      // preview recarregar (sem await o iframe buscava o dado velho e a foto
+      // "não aparecia" / sumia).
+      storage.setSettings(updatedSettings);
+      await flushSync();
       await autoSave(updatedSettings);
     } catch (err: any) {
       alert("Erro ao enviar banner: " + err.message);
@@ -794,10 +800,12 @@ function GeneralTab({
   }
 
   async function handleRemoveBanner(idx?: number) {
-    const current: string[] = Array.isArray((settings as any).banners)
-      ? [...(settings as any).banners]
-      : settings.bannerUrl
-        ? [settings.bannerUrl]
+    // Mesmo motivo do upload: usa o fresco pra não ressuscitar foto apagada.
+    const fresh = storage.getSettings();
+    const current: string[] = Array.isArray((fresh as any).banners)
+      ? [...(fresh as any).banners]
+      : fresh.bannerUrl
+        ? [fresh.bannerUrl]
         : [];
     if (!current.length) return;
     try {
@@ -811,9 +819,10 @@ function GeneralTab({
         } catch {}
       }
       current.splice(at, 1);
-      // 1 único update pelo mesmo motivo do upload (stale closure apagava a lista).
-      update({ banners: current, bannerUrl: current[0] || "" } as any);
-      await autoSave({ ...settings, banners: current, bannerUrl: current[0] || "" });
+      const updated = { ...fresh, banners: current, bannerUrl: current[0] || "" };
+      storage.setSettings(updated);
+      await flushSync();
+      await autoSave(updated);
     } catch (err: any) {
       alert("Erro ao remover banner: " + err.message);
     }

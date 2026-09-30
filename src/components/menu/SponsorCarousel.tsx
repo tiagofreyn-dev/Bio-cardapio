@@ -58,31 +58,34 @@ const MOCK_SPONSORS: Sponsor[] = [
   },
 ];
 
-function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
+function SponsorCard({ sponsor, onExpand }: { sponsor: Sponsor; onExpand: () => void }) {
   const photo =
     typeof sponsor.image_url === "string" &&
     (sponsor.image_url.startsWith("http") || sponsor.image_url.startsWith("/"))
       ? sponsor.image_url
       : null;
   return (
-    <div
-      className={`relative w-[280px] sm:w-[360px] h-[160px] sm:h-[200px] shrink-0 snap-start rounded-2xl overflow-hidden bg-gradient-to-r ${sponsor.gradient} ring-1 ring-white/15 shadow-lg select-none transition-transform duration-300 hover:scale-[1.03] focus-within:scale-[1.03]`}
+    <button
+      type="button"
+      onClick={onExpand}
+      title="Clique para ampliar"
+      className={`relative block text-left w-[280px] sm:w-[360px] h-[160px] sm:h-[200px] shrink-0 snap-start rounded-2xl overflow-hidden bg-gradient-to-r ${sponsor.gradient} ring-1 ring-white/15 shadow-lg select-none transition-transform duration-300 hover:scale-[1.03] cursor-zoom-in`}
     >
       {photo ? (
         <img
           src={photo}
           alt={sponsor.nome}
-          className="absolute inset-0 w-full h-full object-cover object-center"
+          className="absolute inset-0 w-full h-full object-cover object-center pointer-events-none"
           loading="lazy"
         />
       ) : (
-        <div className="absolute inset-0 flex items-center justify-center text-6xl">
+        <div className="absolute inset-0 flex items-center justify-center text-6xl pointer-events-none">
           {sponsor.emoji}
         </div>
       )}
       {/* sombra estilo Fire TV pra leitura do título */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/25 to-transparent" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_15%,rgba(255,255,255,0.18),transparent_55%)]" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/25 to-transparent pointer-events-none" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_15%,rgba(255,255,255,0.18),transparent_55%)] pointer-events-none" />
       <div className="absolute bottom-0 inset-x-0 p-3.5 text-left">
         <p className="text-white font-black text-base sm:text-lg leading-tight truncate drop-shadow">
           {sponsor.nome}
@@ -94,7 +97,10 @@ function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
           Patrocinado
         </span>
       </div>
-    </div>
+      <span className="absolute top-2 right-2 text-[10px] font-bold bg-black/60 text-white px-2 py-1 rounded-lg backdrop-blur">
+        ⤢
+      </span>
+    </button>
   );
 }
 
@@ -181,34 +187,89 @@ export function SponsorCarousel() {
     };
   }, []);
 
-  // Sem duplicatas reais. O loop infinito só é ligado com 4+ itens —
-  // com 1-3 parceiros o marquee duplicado parecia "bug duplicado" no print.
+  const [expanded, setExpanded] = useState<Sponsor | null>(null);
+
+  // Fecha o ampliar com Esc
+  useEffect(() => {
+    if (!expanded) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setExpanded(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [expanded]);
+
   const unique = dedupeSponsors(sponsors);
-  const useMarquee = unique.length >= 4;
-  const loop = useMarquee ? [...unique, ...unique] : unique;
+  // SEMPRE passando pro lado: repete a lista até encher a tela (mín. 6)
+  // e duplica pra costura infinita do marquee (-50%). Com 1-2 parceiros
+  // a repetição é proposital pro desfile não ficar parado/vazio.
+  let filled = [...unique];
+  while (filled.length > 0 && filled.length < 6) filled = [...filled, ...unique];
+  const loop = [...filled, ...filled];
 
   if (unique.length === 0) return null;
 
+  const expandPhoto =
+    expanded &&
+    typeof expanded.image_url === "string" &&
+    (expanded.image_url.startsWith("http") || expanded.image_url.startsWith("/"))
+      ? expanded.image_url
+      : null;
+
   return (
-    <section aria-label="Patrocinadores" className="pt-3">
-      <p className="px-4 mb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
-        Parceiros da casa{isLive ? "" : " • demo"}
-      </p>
-      {useMarquee ? (
+    <>
+      <section aria-label="Patrocinadores" className="pt-3">
+        <p className="px-4 mb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
+          Parceiros da casa{isLive ? "" : " • demo"}
+        </p>
         <div className="overflow-hidden sponsor-mask">
           <div className="flex gap-4 w-max px-4 animate-sponsor-marquee sponsor-pause">
             {loop.map((s, i) => (
-              <SponsorCard key={`${s.id}-${i}`} sponsor={s} />
+              <SponsorCard key={`${s.id}-${i}`} sponsor={s} onExpand={() => setExpanded(s)} />
             ))}
           </div>
         </div>
-      ) : (
-        <div className="flex gap-4 overflow-x-auto px-4 pb-1 no-scrollbar snap-x">
-          {unique.map((s) => (
-            <SponsorCard key={s.id} sponsor={s} />
-          ))}
+      </section>
+
+      {/* Ampliar parceiro: anúncio por completo, sem corte */}
+      {expanded && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/90 backdrop-blur flex items-center justify-center p-4"
+          onClick={() => setExpanded(null)}
+        >
+          <button
+            type="button"
+            aria-label="Fechar"
+            onClick={() => setExpanded(null)}
+            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 text-white text-xl hover:bg-white/20"
+          >
+            ×
+          </button>
+          <div
+            className={`relative w-full max-w-lg rounded-2xl overflow-hidden bg-gradient-to-r ${expanded.gradient} ring-1 ring-white/20 shadow-2xl`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {expandPhoto ? (
+              <img
+                src={expandPhoto}
+                alt={expanded.nome}
+                className="w-full max-h-[70vh] object-contain bg-black"
+              />
+            ) : (
+              <div className="w-full h-56 flex items-center justify-center text-8xl">
+                {expanded.emoji}
+              </div>
+            )}
+            <div className="p-5 bg-black/60">
+              <p className="text-white font-black text-xl leading-tight">{expanded.nome}</p>
+              <p className="text-white/80 text-sm mt-1">{expanded.slogan}</p>
+              <span className="inline-block mt-2 text-[10px] font-black uppercase tracking-[0.15em] text-white/70 bg-white/10 px-2 py-1 rounded-md ring-1 ring-white/10">
+                Patrocinado
+              </span>
+            </div>
+          </div>
         </div>
       )}
-    </section>
+    </>
   );
 }
