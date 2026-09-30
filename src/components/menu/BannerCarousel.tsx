@@ -29,11 +29,19 @@ export function BannerCarousel({
   if (images.length === 1) {
     return (
       <section className="px-4 pt-3">
-        <div className="rounded-2xl overflow-hidden ring-1 ring-border shadow-lg">
+        <div className="relative rounded-2xl overflow-hidden ring-1 ring-border shadow-lg bg-black aspect-[16/9] sm:aspect-[21/9]">
+          {/* fundo desfocado preenche as bordas sem cortar a imagem principal */}
+          <img
+            src={images[0]}
+            alt=""
+            aria-hidden
+            className="absolute inset-0 w-full h-full object-cover blur-2xl opacity-40 scale-110"
+            loading="eager"
+          />
           <img
             src={images[0]}
             alt={`Destaque de ${storeName}`}
-            className="w-full h-44 sm:h-60 object-cover"
+            className="relative w-full h-full object-contain"
             loading="eager"
           />
         </div>
@@ -49,20 +57,29 @@ export function BannerCarousel({
       onTouchStart={() => setPaused(true)}
       onTouchEnd={() => setTimeout(() => setPaused(false), 3000)}
     >
-      <div className="relative rounded-2xl overflow-hidden ring-1 ring-border shadow-lg">
+      <div className="relative rounded-2xl overflow-hidden ring-1 ring-border shadow-lg bg-black aspect-[16/9] sm:aspect-[21/9]">
         <div
-          className="flex transition-transform duration-700 ease-in-out"
+          className="flex h-full transition-transform duration-700 ease-in-out"
           style={{ transform: `translateX(-${idx * 100}%)` }}
         >
           {images.map((src, i) => (
-            <img
-              key={`${i}-${src.slice(-24)}`}
-              src={src}
-              alt={`${storeName} — foto ${i + 1}`}
-              className="w-full h-44 sm:h-60 object-cover shrink-0"
-              loading={i === 0 ? "eager" : "lazy"}
-              draggable={false}
-            />
+            <div key={`${i}-${src.slice(-32)}`} className="relative w-full h-full shrink-0 overflow-hidden">
+              <img
+                src={src}
+                alt=""
+                aria-hidden
+                className="absolute inset-0 w-full h-full object-cover blur-2xl opacity-40 scale-110"
+                loading="lazy"
+                draggable={false}
+              />
+              <img
+                src={src}
+                alt={`${storeName} — foto ${i + 1}`}
+                className="relative w-full h-full object-contain"
+                loading={i === 0 ? "eager" : "lazy"}
+                draggable={false}
+              />
+            </div>
           ))}
         </div>
         {/* dots */}
@@ -103,7 +120,9 @@ export function BannerCarousel({
 
 // Normaliza settings antigos (só bannerUrl) para o formato novo (banners[]).
 export function resolveBanners(settings: { bannerUrl?: string; banners?: string[] }): string[] {
-  const list = Array.isArray(settings?.banners) ? settings.banners.filter(Boolean) : [];
+  const raw = Array.isArray(settings?.banners) ? settings.banners.filter(Boolean) : [];
+  // Remove URLs duplicadas preservando a ordem (evita banner repetido no carrossel)
+  const list = Array.from(new Set(raw.map((s) => s.trim()))).filter(Boolean);
   if (list.length > 0) return list.slice(0, 5);
   if (settings?.bannerUrl) return [settings.bannerUrl];
   return [];
