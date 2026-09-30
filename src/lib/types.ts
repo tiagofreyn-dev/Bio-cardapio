@@ -41,6 +41,10 @@ export interface Product {
   hasMayoOption?: boolean;
   is_featured?: boolean;
   is_lancamento?: boolean;
+  // Estoque por produto (genérico p/ qualquer segmento).
+  // null/undefined = ilimitado (não controla). 0 = esgotado.
+  stock?: number | null;
+  lowStockThreshold?: number;
   max_sabores?: number;
   adicionais?: { nome: string; preco: number; descricao?: string }[];
   choice_groups?: ProductChoiceGroup[];
@@ -86,10 +90,27 @@ export interface Settings {
   categoryEmojis?: Record<string, string>;
   logoUrl?: string;
   deliveryTime?: string;
+  // Bannerão de destaque do cardápio (foto enviada pelo dono no admin,
+  // comprimida em webp). Vai no topo da página pública, abaixo do cabeçalho.
+  bannerUrl?: string;
+  // Carrossel de banners (até 5 fotos de pratos/doces). Troca sozinho a cada
+  // ~4s no cardápio. bannerUrl antigo vira banners[0] automaticamente.
+  banners?: string[];
+  // Cupons de desconto da loja — ficam dentro do store_data JSON (zero reads
+  // extras na página pública). used/qty controlam estoque; 1 uso por telefone
+  // é travado na tabela coupon_uses (1 select minúsculo só ao aplicar cupom).
+  coupons?: Coupon[];
   choiceGroupTemplates?: ChoiceGroup[];
   acceptsPix?: boolean;
   acceptsCard?: boolean;
   acceptsCash?: boolean;
+  // Motor de promoções por loja (tudo dentro do store_data JSON — zero reads extras).
+  // promoDays: 0=Dom..6=Sab. Desconto % só na 1ª compra em dia promo;
+  // frete grátis p/ clientes recorrentes acima do mínimo em dia promo.
+  promoActive?: boolean;
+  promoDiscountPct?: number;
+  promoMinOrderFreeShipping?: number;
+  promoDays?: number[];
 }
 
 export interface CustomerLoyalty {
@@ -122,6 +143,15 @@ export interface CampaignWinner {
   winner_phone: string;
   winner_order_total: number;
   drawn_at: string;
+}
+
+export interface Coupon {
+  code: string;
+  label: string;
+  pct: number;
+  qty: number;
+  used: number;
+  active: boolean;
 }
 
 export interface Participant {
@@ -160,7 +190,7 @@ export interface Loja {
   slug: string;
   tipo: string;
   cor_tema: string;
-  status_assinatura: "pendente" | "ativo";
+  status_assinatura: "pendente" | "ativo" | "bloqueado";
   whatsapp?: string;
   endereco?: string;
   taxa_entrega: number;

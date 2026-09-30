@@ -2,22 +2,24 @@ import { useState, useEffect } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/lib/supabase";
 import type { Loja } from "@/lib/types";
-import { 
-  Store, 
-  Lock, 
-  ExternalLink, 
-  ShieldCheck, 
-  Check, 
-  X, 
-  Search, 
-  RefreshCw, 
-  LogOut, 
-  Trash2, 
-  Users, 
-  DollarSign, 
-  Activity, 
+import {
+  Store,
+  Lock,
+  ExternalLink,
+  ShieldCheck,
+  Check,
+  X,
+  Search,
+  RefreshCw,
+  LogOut,
+  Trash2,
+  Activity,
   AlertCircle,
-  TrendingUp
+  TrendingUp,
+  Megaphone,
+  Images,
+  Send,
+  Plug,
 } from "lucide-react";
 
 export const Route = createFileRoute("/master-admin")({
@@ -32,6 +34,27 @@ const MASTER_ADMIN_EMAILS = [
   "admin@biocardapio.com"
 ];
 
+type MasterTab = "lojas" | "patrocinados" | "carrosseis" | "disparos" | "evolution";
+
+const GRADIENTS = [
+  "from-sky-600 via-blue-700 to-indigo-900",
+  "from-red-600 via-orange-600 to-amber-700",
+  "from-emerald-600 via-green-700 to-lime-800",
+  "from-violet-600 via-purple-700 to-fuchsia-800",
+  "from-cyan-500 via-sky-600 to-blue-800",
+  "from-teal-600 via-emerald-700 to-green-900",
+  "from-zinc-700 via-zinc-800 to-zinc-900",
+];
+
+function evoCfg() {
+  if (typeof window === "undefined") return { base: "", key: "", instance: "" };
+  return {
+    base: localStorage.getItem("insano.evo.base") || "",
+    key: localStorage.getItem("insano.evo.key") || "",
+    instance: localStorage.getItem("insano.evo.instance") || "",
+  };
+}
+
 function MasterAdminPage() {
   const navigate = useNavigate();
   const [user, setUser] = useState<any>(null);
@@ -39,13 +62,14 @@ function MasterAdminPage() {
   const [authLoading, setAuthLoading] = useState(false);
   const [stores, setStores] = useState<Loja[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  
+  const [masterTab, setMasterTab] = useState<MasterTab>("lojas");
+
   // Auth Form States
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [authErrorDetail, setAuthErrorDetail] = useState<string | null>(null);
-  
+
   // Action States
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -75,7 +99,7 @@ function MasterAdminPage() {
             return;
           }
         }
-        
+
         setUser(null);
       } catch (err) {
         console.error("Erro ao validar sessão:", err);
@@ -87,7 +111,6 @@ function MasterAdminPage() {
   }, []);
 
   // 2. Fetch All Stores — ULTRA-LEVE: projeção + limite 100.
-  // Antes: select * sem limite (com 50-1000 lojas = MBs por load).
   async function loadStores() {
     try {
       if (!supabase) return;
@@ -105,27 +128,25 @@ function MasterAdminPage() {
   }
 
   // 3. Login Action
-  async function handleLogin(e: React.FormEvent) {
+  async function handleLogin(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const trimmedEmail = email.trim();
-    const trimmedPassword = password.trim();
-    if (!trimmedEmail || !trimmedPassword) return;
+    const fd = new FormData(e.currentTarget);
+    const trimmedEmail = (((fd.get("email") as string) || email) || "").trim();
+    const trimmedPassword = (((fd.get("password") as string) || password) || "").trim();
+    if (!trimmedEmail || !trimmedPassword) {
+      setError("Preencha e-mail e senha.");
+      return;
+    }
     setAuthLoading(true);
     setError("");
 
     try {
       if (!supabase) throw new Error("Supabase não está configurado.");
-      
-      // MASTER BYPASS: Se a senha for a que o usuário solicitou ("123456"), tenta cadastrar e logar automático
+
       if (trimmedPassword === "123456" && MASTER_ADMIN_EMAILS.includes(trimmedEmail)) {
         try {
-          await supabase.auth.signUp({
-            email: trimmedEmail,
-            password: trimmedPassword,
-          });
-        } catch (signUpErr) {
-          // Ignora se o usuário já existir
-        }
+          await supabase.auth.signUp({ email: trimmedEmail, password: trimmedPassword });
+        } catch (signUpErr) {}
 
         try {
           const { data: realData, error: signInError } = await supabase.auth.signInWithPassword({
@@ -149,7 +170,6 @@ function MasterAdminPage() {
         sessionStorage.setItem("insano.master.auth", "true");
         sessionStorage.setItem("insano.master.email", trimmedEmail);
 
-        // Load stores — ULTRA-LEVE: projeção + limite
         const { data: lojasData, error: lojasError } = await supabase
           .from("lojas")
           .select("id,nome,slug,tipo,cor_tema,taxa_entrega,status_assinatura,cobranca_automatica,criado_em")
@@ -162,7 +182,6 @@ function MasterAdminPage() {
         return;
       }
 
-      // Login convencional Supabase
       const { data, error: authError } = await supabase.auth.signInWithPassword({
         email: trimmedEmail,
         password: trimmedPassword,
@@ -210,41 +229,15 @@ function MasterAdminPage() {
     }
   }
 
-  // 5. Toggle Billing Method (Manual vs Auto)
-  async function handleToggleBilling(lojaId: string, currentVal: boolean) {
-    if (!supabase) return;
-    setUpdatingId(lojaId);
-    try {
-      const newVal = !currentVal;
-      const { data, error } = await supabase
-        .from("lojas")
-        .update({ cobranca_automatica: newVal })
-        .eq("id", lojaId)
-        .select("id");
-
-      if (error) throw error;
-      
-      if (!data || data.length === 0) {
-        throw new Error("A alteração foi rejeitada pelo banco de dados (provavelmente bloqueado por RLS). Garanta que executou o SQL de migração no painel do Supabase.");
-      }
-
-      // Update local state reactively
-      setStores((prev) => 
-        prev.map((s) => s.id === lojaId ? { ...s, cobranca_automatica: newVal } : s)
-      );
-    } catch (err: any) {
-      alert("Erro ao alterar método de cobrança: " + err.message);
-    } finally {
-      setUpdatingId(null);
-    }
-  }
-
-  // 6. Toggle Subscription Status (Ativo vs Pendente)
+  // 5. Status em 3 estados (manual): ativo -> pendente -> bloqueado -> ativo.
+  // Bloqueado derruba o cardápio público (ver cardapio.$slug).
+  const STATUS_ORDER = ["ativo", "pendente", "bloqueado"] as const;
   async function handleToggleStatus(lojaId: string, currentStatus: string) {
     if (!supabase) return;
     setUpdatingId(lojaId);
     try {
-      const newStatus = currentStatus === "ativo" ? "pendente" : "ativo";
+      const idx = STATUS_ORDER.indexOf(currentStatus as any);
+      const newStatus = STATUS_ORDER[(idx + 1) % STATUS_ORDER.length];
       const { data, error } = await supabase
         .from("lojas")
         .update({ status_assinatura: newStatus })
@@ -257,12 +250,11 @@ function MasterAdminPage() {
         throw new Error("A alteração foi rejeitada pelo banco de dados (provavelmente bloqueado por RLS). Garanta que executou o SQL de migração no painel do Supabase.");
       }
 
-      // Update local state reactively
-      setStores((prev) => 
-        prev.map((s) => s.id === lojaId ? { ...s, status_assinatura: newStatus as "ativo" | "pendente" } : s)
+      setStores((prev) =>
+        prev.map((s) => s.id === lojaId ? { ...s, status_assinatura: newStatus as any } : s)
       );
     } catch (err: any) {
-      alert("Erro ao alterar status da assinatura: " + err.message);
+      alert("Erro ao alterar status: " + err.message);
     } finally {
       setUpdatingId(null);
     }
@@ -273,9 +265,6 @@ function MasterAdminPage() {
     if (!supabase) return;
     setIsRefreshing(true);
     try {
-      // In a real environment, we can trigger schema reload by updating a dummy table
-      // or notifying pgrst directly via RPC if configured. Here we fetch stores again
-      // and display a successful schema reload alert.
       await loadStores();
       alert("Esquema do Supabase recarregado com sucesso! Os caches dos cardápios foram revalidados.");
     } catch (err: any) {
@@ -289,9 +278,9 @@ function MasterAdminPage() {
   async function handleDeleteStore(lojaId: string, name: string) {
     if (!supabase) return;
     const confirmDelete = window.confirm(`ATENÇÃO! Você tem certeza que deseja excluir permanentemente o comércio "${name}"?\nTodos os produtos, faturamentos e configurações associadas serão apagados e não poderão ser recuperados!`);
-    
+
     if (!confirmDelete) return;
-    
+
     setUpdatingId(lojaId);
     try {
       const { data, error } = await supabase
@@ -301,11 +290,11 @@ function MasterAdminPage() {
         .select("id");
 
       if (error) throw error;
-      
+
       if (!data || data.length === 0) {
         throw new Error("A exclusão foi rejeitada pelo banco de dados. Certifique-se de que você executou as migrações SQL (Passo 2) no SQL Editor do Supabase e que está logado com seu e-mail master.");
       }
-      
+
       setStores((prev) => prev.filter((s) => s.id !== lojaId));
       alert(`Comércio "${name}" excluído com sucesso.`);
     } catch (err: any) {
@@ -316,9 +305,9 @@ function MasterAdminPage() {
   }
 
   // Filtered Stores List based on search input
-  const filteredStores = stores.filter((s) => 
-    s.nome.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    s.slug.toLowerCase().includes(searchTerm.toLowerCase()) || 
+  const filteredStores = stores.filter((s) =>
+    s.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    s.slug.toLowerCase().includes(searchTerm.toLowerCase()) ||
     s.tipo.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -326,8 +315,7 @@ function MasterAdminPage() {
   const totalComercios = stores.length;
   const ativos = stores.filter((s) => s.status_assinatura === "ativo").length;
   const pendentes = stores.filter((s) => s.status_assinatura === "pendente").length;
-  const cobrancaAutomatica = stores.filter((s) => s.cobranca_automatica !== false).length;
-  const cobrancaManual = stores.filter((s) => s.cobranca_automatica === false).length;
+  const bloqueados = stores.filter((s) => (s as any).status_assinatura === "bloqueado").length;
 
   // Render loading screen
   if (loading) {
@@ -343,10 +331,9 @@ function MasterAdminPage() {
   if (!user) {
     return (
       <div className="min-h-screen bg-zinc-950 text-white flex items-center justify-center p-4 relative overflow-hidden">
-        {/* Floating gradient background orbs */}
         <div className="absolute top-1/4 left-1/4 -translate-x-1/2 -translate-y-1/2 w-80 h-80 rounded-full bg-red-500/10 blur-[100px] pointer-events-none" />
         <div className="absolute bottom-1/4 right-1/4 translate-x-1/2 translate-y-1/2 w-80 h-80 rounded-full bg-violet-600/10 blur-[100px] pointer-events-none" />
-        
+
         <div className="w-full max-w-md bg-zinc-900/60 border border-zinc-800/80 p-8 rounded-3xl backdrop-blur-md shadow-2xl relative z-10">
           <div className="flex flex-col items-center text-center space-y-2 mb-8">
             <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-red-500 to-amber-500 flex items-center justify-center border border-red-500/30 text-white shadow-lg shadow-red-500/20">
@@ -368,6 +355,8 @@ function MasterAdminPage() {
                 type="email"
                 required
                 id="master-email-field"
+                name="email"
+                autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="exemplo@gmail.com"
@@ -381,6 +370,8 @@ function MasterAdminPage() {
                 type="password"
                 required
                 id="master-password-field"
+                name="password"
+                autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••••••"
@@ -465,6 +456,31 @@ function MasterAdminPage() {
         </div>
       </header>
 
+      {/* Tabs do master */}
+      <nav className="px-6 pt-4 flex gap-2 overflow-x-auto shrink-0">
+        {(
+          [
+            ["lojas", "🏪 Lojas"],
+            ["patrocinados", "📢 Patrocinados"],
+            ["carrosseis", "🖼️ Carrosséis"],
+            ["disparos", "📲 Disparos"],
+            ["evolution", "🔌 Evolution"],
+          ] as [MasterTab, string][]
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            onClick={() => setMasterTab(id)}
+            className={`shrink-0 px-4 py-1.5 rounded-full text-xs font-bold transition-all ${
+              masterTab === id
+                ? "bg-primary text-primary-foreground shadow-md"
+                : "bg-zinc-900 text-zinc-400 hover:text-white ring-1 ring-zinc-800"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
+
       {/* Main Container */}
       <main className="flex-1 p-6 space-y-6 overflow-y-auto max-w-7xl mx-auto w-full">
         {user?.id === "bypass-admin" && (
@@ -488,249 +504,548 @@ function MasterAdminPage() {
                 )}
               </div>
             </div>
-            <div className="text-xs text-zinc-400 max-w-sm leading-relaxed border-t md:border-t-0 md:border-l border-zinc-800/80 pt-4 md:pt-0 md:pl-5 space-y-2">
-              <p className="font-bold text-zinc-200">Como liberar a exclusão/edição?</p>
-              <ol className="list-decimal pl-4 space-y-1 text-[11px]">
-                <li>Copie o script SQL que preparei para confirmar seu e-mail de administrador.</li>
-                <li>Execute-o no <strong>SQL Editor</strong> do painel do seu Supabase.</li>
-                <li>Saia do painel e faça login novamente usando a senha <strong>123456</strong>.</li>
-              </ol>
-            </div>
           </div>
         )}
 
-        {/* Top Stats Widgets Grid */}
-        <section className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <div className="bg-zinc-900/50 border border-zinc-850 p-4 rounded-2xl flex flex-col justify-between">
-            <span className="text-[10px] uppercase font-black tracking-wider text-zinc-500">Total Comércios</span>
-            <div className="flex items-baseline gap-2 mt-2">
-              <span className="text-3xl font-black tracking-tight">{totalComercios}</span>
-              <span className="text-xs font-bold text-zinc-400">lojas</span>
-            </div>
-            <div className="w-full bg-zinc-950 rounded-full h-1 mt-3">
-              <div className="bg-primary h-1 rounded-full w-full" />
-            </div>
-          </div>
-
-          <div className="bg-zinc-900/50 border border-zinc-850 p-4 rounded-2xl flex flex-col justify-between">
-            <span className="text-[10px] uppercase font-black tracking-wider text-emerald-500">Links Ativos</span>
-            <div className="flex items-baseline gap-2 mt-2">
-              <span className="text-3xl font-black tracking-tight text-emerald-400">{ativos}</span>
-              <span className="text-xs font-bold text-emerald-600">online</span>
-            </div>
-            <div className="w-full bg-zinc-950 rounded-full h-1 mt-3">
-              <div 
-                className="bg-emerald-500 h-1 rounded-full transition-all duration-500" 
-                style={{ width: `${totalComercios > 0 ? (ativos / totalComercios) * 100 : 0}%` }}
-              />
-            </div>
-          </div>
-
-          <div className="bg-zinc-900/50 border border-zinc-850 p-4 rounded-2xl flex flex-col justify-between">
-            <span className="text-[10px] uppercase font-black tracking-wider text-amber-500">Modo Rascunho</span>
-            <div className="flex items-baseline gap-2 mt-2">
-              <span className="text-3xl font-black tracking-tight text-amber-500">{pendentes}</span>
-              <span className="text-xs font-bold text-amber-600">bloqueadas</span>
-            </div>
-            <div className="w-full bg-zinc-950 rounded-full h-1 mt-3">
-              <div 
-                className="bg-amber-500 h-1 rounded-full transition-all duration-500" 
-                style={{ width: `${totalComercios > 0 ? (pendentes / totalComercios) * 100 : 0}%` }}
-              />
-            </div>
-          </div>
-
-          <div className="bg-zinc-900/50 border border-zinc-850 p-4 rounded-2xl flex flex-col justify-between">
-            <span className="text-[10px] uppercase font-black tracking-wider text-indigo-400">Cobrança SaaS</span>
-            <div className="flex items-baseline gap-2 mt-2">
-              <span className="text-3xl font-black tracking-tight text-indigo-400">{cobrancaAutomatica}</span>
-              <span className="text-xs font-bold text-indigo-600">plataforma</span>
-            </div>
-            <div className="w-full bg-zinc-950 rounded-full h-1 mt-3">
-              <div 
-                className="bg-indigo-500 h-1 rounded-full transition-all duration-500" 
-                style={{ width: `${totalComercios > 0 ? (cobrancaAutomatica / totalComercios) * 100 : 0}%` }}
-              />
-            </div>
-          </div>
-
-          <div className="bg-zinc-900/50 border border-zinc-850 p-4 rounded-2xl flex flex-col justify-between col-span-2 md:col-span-1">
-            <span className="text-[10px] uppercase font-black tracking-wider text-teal-400">Faturamento Manual</span>
-            <div className="flex items-baseline gap-2 mt-2">
-              <span className="text-3xl font-black tracking-tight text-teal-400">{cobrancaManual}</span>
-              <span className="text-xs font-bold text-teal-600">por fora</span>
-            </div>
-            <div className="w-full bg-zinc-950 rounded-full h-1 mt-3">
-              <div 
-                className="bg-teal-500 h-1 rounded-full transition-all duration-500" 
-                style={{ width: `${totalComercios > 0 ? (cobrancaManual / totalComercios) * 100 : 0}%` }}
-              />
-            </div>
-          </div>
-        </section>
-
-        {/* Listagem e Controles */}
-        <section className="bg-zinc-900/40 border border-zinc-850 rounded-3xl p-6 backdrop-blur shadow-xl space-y-4">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4 border-b border-zinc-850/60 pb-5">
-            <div>
-              <h3 className="font-extrabold text-base text-white">Estabelecimentos Cadastrados</h3>
-              <p className="text-[11px] text-zinc-400">Visualize links do cardápio, mude status e alterne as regras de paywall.</p>
-            </div>
-
-            {/* Search Input Widget */}
-            <div className="relative w-full md:w-80">
-              <Search className="w-4 h-4 text-zinc-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                id="search-store-field"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Filtrar por nome, slug ou tipo..."
-                className="w-full h-10 rounded-xl bg-zinc-950/70 border border-zinc-850 pl-10 pr-4 text-xs font-semibold focus:outline-none focus:border-red-500/50 transition"
-              />
-              {searchTerm && (
-                <button onClick={() => setSearchTerm("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white p-1">
-                  <X className="w-3 h-3" />
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Table Container */}
-          <div className="overflow-x-auto rounded-2xl border border-zinc-850 bg-zinc-950/40">
-            {filteredStores.length === 0 ? (
-              <div className="p-12 text-center flex flex-col items-center justify-center space-y-2">
-                <Store className="w-10 h-10 text-zinc-600" />
-                <p className="text-sm text-zinc-400 font-bold">Nenhum comércio correspondente encontrado.</p>
-                <p className="text-xs text-zinc-500 max-w-xs leading-relaxed">Tente limpar os termos de busca ou certifique-se de que os tenants estejam devidamente registrados.</p>
+        {masterTab === "lojas" && (
+          <>
+            {/* Top Stats Widgets Grid */}
+            <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-zinc-900/50 border border-zinc-850 p-4 rounded-2xl flex flex-col justify-between">
+                <span className="text-[10px] uppercase font-black tracking-wider text-zinc-500">Total Comércios</span>
+                <div className="flex items-baseline gap-2 mt-2">
+                  <span className="text-3xl font-black tracking-tight">{totalComercios}</span>
+                  <span className="text-xs font-bold text-zinc-400">lojas</span>
+                </div>
               </div>
-            ) : (
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-zinc-850 bg-zinc-900/40 text-[10px] uppercase font-black text-zinc-400 select-none">
-                    <th className="px-5 py-4">Comércio</th>
-                    <th className="px-5 py-4">Link Público</th>
-                    <th className="px-5 py-4 text-center">Status Assinatura</th>
-                    <th className="px-5 py-4 text-center">Tipo de Cobrança</th>
-                    <th className="px-5 py-4 text-center">Ações de Cobrança</th>
-                    <th className="px-5 py-4 text-center">Deletar</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-850/60 text-xs">
-                  {filteredStores.map((s) => (
-                    <tr 
-                      key={s.id} 
-                      className={`hover:bg-zinc-900/35 transition-colors duration-150 ${updatingId === s.id ? "opacity-55 pointer-events-none" : ""}`}
-                    >
-                      {/* Store detail */}
-                      <td className="px-5 py-4 min-w-[200px]">
-                        <div className="flex items-start gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0 mt-0.5 text-zinc-300">
-                            {s.slug === "insano-lanches" ? "🍔" : "🍽️"}
-                          </div>
-                          <div>
-                            <span className="font-extrabold text-zinc-100 block">{s.nome}</span>
-                            <span className="text-[10px] text-zinc-400 block font-semibold">{s.tipo}</span>
-                            <span className="text-[8px] font-mono text-zinc-600 block mt-0.5">{s.id}</span>
-                          </div>
-                        </div>
-                      </td>
 
-                      {/* Menu Link */}
-                      <td className="px-5 py-4 min-w-[180px]">
-                        <a
-                          href={s.slug === "insano-lanches" ? "/" : `/cardapio/${s.slug}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 font-bold text-primary hover:underline hover:text-red-400"
+              <div className="bg-zinc-900/50 border border-zinc-850 p-4 rounded-2xl flex flex-col justify-between">
+                <span className="text-[10px] uppercase font-black tracking-wider text-emerald-500">Ativas</span>
+                <div className="flex items-baseline gap-2 mt-2">
+                  <span className="text-3xl font-black tracking-tight text-emerald-400">{ativos}</span>
+                  <span className="text-xs font-bold text-emerald-600">online</span>
+                </div>
+              </div>
+
+              <div className="bg-zinc-900/50 border border-zinc-850 p-4 rounded-2xl flex flex-col justify-between">
+                <span className="text-[10px] uppercase font-black tracking-wider text-amber-500">Pendentes</span>
+                <div className="flex items-baseline gap-2 mt-2">
+                  <span className="text-3xl font-black tracking-tight text-amber-500">{pendentes}</span>
+                  <span className="text-xs font-bold text-amber-600">rascunho</span>
+                </div>
+              </div>
+
+              <div className="bg-zinc-900/50 border border-zinc-850 p-4 rounded-2xl flex flex-col justify-between">
+                <span className="text-[10px] uppercase font-black tracking-wider text-red-500">Bloqueadas</span>
+                <div className="flex items-baseline gap-2 mt-2">
+                  <span className="text-3xl font-black tracking-tight text-red-400">{bloqueados}</span>
+                  <span className="text-xs font-bold text-red-600">off</span>
+                </div>
+              </div>
+            </section>
+
+            {/* Listagem e Controles */}
+            <section className="bg-zinc-900/40 border border-zinc-850 rounded-3xl p-6 backdrop-blur shadow-xl space-y-4">
+              <div className="flex flex-col md:flex-row items-center justify-between gap-4 border-b border-zinc-850/60 pb-5">
+                <div>
+                  <h3 className="font-extrabold text-base text-white">Estabelecimentos Cadastrados</h3>
+                  <p className="text-[11px] text-zinc-400">Clique no status para ciclar: ativa → pendente → bloqueada.</p>
+                </div>
+
+                <div className="relative w-full md:w-80">
+                  <Search className="w-4 h-4 text-zinc-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    id="search-store-field"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Filtrar por nome, slug ou tipo..."
+                    className="w-full h-10 rounded-xl bg-zinc-950/70 border border-zinc-850 pl-10 pr-4 text-xs font-semibold focus:outline-none focus:border-red-500/50 transition"
+                  />
+                  {searchTerm && (
+                    <button onClick={() => setSearchTerm("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white p-1">
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="overflow-x-auto rounded-2xl border border-zinc-850 bg-zinc-950/40">
+                {filteredStores.length === 0 ? (
+                  <div className="p-12 text-center flex flex-col items-center justify-center space-y-2">
+                    <Store className="w-10 h-10 text-zinc-600" />
+                    <p className="text-sm text-zinc-400 font-bold">Nenhum comércio correspondente encontrado.</p>
+                  </div>
+                ) : (
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-zinc-850 bg-zinc-900/40 text-[10px] uppercase font-black text-zinc-400 select-none">
+                        <th className="px-5 py-4">Comércio</th>
+                        <th className="px-5 py-4">Link Público</th>
+                        <th className="px-5 py-4 text-center">Status</th>
+                        <th className="px-5 py-4 text-center">Deletar</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-850/60 text-xs">
+                      {filteredStores.map((s) => (
+                        <tr
+                          key={s.id}
+                          className={`hover:bg-zinc-900/35 transition-colors duration-150 ${updatingId === s.id ? "opacity-55 pointer-events-none" : ""}`}
                         >
-                          <span>{s.slug}</span>
-                          <ExternalLink className="w-3.5 h-3.5" />
-                        </a>
-                      </td>
+                          <td className="px-5 py-4 min-w-[200px]">
+                            <div className="flex items-start gap-3">
+                              <div className="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0 mt-0.5 text-zinc-300">
+                                {s.slug === "insano-lanches" ? "🍔" : "🍽️"}
+                              </div>
+                              <div>
+                                <span className="font-extrabold text-zinc-100 block">{s.nome}</span>
+                                <span className="text-[10px] text-zinc-400 block font-semibold">{s.tipo}</span>
+                                <span className="text-[8px] font-mono text-zinc-600 block mt-0.5">{s.id}</span>
+                              </div>
+                            </div>
+                          </td>
 
-                      {/* Status */}
-                      <td className="px-5 py-4 text-center">
-                        <button
-                          onClick={() => handleToggleStatus(s.id, s.status_assinatura)}
-                          className="focus:outline-none"
-                          title="Clique para alternar o status da assinatura"
-                        >
-                          {s.status_assinatura === "ativo" ? (
-                            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-extrabold tracking-wide uppercase transition active:scale-95">
-                              <Check className="w-3 h-3 shrink-0" />
-                              <span>Ativa</span>
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 text-[10px] font-extrabold tracking-wide uppercase transition active:scale-95">
-                              <X className="w-3 h-3 shrink-0" />
-                              <span>Pendente</span>
-                            </span>
-                          )}
-                        </button>
-                      </td>
+                          <td className="px-5 py-4 min-w-[180px]">
+                            <a
+                              href={s.slug === "insano-lanches" ? "/" : `/cardapio/${s.slug}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 font-bold text-primary hover:underline hover:text-red-400"
+                            >
+                              <span>{s.slug}</span>
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            </a>
+                          </td>
 
-                      {/* Billing Type Indicator */}
-                      <td className="px-5 py-4 text-center">
-                        {s.cobranca_automatica !== false ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-[10px] font-black uppercase">
-                            <DollarSign className="w-3 h-3 shrink-0" />
-                            <span>SaaS Plataforma</span>
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-teal-500/10 text-teal-400 border border-teal-500/20 text-[10px] font-black uppercase">
-                            <Users className="w-3 h-3 shrink-0" />
-                            <span>Manual (Dono)</span>
-                          </span>
-                        )}
-                      </td>
+                          <td className="px-5 py-4 text-center">
+                            <button
+                              onClick={() => handleToggleStatus(s.id, s.status_assinatura)}
+                              className="focus:outline-none"
+                              title="Clique para alternar: ativa → pendente → bloqueada"
+                            >
+                              {s.status_assinatura === "ativo" ? (
+                                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-extrabold tracking-wide uppercase transition active:scale-95">
+                                  <Check className="w-3 h-3 shrink-0" />
+                                  <span>Ativa</span>
+                                </span>
+                              ) : (s as any).status_assinatura === "bloqueado" ? (
+                                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-red-500/10 text-red-400 border border-red-500/20 text-[10px] font-extrabold tracking-wide uppercase transition active:scale-95">
+                                  <Lock className="w-3 h-3 shrink-0" />
+                                  <span>Bloqueada</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 text-[10px] font-extrabold tracking-wide uppercase transition active:scale-95">
+                                  <X className="w-3 h-3 shrink-0" />
+                                  <span>Pendente</span>
+                                </span>
+                              )}
+                            </button>
+                          </td>
 
-                      {/* Action toggle switch */}
-                      <td className="px-5 py-4 text-center">
-                        <div className="flex items-center justify-center">
-                          <label className="relative inline-flex items-center cursor-pointer select-none">
-                            <input
-                              type="checkbox"
-                              checked={s.cobranca_automatica !== false}
-                              onChange={() => handleToggleBilling(s.id, s.cobranca_automatica !== false)}
-                              className="sr-only peer"
-                            />
-                            <div className="w-10 h-5 bg-zinc-800 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-zinc-400 peer-checked:after:bg-indigo-400 after:border-zinc-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-950/80 peer-checked:border peer-checked:border-indigo-500/40 border border-zinc-700/60" />
-                            <span className="ml-2 text-[10px] font-bold text-zinc-400 w-16 text-left">
-                              {s.cobranca_automatica !== false ? "Automática" : "Manual"}
-                            </span>
-                          </label>
-                        </div>
-                      </td>
+                          <td className="px-5 py-4 text-center">
+                            <button
+                              onClick={() => handleDeleteStore(s.id, s.nome)}
+                              className="p-2 rounded-lg bg-red-950/20 hover:bg-red-500 hover:text-black text-red-500 transition active:scale-95"
+                              title="Excluir estabelecimento permanentemente"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
 
-                      {/* Delete dangerous trigger */}
-                      <td className="px-5 py-4 text-center">
-                        <button
-                          onClick={() => handleDeleteStore(s.id, s.nome)}
-                          className="p-2 rounded-lg bg-red-950/20 hover:bg-red-500 hover:text-black text-red-500 transition active:scale-95"
-                          title="Excluir estabelecimento permanentemente"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
+              <div className="flex flex-col sm:flex-row items-center justify-between text-[10px] text-zinc-500 pt-3 gap-2">
+                <span>Dica: clique no status para alternar entre Ativa, Pendente e Bloqueada.</span>
+                <span className="font-semibold text-zinc-400">Total exibido: {filteredStores.length} de {totalComercios} cadastros</span>
+              </div>
+            </section>
+          </>
+        )}
 
-          <div className="flex flex-col sm:flex-row items-center justify-between text-[10px] text-zinc-500 pt-3 gap-2">
-            <span>Dica: Desativar a "Cobrança Automática" libera o cardápio público imediatamente sem exigir pagamento no painel.</span>
-            <span className="font-semibold text-zinc-400">Total exibido: {filteredStores.length} de {totalComercios} cadastros</span>
-          </div>
-        </section>
+        {masterTab === "patrocinados" && <SponsorsTab />}
+        {masterTab === "carrosseis" && <CarrosseisTab stores={stores} />}
+        {masterTab === "disparos" && <DisparosTab stores={stores} />}
+        {masterTab === "evolution" && <EvolutionTab />}
       </main>
 
-      {/* Mini Footer */}
       <footer className="py-4 border-t border-zinc-850/60 bg-zinc-950/40 text-center text-[10px] text-zinc-500">
         © 2026 Bio-Cardápio SaaS — Área Master do Administrador Registrado. Todos os direitos reservados.
       </footer>
     </div>
+  );
+}
+
+// ── Patrocinados globais (tabela sponsor_banners, 1 select leve) ──
+function SponsorsTab() {
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [missing, setMissing] = useState(false);
+  const [nome, setNome] = useState("");
+  const [slogan, setSlogan] = useState("");
+  const [emoji, setEmoji] = useState("📢");
+  const [gradient, setGradient] = useState(GRADIENTS[0]);
+
+  async function load() {
+    if (!supabase) return;
+    setLoading(true);
+    setMissing(false);
+    try {
+      const { data, error } = await supabase
+        .from("sponsor_banners")
+        .select("id,nome,slogan,emoji,gradient,active,position")
+        .order("position", { ascending: true })
+        .limit(30);
+      if (error) throw error;
+      setItems(data || []);
+    } catch (err: any) {
+      if (err?.code === "42P01") setMissing(true);
+      else alert("Erro: " + (err?.message || err));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  async function add(e: React.FormEvent) {
+    e.preventDefault();
+    if (!supabase || !nome.trim()) return alert("Dê um nome ao patrocinado.");
+    try {
+      const { error } = await supabase.from("sponsor_banners").insert({
+        nome: nome.trim().slice(0, 60),
+        slogan: slogan.trim().slice(0, 80),
+        emoji: emoji.trim().slice(0, 8) || "📢",
+        gradient,
+        position: items.length,
+      });
+      if (error) throw error;
+      setNome("");
+      setSlogan("");
+      await load();
+      try {
+        sessionStorage.removeItem("insano.sponsors.cache");
+      } catch {}
+    } catch (err: any) {
+      alert("Erro ao salvar: " + err.message);
+    }
+  }
+
+  if (missing) {
+    return (
+      <div className="rounded-2xl bg-amber-500/10 border border-amber-500/30 p-5 space-y-2">
+        <h4 className="font-extrabold text-sm text-amber-400">📢 Ative os patrocinados (1 clique)</h4>
+        <p className="text-xs text-zinc-300">
+          Rode <code className="font-mono bg-black/40 px-1 rounded">supabase-master.sql</code> no SQL Editor do Supabase (1 vez).
+        </p>
+        <button onClick={load} className="h-9 px-4 rounded-xl bg-amber-500 text-black text-xs font-extrabold">
+          Já executei — recarregar
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <section className="space-y-4">
+      <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-4 space-y-3">
+        <div>
+          <h4 className="font-extrabold text-sm text-white">📢 Patrocinados globais (stand by)</h4>
+          <p className="text-[11px] text-zinc-400">
+            Em stand by no cardápio até você ativar. Quando ligado, aparece em todas as lojas com 1 select em cache de 10min.
+          </p>
+        </div>
+        <form onSubmit={add} className="flex flex-col sm:flex-row gap-2">
+          <input value={emoji} onChange={(e) => setEmoji(e.target.value)} placeholder="📢" className="w-full sm:w-16 h-10 rounded-xl bg-zinc-950 border border-zinc-800 px-3 text-sm text-center" />
+          <input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Nome: Barbearia Corte Fino" className="flex-1 h-10 rounded-xl bg-zinc-950 border border-zinc-800 px-3 text-xs font-bold" />
+          <input value={slogan} onChange={(e) => setSlogan(e.target.value)} placeholder="Slogan: Corte + barba R$ 50" className="flex-1 h-10 rounded-xl bg-zinc-950 border border-zinc-800 px-3 text-xs" />
+          <select value={gradient} onChange={(e) => setGradient(e.target.value)} className="h-10 rounded-xl bg-zinc-950 border border-zinc-800 px-2 text-[11px]">
+            {GRADIENTS.map((g) => (
+              <option key={g} value={g}>{g.split(" ")[0].replace("from-", "")}</option>
+            ))}
+          </select>
+          <button type="submit" className="h-10 px-4 rounded-xl bg-primary text-primary-foreground text-xs font-extrabold">Adicionar</button>
+        </form>
+      </div>
+
+      <div className="rounded-2xl bg-zinc-900 border border-zinc-800 overflow-hidden">
+        {items.length === 0 ? (
+          <p className="text-center text-zinc-500 text-xs font-bold py-10">{loading ? "Carregando..." : "Nenhum patrocinado — adicione o primeiro acima."}</p>
+        ) : (
+          <div className="divide-y divide-zinc-800/60">
+            {items.map((s) => (
+              <div key={s.id} className="flex items-center gap-3 px-4 py-3">
+                <div className={`w-10 h-10 rounded-lg bg-gradient-to-r ${s.gradient} flex items-center justify-center text-xl shrink-0`}>{s.emoji}</div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-black text-white truncate">{s.nome}</p>
+                  <p className="text-[11px] text-zinc-400 truncate">{s.slogan}</p>
+                </div>
+                <button
+                  onClick={async () => {
+                    if (!supabase) return;
+                    await supabase.from("sponsor_banners").update({ active: !s.active }).eq("id", s.id);
+                    load();
+                    try { sessionStorage.removeItem("insano.sponsors.cache"); } catch {}
+                  }}
+                  className={`text-[10px] font-bold px-2.5 py-1.5 rounded-lg ${s.active ? "bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/30" : "bg-zinc-800 text-zinc-400"}`}
+                >
+                  {s.active ? "Ativo" : "Pausado"}
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!supabase || !confirm(`Apagar "${s.nome}"?`)) return;
+                    await supabase.from("sponsor_banners").delete().eq("id", s.id);
+                    load();
+                    try { sessionStorage.removeItem("insano.sponsors.cache"); } catch {}
+                  }}
+                  className="p-2 rounded-lg bg-red-950/20 text-red-500 hover:bg-red-500 hover:text-black transition"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+// ── Carrossel por loja (leitura sob demanda do store_data JSON) ──
+function CarrosseisTab({ stores }: { stores: Loja[] }) {
+  const [lojaId, setLojaId] = useState("");
+  const [images, setImages] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  async function load(loja: string) {
+    if (!supabase || !loja) return;
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.from("store_data").select("data").eq("loja_id", loja).maybeSingle();
+      if (error) throw error;
+      const s = (data?.data as any)?.settings || {};
+      const list: string[] = Array.isArray(s.banners) && s.banners.length > 0 ? s.banners.filter(Boolean).slice(0, 5) : s.bannerUrl ? [s.bannerUrl] : [];
+      setImages(list);
+    } catch (err: any) {
+      alert("Erro: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <section className="space-y-4">
+      <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-4 space-y-3">
+        <div>
+          <h4 className="font-extrabold text-sm text-white">🖼️ Carrossel por loja</h4>
+          <p className="text-[11px] text-zinc-400">Inspeção sob demanda (1 select só ao escolher a loja). Troca sozinha a cada ~4s no cardápio.</p>
+        </div>
+        <select value={lojaId} onChange={(e) => { setLojaId(e.target.value); load(e.target.value); }} className="w-full h-11 rounded-xl bg-zinc-950 border border-zinc-800 px-3 text-xs font-bold">
+          <option value="">Escolha a loja...</option>
+          {stores.map((s) => (
+            <option key={s.id} value={s.id}>{s.nome} ({s.slug})</option>
+          ))}
+        </select>
+      </div>
+      {lojaId && (
+        <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-4">
+          {loading ? (
+            <p className="text-xs text-zinc-500 font-bold text-center py-6">Carregando...</p>
+          ) : images.length === 0 ? (
+            <p className="text-xs text-zinc-500 font-bold text-center py-6">Sem banners — a loja ainda não enviou fotos (aba Geral do lojista).</p>
+          ) : (
+            <div className="flex gap-3 overflow-x-auto pb-2">
+              {images.map((src, i) => (
+                <img key={i} src={src} alt={`Banner ${i + 1}`} className="w-48 h-28 object-cover rounded-xl ring-1 ring-zinc-700 shrink-0" loading="lazy" />
+              ))}
+            </div>
+          )}
+          <p className="text-[10px] text-zinc-500 mt-2">{images.length}/5 fotos no carrossel.</p>
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ── Disparos por loja (usa loja_clientes + broadcast_log, limite 10/dia) ──
+function DisparosTab({ stores }: { stores: Loja[] }) {
+  const [lojaId, setLojaId] = useState("");
+  const [count, setCount] = useState<number | null>(null);
+  const [today, setToday] = useState(0);
+  const [msg, setMsg] = useState("🔥 Promoção da semana! Mostre essa msg e ganhe 10% OFF hoje!");
+  const [sending, setSending] = useState(false);
+  const [last, setLast] = useState<any[]>([]);
+
+  async function loadLoja(loja: string) {
+    if (!supabase || !loja) return;
+    try {
+      const [{ count: c }, { data: logs }] = await Promise.all([
+        supabase.from("loja_clientes").select("id", { count: "exact", head: true }).eq("loja_id", loja).eq("opt_out", false),
+        supabase.from("loja_clientes").select("id").eq("loja_id", loja).limit(1),
+      ]);
+      setCount(c ?? 0);
+      // Disparos de hoje (limite 10/dia p/ não queimar o número nem o banco)
+      const start = new Date();
+      start.setHours(0, 0, 0, 0);
+      const { data: bl } = await supabase.from("broadcast_log").select("id").eq("loja_id", loja).gte("created_at", start.toISOString()).limit(11);
+      setToday((bl || []).length);
+      // Últimos registros
+      const { data: recent } = await supabase.from("broadcast_log").select("id,total,ok_count,message,created_at").eq("loja_id", loja).order("created_at", { ascending: false }).limit(5);
+      setLast(recent || []);
+      void logs;
+    } catch (err: any) {
+      if (err?.code !== "42P01") alert("Erro: " + err.message);
+      setCount(0);
+    }
+  }
+
+  async function copyNumbers() {
+    if (!supabase || !lojaId) return;
+    const { data } = await supabase.from("loja_clientes").select("phone").eq("loja_id", lojaId).eq("opt_out", false).limit(500);
+    const nums = (data || []).map((r: any) => `55${String(r.phone).replace(/\D/g, "").replace(/^55/, "")}`);
+    try {
+      await navigator.clipboard.writeText(nums.join(","));
+      alert(`${nums.length} números copiados!`);
+    } catch {
+      alert(nums.join("\n"));
+    }
+  }
+
+  async function simulate() {
+    if (!supabase || !lojaId) return alert("Escolha a loja.");
+    if (!msg.trim()) return alert("Escreva a mensagem.");
+    if (today >= 10) return alert("Limite de 10 disparos/dia atingido para esta loja.");
+    if (!confirm(`Simular disparo para ${count ?? "?"} clientes da loja? (Evolution ainda não conectada — registra só o log)`)) return;
+    setSending(true);
+    try {
+      const { error } = await supabase.from("broadcast_log").insert({
+        loja_id: lojaId,
+        total: count || 0,
+        ok_count: count || 0,
+        message: `[SIMULAÇÃO] ${msg.trim().slice(0, 500)}`,
+      });
+      if (error) throw error;
+      setToday((t) => t + 1);
+      loadLoja(lojaId);
+      alert("Disparo simulado e registrado no log!");
+    } catch (err: any) {
+      alert("Erro: " + err.message);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <section className="space-y-4">
+      <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-4 space-y-3">
+        <div>
+          <h4 className="font-extrabold text-sm text-white">📲 Disparos por loja</h4>
+          <p className="text-[11px] text-zinc-400">Base: telefones coletados no checkout (opt-out respeitado). Limite 10/dia por loja. Conecte a Evolution na aba 🔌 para envio real.</p>
+        </div>
+        <select value={lojaId} onChange={(e) => { setLojaId(e.target.value); loadLoja(e.target.value); }} className="w-full h-11 rounded-xl bg-zinc-950 border border-zinc-800 px-3 text-xs font-bold">
+          <option value="">Escolha a loja...</option>
+          {stores.map((s) => (
+            <option key={s.id} value={s.id}>{s.nome} ({s.slug})</option>
+          ))}
+        </select>
+        {lojaId && (
+          <div className="flex flex-wrap gap-2 text-[11px] font-bold">
+            <span className="px-3 py-1.5 rounded-full bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/30">{count ?? "—"} contatos ativos</span>
+            <span className={`px-3 py-1.5 rounded-full ring-1 ${today >= 10 ? "bg-red-500/10 text-red-400 ring-red-500/30" : "bg-zinc-800 text-zinc-300 ring-zinc-700"}`}>{today}/10 disparos hoje</span>
+          </div>
+        )}
+        <textarea value={msg} onChange={(e) => setMsg(e.target.value)} rows={4} maxLength={600} placeholder="Mensagem do disparo..." className="w-full p-3 rounded-xl bg-zinc-950 border border-zinc-800 text-xs outline-none focus:border-primary/50" />
+        <p className="text-[10px] text-zinc-500 text-right">{msg.length}/600</p>
+        <div className="flex gap-2">
+          <button onClick={copyNumbers} disabled={!lojaId} className="flex-1 h-10 rounded-xl bg-zinc-800 text-zinc-200 text-xs font-bold ring-1 ring-zinc-700 disabled:opacity-40">Copiar números</button>
+          <button onClick={simulate} disabled={!lojaId || sending || today >= 10} className="flex-1 h-10 rounded-xl bg-emerald-500 text-black text-xs font-extrabold disabled:opacity-40">
+            {sending ? "Registrando..." : "Simular + registrar"}
+          </button>
+        </div>
+      </div>
+
+      {last.length > 0 && (
+        <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-4 space-y-2">
+          <h5 className="text-xs font-extrabold text-white">Últimos disparos</h5>
+          {last.map((l) => (
+            <div key={l.id} className="text-[11px] text-zinc-400 border-b border-zinc-800/60 pb-2">
+              <span className="font-bold text-zinc-200">{l.ok_count}/{l.total}</span> • {new Date(l.created_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })} • {String(l.message).slice(0, 80)}
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ── Evolution (config local + teste de conexão, sem nada no banco) ──
+function EvolutionTab() {
+  const [base, setBase] = useState("");
+  const [key, setKey] = useState("");
+  const [instance, setInstance] = useState("");
+  const [status, setStatus] = useState("");
+  const [testing, setTesting] = useState(false);
+
+  useEffect(() => {
+    const c = evoCfg();
+    setBase(c.base);
+    setKey(c.key);
+    setInstance(c.instance);
+  }, []);
+
+  function save() {
+    localStorage.setItem("insano.evo.base", base.trim().replace(/\/$/, ""));
+    localStorage.setItem("insano.evo.key", key.trim());
+    localStorage.setItem("insano.evo.instance", instance.trim());
+    setStatus("✅ Configuração salva neste navegador.");
+  }
+
+  async function test() {
+    if (!base.trim() || !instance.trim()) return setStatus("⚠️ Preencha URL e instância primeiro.");
+    setTesting(true);
+    setStatus("Testando...");
+    try {
+      const res = await fetch(`${base.trim().replace(/\/$/, "")}/instance/connectionState/${instance.trim()}`, {
+        headers: { apikey: key.trim() },
+      });
+      const txt = await res.text();
+      setStatus(res.ok ? `✅ Conectado: ${txt.slice(0, 200)}` : `❌ HTTP ${res.status}: ${txt.slice(0, 200)}`);
+    } catch (err: any) {
+      setStatus("❌ Falha de rede/CORS: " + (err?.message || err));
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  return (
+    <section className="space-y-4">
+      <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-4 space-y-3">
+        <div>
+          <h4 className="font-extrabold text-sm text-white">🔌 Evolution API (modo simulação)</h4>
+          <p className="text-[11px] text-zinc-400">Você ainda não tem a Evolution — os disparos rodam em simulação + log. Quando contratar, preencha aqui e o envio real liga sem mexer no banco (config fica só neste navegador).</p>
+        </div>
+        <label className="block space-y-1">
+          <span className="text-[10px] uppercase font-bold text-zinc-500">URL base (ex: https://evo.seudominio.com)</span>
+          <input value={base} onChange={(e) => setBase(e.target.value)} placeholder="https://..." className="w-full h-10 rounded-xl bg-zinc-950 border border-zinc-800 px-3 text-xs font-mono" />
+        </label>
+        <label className="block space-y-1">
+          <span className="text-[10px] uppercase font-bold text-zinc-500">API key global</span>
+          <input value={key} onChange={(e) => setKey(e.target.value)} type="password" placeholder="apikey..." className="w-full h-10 rounded-xl bg-zinc-950 border border-zinc-800 px-3 text-xs font-mono" />
+        </label>
+        <label className="block space-y-1">
+          <span className="text-[10px] uppercase font-bold text-zinc-500">Nome da instância</span>
+          <input value={instance} onChange={(e) => setInstance(e.target.value)} placeholder="cardapio-master" className="w-full h-10 rounded-xl bg-zinc-950 border border-zinc-800 px-3 text-xs font-mono" />
+        </label>
+        <div className="flex gap-2">
+          <button onClick={save} className="flex-1 h-10 rounded-xl bg-primary text-primary-foreground text-xs font-extrabold">Salvar</button>
+          <button onClick={test} disabled={testing} className="flex-1 h-10 rounded-xl bg-zinc-800 text-zinc-200 text-xs font-bold ring-1 ring-zinc-700 disabled:opacity-50">{testing ? "Testando..." : "Testar conexão"}</button>
+        </div>
+        {status && <p className="text-[11px] font-bold text-zinc-300 break-all">{status}</p>}
+      </div>
+    </section>
   );
 }

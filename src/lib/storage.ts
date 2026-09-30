@@ -64,10 +64,17 @@ const DEFAULT_SETTINGS: Settings = {
   pixKey: "",
   pixName: "",
   adminPassword: "1234",
-  mayoPrice: 2,
   storeAddress: "",
   logoUrl: "",
+  bannerUrl: "",
+  banners: [],
+  coupons: [],
   deliveryTime: "30-60",
+  // Promo desligada por padrão: loja ativa quando quiser, sem custo de leitura.
+  promoActive: false,
+  promoDiscountPct: 10,
+  promoMinOrderFreeShipping: 100,
+  promoDays: [2, 3],
 };
 
 const DEFAULT_PRODUCTS: Product[] = [];
