@@ -221,10 +221,87 @@ function write<T>(key: string, value: T, skipCloudSync = false) {
 }
 
 export const storage = {
-  getLoyaltyPoints: () => read<number>(KEYS.loyalty, 0),
-  setLoyaltyPoints: (n: number) => write(KEYS.loyalty, Math.max(0, n), true),
-  addLoyaltyPoint: () => write(KEYS.loyalty, storage.getLoyaltyPoints() + 1, true),
-  resetLoyalty: () => write(KEYS.loyalty, 0, true),
+  // ── Fidelidade: 1 cartão por TELEFONE (não mais 1 por aparelho).
+  // Chaves fora de SYNCABLE_KEYS: nunca sobem pra nuvem (dado do cliente).
+  // Legado (sem telefone) continua lido para migração automática.
+  getLoyaltyPhone: (): string => {
+    const lojaId = getActiveLojaId();
+    return read<string>(`insano.loyalty.phone.${lojaId || "global"}`, "");
+  },
+  setLoyaltyPhone: (digits: string) => {
+    const lojaId = getActiveLojaId();
+    write(`insano.loyalty.phone.${lojaId || "global"}`, (digits || "").replace(/\D/g, "").slice(0, 15), true);
+  },
+  getLoyaltyPoints: (phone?: string) => {
+    const lojaId = getActiveLojaId();
+    const digits = (phone ?? "").replace(/\D/g, "");
+    const key = digits
+      ? `insano.loyalty.points.${lojaId || "global"}.${digits}`
+      : `insano.loyalty.points.${lojaId || "global"}`;
+    return read<number>(key, 0);
+  },
+  setLoyaltyPoints: (n: number, phone?: string) => {
+    const lojaId = getActiveLojaId();
+    const digits = (phone ?? "").replace(/\D/g, "");
+    const key = digits
+      ? `insano.loyalty.points.${lojaId || "global"}.${digits}`
+      : `insano.loyalty.points.${lojaId || "global"}`;
+    return write(key, Math.max(0, n), true);
+  },
+  addLoyaltyPoint: (phone?: string) =>
+    write(
+      (() => {
+        const lojaId = getActiveLojaId();
+        const digits = (phone ?? "").replace(/\D/g, "");
+        return digits
+          ? `insano.loyalty.points.${lojaId || "global"}.${digits}`
+          : `insano.loyalty.points.${lojaId || "global"}`;
+      })(),
+      storage.getLoyaltyPoints(phone) + 1,
+      true,
+    ),
+  resetLoyalty: (phone?: string) => storage.setLoyaltyPoints(0, phone),
+  // Move o saldo anônimo antigo para o cartão do telefone (1ª vinculação).
+  migrateLegacyLoyalty: (phone: string): boolean => {
+    const digits = (phone || "").replace(/\D/g, "");
+    if (!digits) return false;
+    const legacy = storage.getLoyaltyPoints();
+    if (legacy <= 0 || storage.getLoyaltyPoints(digits) > 0) return false;
+    storage.setLoyaltyPoints(legacy, digits);
+    storage.setLoyaltyPoints(0);
+    return true;
+  },
+  // Cooldown anti-fraude (1h) por telefone; respeita o legado do aparelho.
+  loyaltyCooldownAt: (phone?: string): number => {
+    if (typeof window === "undefined") return 0;
+    const lojaId = getActiveLojaId();
+    const digits = (phone ?? "").replace(/\D/g, "");
+    try {
+      const specific = Number(
+        localStorage.getItem(
+          digits
+            ? `insano.loyalty.lastOrderAt.${lojaId}.${digits}`
+            : `insano.loyalty.lastOrderAt.${lojaId}`,
+        ) || 0,
+      );
+      const legacy = Number(localStorage.getItem(`insano.loyalty.lastOrderAt.${lojaId}`) || 0);
+      return Math.max(specific, legacy);
+    } catch {
+      return 0;
+    }
+  },
+  markLoyaltyOrder: (phone?: string) => {
+    if (typeof window === "undefined") return;
+    const lojaId = getActiveLojaId();
+    const digits = (phone ?? "").replace(/\D/g, "");
+    try {
+      const key = digits
+        ? `insano.loyalty.lastOrderAt.${lojaId}.${digits}`
+        : `insano.loyalty.lastOrderAt.${lojaId}`;
+      localStorage.setItem(key, Date.now().toString());
+      window.dispatchEvent(new CustomEvent("insano-storage"));
+    } catch {}
+  },
 
   getCustomers: () => read<CustomerLoyalty[]>(KEYS.customers, []),
   setCustomers: (c: CustomerLoyalty[]) => write(KEYS.customers, c),

@@ -34,7 +34,9 @@ export function CartDrawer({
   onClear: () => void;
 }) {
   const settings = useStorageSync(() => storage.getSettings());
-  const points = useStorageSync(() => storage.getLoyaltyPoints());
+  // Cartão fidelidade segue o TELEFONE (não o aparelho): mostra os pontos
+  // do número vinculado; sem vínculo, mostra o saldo anônimo antigo.
+  const points = useStorageSync(() => storage.getLoyaltyPoints(storage.getLoyaltyPhone() || undefined));
   const products = useStorageSync(() => storage.getProducts());
 
   const [name, setName] = useState("");
@@ -48,6 +50,16 @@ export function CartDrawer({
   const [change, setChange] = useState("");
   const [observation, setObservation] = useState("");
   const [redeem, setRedeem] = useState(false);
+  // Telefone dono do cartão nesta compra: o digitado (válido) ou o último vinculado.
+  const orderPhoneDigits = phone.replace(/\D/g, "");
+  const loyaltyPhone =
+    orderPhoneDigits.length >= 10 ? orderPhoneDigits : storage.getLoyaltyPhone();
+  function handlePhoneInput(v: string) {
+    setPhone(v);
+    const d = v.replace(/\D/g, "");
+    // Número válido vira o cartão ativo na hora (pontos atualizam junto).
+    if (d.length >= 10) storage.setLoyaltyPhone(d);
+  }
   const [isRescuing, setIsRescuing] = useState(false);
   const [activeCampaign, setActiveCampaign] = useState<Campaign | null>(null);
   const [copied, setCopied] = useState(false);
@@ -287,14 +299,9 @@ export function CartDrawer({
     }
   }
 
-  // Cooldown de Fidelidade (1 hora) — escopado por loja para não bloquear
-  // o cliente de pontuar na Loja B porque pediu na Loja A.
-  const cooldownKey =
-    typeof window !== "undefined" && getActiveLojaId()
-      ? `insano.loyalty.lastOrderAt.${getActiveLojaId()}`
-      : "insano.loyalty.lastOrderAt";
-  const lastOrderAt =
-    typeof window !== "undefined" ? Number(localStorage.getItem(cooldownKey) || 0) : 0;
+  // Cooldown de Fidelidade (1h) por TELEFONE + loja: um cliente não bloqueia
+  // o ponto do outro no mesmo aparelho. Respeita o carimbo anônimo antigo.
+  const lastOrderAt = storage.loyaltyCooldownAt(loyaltyPhone || undefined);
   const isCooldownActive = Date.now() - lastOrderAt < 60 * 60 * 1000;
   const willEarnPoint = subtotal > settings.loyaltyMinOrder && !redeem && !isCooldownActive;
 
@@ -375,6 +382,8 @@ export function CartDrawer({
       lines.push(`*Taxa de entrega:* GRÁTIS 🎉 (Promoção)`);
     }
     if (discount > 0) lines.push(`*Desconto fidelidade:* -${brl(discount)}`);
+    if (settings.loyaltyActive !== false && loyaltyPhone)
+      lines.push(`*Fidelidade ${loyaltyPhone}:* ${points}/${settings.loyaltyGoal} pts`);
     if (pd > 0) lines.push(`*Desconto 1ª compra (${promoPct}%):* -${brl(pd)}`);
     if (couponApplied) lines.push(`*Cupom ${couponApplied.code} (${couponApplied.pct}%):* -${brl(couponDiscount)}`);
     lines.push("");
@@ -431,6 +440,12 @@ export function CartDrawer({
     } catch {}
 
     const lojaId = typeof window !== "undefined" ? getActiveLojaId() : null;
+
+    // Telefone validado acima (>=10 dígitos): dono do cartão fidelidade
+    // desta compra + migração do saldo anônimo antigo para ele.
+    const orderPhone = phone.replace(/\D/g, "");
+    storage.setLoyaltyPhone(orderPhone);
+    storage.migrateLegacyLoyalty(orderPhone);
 
     // Revalida estoque com dado fresco local (zero reads Supabase) antes de enviar.
     const freshProducts = storage.getProducts();
@@ -664,7 +679,7 @@ export function CartDrawer({
         return;
       }
       setIsRescuing(true);
-      storage.resetLoyalty();
+      storage.resetLoyalty(orderPhone);
 
       const redeemedItem =
         rewardProd ||
@@ -674,7 +689,7 @@ export function CartDrawer({
         date: new Date().toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }),
         name: name.trim(),
         item: redeemedItem ? redeemedItem.name : "Lanche Grátis",
-        phone: delivery === "entrega" ? `${street}, ${number}` : "Retirada",
+        phone: orderPhone,
       });
 
       setTimeout(() => {
@@ -689,10 +704,8 @@ export function CartDrawer({
       }, 2000);
       return;
     } else if (willEarnPoint) {
-      storage.addLoyaltyPoint();
-      try {
-        localStorage.setItem(cooldownKey, Date.now().toString());
-      } catch {}
+      storage.addLoyaltyPoint(orderPhone);
+      storage.markLoyaltyOrder(orderPhone);
     } else if (subtotal > settings.loyaltyMinOrder && !redeem && isCooldownActive) {
       console.warn("Pontuação de fidelidade bloqueada por Cooldown de segurança (1 hora).");
     }
@@ -927,7 +940,7 @@ export function CartDrawer({
                 <Input
                   placeholder="Telefone de contato (com DDD)"
                   value={phone}
-                  onChange={setPhone}
+                  onChange={handlePhoneInput}
                 />
                 <div className="grid grid-cols-2 gap-2">
                   <button
