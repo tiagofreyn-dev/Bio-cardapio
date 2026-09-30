@@ -10,53 +10,8 @@ interface Sponsor {
   image_url?: string;
 }
 
-// Fallback local (exibido se o banco ainda não tiver patrocinados ou se o
-// SQL do master ainda não foi executado). O master gerencia os reais na
-// aba Patrocinados do /master-admin.
-const MOCK_SPONSORS: Sponsor[] = [
-  {
-    id: "1",
-    nome: "Barbearia Corte Fino",
-    slogan: "Corte + barba R$ 50 • Seg a Sáb",
-    emoji: "💈",
-    gradient: "from-sky-600 via-blue-700 to-indigo-900",
-  },
-  {
-    id: "2",
-    nome: "Pizzaria Forno a Lenha",
-    slogan: "Rodízio R$ 49,90 • Delivery até 23h",
-    emoji: "🍕",
-    gradient: "from-red-600 via-orange-600 to-amber-700",
-  },
-  {
-    id: "3",
-    nome: "Academia Corpo Ativo",
-    slogan: "1ª semana grátis • Musculação + Cross",
-    emoji: "💪",
-    gradient: "from-emerald-600 via-green-700 to-lime-800",
-  },
-  {
-    id: "4",
-    nome: "Pet Shop AuAu",
-    slogan: "Banho + tosa com 20% OFF",
-    emoji: "🐶",
-    gradient: "from-violet-600 via-purple-700 to-fuchsia-800",
-  },
-  {
-    id: "5",
-    nome: "Sorveteria Gelada",
-    slogan: "2º pote com 50% OFF hoje",
-    emoji: "🍨",
-    gradient: "from-cyan-500 via-sky-600 to-blue-800",
-  },
-  {
-    id: "6",
-    nome: "Farmácia Saúde+",
-    slogan: "Entrega grátis em 30 min",
-    emoji: "💊",
-    gradient: "from-teal-600 via-emerald-700 to-green-900",
-  },
-];
+// Sem fallback fictício: se o master não tem patrocinados cadastrados,
+// a seção nem aparece no cardápio (antes mostrava 6 mocks "demo").
 
 function SponsorCard({ sponsor, onExpand }: { sponsor: Sponsor; onExpand: () => void }) {
   const photo =
@@ -125,7 +80,7 @@ function dedupeSponsors(items: Sponsor[]): Sponsor[] {
 }
 
 export function SponsorCarousel() {
-  const [sponsors, setSponsors] = useState<Sponsor[]>(MOCK_SPONSORS);
+  const [sponsors, setSponsors] = useState<Sponsor[]>([]);
   const [isLive, setIsLive] = useState(false);
 
   // ULTRA-LEVE: 1 select projetado, cache 10min em sessionStorage.
