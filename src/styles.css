@@ -68,6 +68,38 @@
   --foreground: oklch(0.98 0 0);
 }
 
+.light {
+  --background: oklch(0.98 0 0);
+  --foreground: oklch(0.13 0 0);
+  --surface: oklch(1 0 0);
+  --surface-elevated: oklch(0.98 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.13 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.13 0 0);
+  --secondary: oklch(0.95 0 0);
+  --secondary-foreground: oklch(0.13 0 0);
+  --muted: oklch(0.95 0 0);
+  --muted-foreground: oklch(0.45 0 0);
+  --border: oklch(0.9 0 0);
+  --input: oklch(0.9 0 0);
+
+  /* Override hardcoded zinc palette */
+  --color-zinc-50: #09090b;
+  --color-zinc-100: #18181b;
+  --color-zinc-200: #27272a;
+  --color-zinc-300: #3f3f46;
+  --color-zinc-400: #52525b;
+  --color-zinc-500: #71717a;
+  --color-zinc-600: #a1a1aa;
+  --color-zinc-700: #d4d4d8;
+  --color-zinc-800: #e4e4e7;
+  --color-zinc-900: #f4f4f5;
+  --color-zinc-950: #ffffff;
+  --color-white: #09090b;
+  --color-black: #ffffff;
+}
+
 @layer base {
   * { border-color: var(--color-border); }
   html, body {
@@ -86,6 +118,19 @@
 @layer utilities {
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+  /* Outdoor de patrocinadores — carrossel infinito passando pro lado */
+  @keyframes sponsor-marquee {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+  .animate-sponsor-marquee { animation: sponsor-marquee 28s linear infinite; }
+  .sponsor-pause:hover .animate-sponsor-marquee,
+  .sponsor-pause:hover.animate-sponsor-marquee { animation-play-state: paused; }
+  .sponsor-mask {
+    mask-image: linear-gradient(to right, transparent, black 4%, black 96%, transparent);
+    -webkit-mask-image: linear-gradient(to right, transparent, black 4%, black 96%, transparent);
+  }
 }
 
 @keyframes shake-bounce {

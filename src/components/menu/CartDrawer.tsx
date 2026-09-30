@@ -129,7 +129,35 @@ export function CartDrawer({
 
   const subtotal = useMemo(() => items.reduce((s, i) => s + i.price * i.qty, 0), [items]);
   const activeDeliveryFee = selectedLocation ? selectedLocation.fee : 0;
-  const deliveryFee = delivery === "entrega" ? activeDeliveryFee : 0;
+
+  // Motor de promoções por loja (100% local: settings já estão no JSON — zero reads).
+  // promoDays: 0=Dom..6=Sab. Desconto % só na 1ª compra em dia promo;
+  // frete grátis p/ recorrentes acima do mínimo em dia promo.
+  const promoDays = settings?.promoDays?.length ? settings.promoDays : [2, 3];
+  const isPromoDay =
+    (settings?.promoActive ?? false) && promoDays.includes(new Date().getDay());
+  const promoPct = settings?.promoDiscountPct ?? 10;
+  const promoFreeMin = settings?.promoMinOrderFreeShipping ?? 100;
+  const lastOrderKey =
+    typeof window !== "undefined" && getActiveLojaId()
+      ? `insano.last_order_time.${getActiveLojaId()}`
+      : "insano.last_order_time";
+  const isFirstPurchase =
+    typeof window === "undefined" ? true : !localStorage.getItem(lastOrderKey);
+  const [fraudBlocked, setFraudBlocked] = useState(false);
+  const promoDiscount =
+    isPromoDay && isFirstPurchase && !fraudBlocked && !redeem
+      ? subtotal * (promoPct / 100)
+      : 0;
+  const isFreeDeliveryPromo =
+    isPromoDay &&
+    !isFirstPurchase &&
+    !fraudBlocked &&
+    !redeem &&
+    delivery === "entrega" &&
+    subtotal >= promoFreeMin;
+  const deliveryFee =
+    delivery === "entrega" ? (isFreeDeliveryPromo ? 0 : activeDeliveryFee) : 0;
 
   const canRedeem = points >= settings.loyaltyGoal;
   const cheapest = useMemo(
@@ -155,7 +183,109 @@ export function CartDrawer({
     return cheapest;
   }, [redeem, canRedeem, rewardProd, hasRewardInCart, cheapest]);
 
-  const total = Math.max(0, subtotal - discount) + deliveryFee;
+  // Cupom de desconto da loja (definição vem no settings JSON — zero reads).
+  // Validação de 1 uso por telefone + estoque faz 1-2 selects minúsculos
+  // SÓ quando o cliente digita o código (não pesa o plano gratuito).
+  const coupons: any[] = Array.isArray((settings as any)?.coupons)
+    ? (settings as any).coupons
+    : [];
+  const [couponCode, setCouponCode] = useState("");
+  const [couponApplied, setCouponApplied] = useState<{ code: string; pct: number } | null>(null);
+  const [couponMsg, setCouponMsg] = useState("");
+  const [couponLoading, setCouponLoading] = useState(false);
+
+  async function handleApplyCoupon() {
+    const c = couponCode.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (!c) return;
+    const def = coupons.find((x) => x.code === c && x.active !== false);
+    if (!def) {
+      setCouponMsg("Código inválido.");
+      setCouponApplied(null);
+      return;
+    }
+    const digits = phone.replace(/\D/g, "");
+    if (digits.length < 10) {
+      setCouponMsg("Digite seu telefone com DDD antes de aplicar.");
+      return;
+    }
+    if (!supabase || !getActiveLojaId()) {
+      // Sem banco: aplica local (modo demo).
+      setCouponApplied({ code: def.code, pct: def.pct });
+      setCouponMsg(`Cupom ${def.code}: ${def.pct}% OFF aplicado!`);
+      return;
+    }
+    setCouponLoading(true);
+    setCouponMsg("");
+    try {
+      const lojaId = getActiveLojaId() as string;
+      // 1) já usou? (select id limit 1 — bytes)
+      const { data: used } = await supabase
+        .from("coupon_uses")
+        .select("id")
+        .eq("loja_id", lojaId)
+        .eq("code", def.code)
+        .eq("phone", digits)
+        .limit(1);
+      if (used && used.length > 0) {
+        setCouponMsg("Você já usou esse cupom.");
+        setCouponApplied(null);
+        return;
+      }
+      // 2) ainda tem estoque? (count head — sem trazer linhas)
+      const { count } = await supabase
+        .from("coupon_uses")
+        .select("id", { count: "exact", head: true })
+        .eq("loja_id", lojaId)
+        .eq("code", def.code);
+      if (typeof def.qty === "number" && (count ?? 0) >= def.qty) {
+        setCouponMsg("Esse cupom esgotou.");
+        setCouponApplied(null);
+        return;
+      }
+      setCouponApplied({ code: def.code, pct: def.pct });
+      setCouponMsg(`Cupom ${def.code}: ${def.pct}% OFF aplicado!`);
+    } catch {
+      // Se a tabela ainda não foi criada (SQL pendente), aplica local.
+      setCouponApplied({ code: def.code, pct: def.pct });
+      setCouponMsg(`Cupom ${def.code}: ${def.pct}% OFF aplicado!`);
+    } finally {
+      setCouponLoading(false);
+    }
+  }
+
+  const couponDiscount = couponApplied ? subtotal * (couponApplied.pct / 100) : 0;
+  const total = Math.max(0, subtotal - discount - promoDiscount - couponDiscount) + deliveryFee;
+
+  // Valida o WhatsApp da loja antes de redirecionar (evita pedido indo p/ o vazio).
+  // Retorna null se inválido. Números placeholder/teste são recusados (exceto na demo).
+  function getStoreWhatsapp(): string | null {
+    const isDemo =
+      typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).get("demo") === "true";
+    const raw = (storage.getSettings().whatsapp || "").replace(/\D/g, "") || "5546999999999";
+    if (!/^55\d{10,11}$/.test(raw)) return null;
+    if (!isDemo && (raw === "5546999999999" || raw === "5545999999999")) return null;
+    if (/^55(\d)\1{7,}$/.test(raw)) return null; // sequências tipo 99999999
+    return raw;
+  }
+
+  // window.open primeiro: evita o site "cair" em browsers in-app que
+  // sequestram location.href sem abrir o WhatsApp.
+  function openWhatsapp(url: string) {
+    const isIframe = typeof window !== "undefined" && window.self !== window.top;
+    if (isIframe) {
+      window.open(url, "_blank", "noopener");
+      return;
+    }
+    try {
+      const w = window.open(url, "_blank", "noopener");
+      if (!w) window.location.href = url;
+    } catch {
+      try {
+        window.location.href = url;
+      } catch {}
+    }
+  }
 
   // Cooldown de Fidelidade (1 hora) — escopado por loja para não bloquear
   // o cliente de pontuar na Loja B porque pediu na Loja A.
@@ -170,7 +300,18 @@ export function CartDrawer({
 
   const isCampaignEligible = activeCampaign && subtotal >= activeCampaign.min_value;
 
-  function buildMessage() {
+  function buildMessage(ov?: {
+    promoDiscount?: number;
+    deliveryFee?: number;
+    total?: number;
+    freePromo?: boolean;
+  }) {
+    // Overrides locais: o anti-fraude pode zerar a promo NESTE envio antes do
+    // state re-renderizar — a mensagem precisa refletir o valor final cobrado.
+    const pd = ov?.promoDiscount ?? promoDiscount;
+    const df = ov?.deliveryFee ?? deliveryFee;
+    const tt = ov?.total ?? total;
+    const free = ov?.freePromo ?? isFreeDeliveryPromo;
     const lines: string[] = [];
     if (redeem && canRedeem) {
       lines.push(
@@ -180,8 +321,12 @@ export function CartDrawer({
     }
     const storeName = settings?.storeName || "Comércio";
     lines.push(`🛍️ *NOVO PEDIDO - ${storeName.toUpperCase()}* 🛍️`);
+    lines.push(
+      `📅 Data/Hora: ${new Date().toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).replace(",", " às")}`,
+    );
     lines.push("");
     lines.push(`*Cliente:* ${name}`);
+    lines.push(`*Telefone:* ${phone}`);
     lines.push("");
     lines.push("🛒 *ITENS DO PEDIDO:*");
     items.forEach((i) => {
@@ -223,13 +368,17 @@ export function CartDrawer({
         lines.push("🎁 *PEDIDO DE RESGATE: GANHOU 1 LANCHE GRÁTIS DO CARTÃO FIDELIDADE!*");
       }
     }
-    if (deliveryFee > 0) {
+    if (df > 0) {
       const regionName = selectedLocation ? ` (${selectedLocation.name})` : "";
-      lines.push(`*Taxa de entrega${regionName}:* ${brl(deliveryFee)}`);
+      lines.push(`*Taxa de entrega${regionName}:* ${brl(df)}`);
+    } else if (free) {
+      lines.push(`*Taxa de entrega:* GRÁTIS 🎉 (Promoção)`);
     }
     if (discount > 0) lines.push(`*Desconto fidelidade:* -${brl(discount)}`);
+    if (pd > 0) lines.push(`*Desconto 1ª compra (${promoPct}%):* -${brl(pd)}`);
+    if (couponApplied) lines.push(`*Cupom ${couponApplied.code} (${couponApplied.pct}%):* -${brl(couponDiscount)}`);
     lines.push("");
-    lines.push(`*TOTAL GERAL: ${brl(total)}*`);
+    lines.push(`*TOTAL GERAL: ${brl(tt)}*`);
 
     if (observation.trim()) {
       lines.push("");
@@ -253,11 +402,18 @@ export function CartDrawer({
       return;
     }
     if (!name.trim()) return alert("Informe seu nome.");
-    if (!phone.trim()) return alert("Informe seu telefone de contato.");
+    if (phone.replace(/\D/g, "").length < 10)
+      return alert("Informe um telefone válido com DDD (mínimo 10 dígitos).");
     if (delivery === "entrega") {
       if (!street.trim() || !number.trim() || !district.trim() || !selectedLocation) {
         return alert("Por favor, selecione seu Bairro para entrega.");
       }
+    }
+    // Falha rápido se o WhatsApp da loja não for válido (evita pedido no vazio).
+    const storeWhatsapp = getStoreWhatsapp();
+    if (!storeWhatsapp) {
+      alert("WhatsApp da loja indisponível no momento. Tente novamente mais tarde.");
+      return;
     }
 
     if (isSubmitting) return;
@@ -276,6 +432,55 @@ export function CartDrawer({
 
     const lojaId = typeof window !== "undefined" ? getActiveLojaId() : null;
 
+    // Revalida estoque com dado fresco local (zero reads Supabase) antes de enviar.
+    const freshProducts = storage.getProducts();
+    for (const i of items) {
+      const fp = freshProducts.find((p) => p.id === i.productId);
+      if (fp && typeof fp.stock === "number") {
+        const bought = items
+          .filter((x) => x.productId === i.productId)
+          .reduce((s, x) => s + x.qty, 0);
+        if (bought > fp.stock) {
+          alert(`Estoque insuficiente: só restam ${fp.stock} un. de ${fp.name}. Ajuste a sacola.`);
+          setIsSubmitting(false);
+          return;
+        }
+      }
+    }
+
+    // Anti-fraude 1ª compra (ULTRA-LEVE): só roda em dia promo + 1ª compra local +
+    // promo ativa. 2 queries mínimas (select id, limit 1) em vez de varredura.
+    // fraudNow = flag local (o state só reflete no próximo render).
+    let fraudNow = false;
+    if (supabase && lojaId && isPromoDay && isFirstPurchase && settings?.promoActive) {
+      try {
+        const tail = phone.replace(/\D/g, "").slice(-8);
+        if (tail.length === 8) {
+          const [o, pa] = await Promise.all([
+            supabase
+              .from("orders_history")
+              .select("id")
+              .eq("loja_id", lojaId)
+              .ilike("items_summary", `%${tail.slice(0, 4)}%${tail.slice(4)}%`)
+              .limit(1),
+            supabase
+              .from("participants")
+              .select("id")
+              .eq("loja_id", lojaId)
+              .ilike("client_phone", `%${tail}%`)
+              .limit(1),
+          ]);
+          if ((o.data && o.data.length > 0) || (pa.data && pa.data.length > 0)) {
+            fraudNow = true;
+            setFraudBlocked(true);
+            alert(
+              "Você já fez pedidos aqui antes — o desconto de primeira compra foi removido, mas seu pedido segue normalmente!",
+            );
+          }
+        }
+      } catch {}
+    }
+
     // ULTRA-LEVE: rate-limit 15s por telefone + truncate do resumo.
     // Antes: 2 inserts sem limite, items_summary podia passar de 10KB/linha.
     // Com 50 lojas em horário de pico isso virava enxurrada de writes.
@@ -291,6 +496,21 @@ export function CartDrawer({
         localStorage.setItem(rlKey, Date.now().toString());
       } catch {}
     }
+
+    // Totais finais deste envio (respeitam o anti-fraude executado acima).
+    const finalPromoDiscount = fraudNow ? 0 : promoDiscount;
+    const finalFreePromo = !fraudNow && isFreeDeliveryPromo;
+    const finalDeliveryFee =
+      delivery === "entrega" ? (finalFreePromo ? 0 : activeDeliveryFee) : 0;
+    const finalTotal =
+      Math.max(0, subtotal - discount - finalPromoDiscount - couponDiscount) +
+      finalDeliveryFee;
+    const msgOv = {
+      promoDiscount: finalPromoDiscount,
+      deliveryFee: finalDeliveryFee,
+      total: finalTotal,
+      freePromo: finalFreePromo,
+    };
 
     // Salvar pedido no histórico geral para o Dashboard Financeiro
     // (sempre com loja_id: sem isso o faturamento misturava entre lojas)
@@ -333,8 +553,8 @@ export function CartDrawer({
           payment_method: payment,
           delivery_type: delivery === "entrega" ? "Entrega" : "Retirada",
           subtotal: subtotal,
-          delivery_fee: deliveryFee,
-          total_price: total,
+          delivery_fee: finalDeliveryFee,
+          total_price: finalTotal,
           is_fidelidade_resgate: !!(redeem && canRedeem),
           items_summary: itemsSummary,
         });
@@ -342,6 +562,68 @@ export function CartDrawer({
       } catch (err) {
         console.error("Erro ao salvar histórico de pedidos no Supabase:", err);
       }
+
+      // Coleta LEVE de telefones (1 upsert por pedido, ~200 bytes).
+      // Roda em paralelo sem bloquear o redirect do WhatsApp: se a tabela
+      // ainda não existir (SQL pendente) o catch engole silenciosamente.
+      // Trava 1 uso por telefone do cupom aplicado (mesmo padrão do validar).
+      try {
+        const digits = phone.replace(/\D/g, "").slice(0, 15);
+        const cleanName = name.trim().slice(0, 80);
+        if (digits.length >= 10) {
+          const upsertCliente = (async () => {
+            try {
+              const { data: existing } = await supabase
+                .from("loja_clientes")
+                .select("id,orders")
+                .eq("loja_id", lojaId)
+                .eq("phone", digits)
+                .limit(1)
+                .maybeSingle();
+              if (existing) {
+                await supabase
+                  .from("loja_clientes")
+                  .update({
+                    nome: cleanName || undefined,
+                    orders: (existing.orders || 1) + 1,
+                    last_seen: new Date().toISOString(),
+                  })
+                  .eq("id", existing.id);
+              } else {
+                await supabase.from("loja_clientes").insert({
+                  loja_id: lojaId,
+                  nome: cleanName,
+                  phone: digits,
+                  orders: 1,
+                });
+              }
+            } catch {}
+          })();
+          const travaCupom = (async () => {
+            if (!couponApplied || digits.length < 10) return;
+            try {
+              const { error } = await supabase
+                .from("coupon_uses")
+                .insert({ loja_id: lojaId, code: couponApplied.code, phone: digits });
+              if (error) return;
+              // Espelha o contador local p/ o dono ver o progresso na hora
+              // (fonte da verdade segue sendo o count na tabela).
+              try {
+                const s = storage.getSettings() as any;
+                if (Array.isArray(s.coupons)) {
+                  const next = s.coupons.map((c: any) =>
+                    c.code === (couponApplied as { code: string }).code
+                      ? { ...c, used: Math.min(c.qty, (c.used || 0) + 1) }
+                      : c,
+                  );
+                  storage.setSettings({ ...s, coupons: next });
+                }
+              } catch {}
+            } catch {}
+          })();
+          await Promise.allSettled([upsertCliente, travaCupom]);
+        }
+      } catch {}
     }
 
     if (isCampaignEligible && supabase) {
@@ -351,13 +633,27 @@ export function CartDrawer({
           campaign_id: activeCampaign.id,
           client_name: name.trim(),
           client_phone: phone.trim(),
-          order_total: total,
+          order_total: finalTotal,
         });
         if (error) throw error;
       } catch (err) {
         console.error("Erro ao registrar participante no Supabase:", err);
       }
     }
+
+    // Desconta estoque localmente (sincroniza via debounce coalescido — 1 write total)
+    // e marca o horário do pedido (base da 1ª compra + cooldown), escopado por loja.
+    try {
+      const updated = freshProducts.map((p) => {
+        if (typeof p.stock !== "number") return p;
+        const bought = items
+          .filter((x) => x.productId === p.id)
+          .reduce((s, x) => s + x.qty, 0);
+        return bought > 0 ? { ...p, stock: Math.max(0, (p.stock as number) - bought) } : p;
+      });
+      if (updated.some((p, idx) => p !== freshProducts[idx])) storage.setProducts(updated);
+      localStorage.setItem(lastOrderKey, Date.now().toString());
+    } catch {}
 
     if (redeem && canRedeem) {
       if (rewardProd && !hasRewardInCart) {
@@ -382,24 +678,14 @@ export function CartDrawer({
       });
 
       setTimeout(() => {
-        const message = buildMessage();
+        const message = buildMessage(msgOv);
         const text = encodeURIComponent(message);
-        const url = `https://api.whatsapp.com/send?phone=${settings.whatsapp}&text=${text}`;
+        const url = `https://api.whatsapp.com/send?phone=${storeWhatsapp}&text=${text}`;
         setRawMessage(message);
         setRedirectUrl(url);
         setIsRescuing(false);
         setIsRedirecting(true);
-
-        const isIframe = typeof window !== "undefined" && window.self !== window.top;
-        if (isIframe) {
-          window.open(url, "_blank");
-        } else {
-          try {
-            window.location.href = url;
-          } catch (err) {
-            window.open(url, "_blank");
-          }
-        }
+        openWhatsapp(url);
       }, 2000);
       return;
     } else if (willEarnPoint) {
@@ -411,23 +697,13 @@ export function CartDrawer({
       console.warn("Pontuação de fidelidade bloqueada por Cooldown de segurança (1 hora).");
     }
 
-    const message = buildMessage();
+    const message = buildMessage(msgOv);
     const text = encodeURIComponent(message);
-    const url = `https://api.whatsapp.com/send?phone=${settings.whatsapp}&text=${text}`;
+    const url = `https://api.whatsapp.com/send?phone=${storeWhatsapp}&text=${text}`;
     setRawMessage(message);
     setRedirectUrl(url);
     setIsRedirecting(true);
-
-    const isIframe = typeof window !== "undefined" && window.self !== window.top;
-    if (isIframe) {
-      window.open(url, "_blank");
-    } else {
-      try {
-        window.location.href = url;
-      } catch (err) {
-        window.open(url, "_blank");
-      }
-    }
+    openWhatsapp(url);
   }
 
   return (
@@ -795,15 +1071,92 @@ export function CartDrawer({
                 )}
               </section>
 
+              {coupons.length > 0 && (
+                <section className="rounded-xl bg-surface ring-1 ring-border p-3 space-y-2">
+                  <h4 className="font-bold text-sm">🎟️ Cupom de desconto</h4>
+                  {couponApplied ? (
+                    <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
+                      <span className="text-xs font-extrabold text-emerald-400">
+                        {couponApplied.code} • {couponApplied.pct}% OFF
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCouponApplied(null);
+                          setCouponCode("");
+                          setCouponMsg("");
+                        }}
+                        className="text-[10px] font-bold text-zinc-400 hover:text-white px-2 py-1"
+                      >
+                        Remover
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <input
+                        value={couponCode}
+                        onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                        placeholder="Ex: MAE10"
+                        className="flex-1 h-10 px-3 rounded-xl bg-input text-foreground placeholder:text-muted-foreground ring-1 ring-border focus:ring-primary outline-none text-xs font-bold uppercase"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleApplyCoupon}
+                        disabled={couponLoading}
+                        className="h-10 px-4 rounded-xl bg-primary text-primary-foreground text-xs font-extrabold disabled:opacity-50 shrink-0"
+                      >
+                        {couponLoading ? "..." : "Aplicar"}
+                      </button>
+                    </div>
+                  )}
+                  {couponMsg && (
+                    <p
+                      className={`text-[11px] font-bold ${couponApplied ? "text-emerald-400" : "text-red-400"}`}
+                    >
+                      {couponMsg}
+                    </p>
+                  )}
+                </section>
+              )}
+
               <section className="rounded-xl bg-surface ring-1 ring-border p-3 space-y-1 text-sm">
                 <Row label="Subtotal" value={brl(subtotal)} />
                 {discount > 0 && (
                   <Row label="Desconto fidelidade" value={`-${brl(discount)}`} success />
                 )}
-                {deliveryFee > 0 && <Row label="Taxa de entrega" value={brl(deliveryFee)} />}
+                {promoDiscount > 0 && (
+                  <Row
+                    label={`Desconto 1ª compra (${promoPct}%)`}
+                    value={`-${brl(promoDiscount)}`}
+                    success
+                  />
+                )}
+                {couponDiscount > 0 && (
+                  <Row
+                    label={`Cupom ${couponApplied?.code} (${couponApplied?.pct}%)`}
+                    value={`-${brl(couponDiscount)}`}
+                    success
+                  />
+                )}
+                {isFreeDeliveryPromo ? (
+                  <Row label="Taxa de entrega" value="GRÁTIS 🎉" success />
+                ) : (
+                  deliveryFee > 0 && <Row label="Taxa de entrega" value={brl(deliveryFee)} />
+                )}
                 <div className="h-px bg-border my-1" />
                 <Row label="Total" value={brl(total)} bold />
               </section>
+
+              {isPromoDay && isFirstPurchase && !fraudBlocked && promoDiscount > 0 && (
+                <div className="rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-3 py-2 text-xs font-bold">
+                  🎉 Promoção ativa: {promoPct}% OFF aplicado nesta 1ª compra!
+                </div>
+              )}
+              {isFreeDeliveryPromo && (
+                <div className="rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-3 py-2 text-xs font-bold">
+                  🚚 Frete GRÁTIS aplicado pela promoção!
+                </div>
+              )}
 
               <button
                 onClick={handleSend}
