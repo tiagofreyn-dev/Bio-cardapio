@@ -175,14 +175,14 @@ function DegustacaoSolPage() {
             </div>
 
             <a
-              href="https://instagram.com/minicucassol"
+              href="https://www.instagram.com/docessol26/"
               target="_blank"
               rel="noopener noreferrer"
               className="anim-rise block rounded-3xl p-5 text-center text-white shadow-xl transition active:scale-[0.98]"
               style={{ background: "linear-gradient(135deg,#F58529,#DD2A7B,#8134AF)", animationDelay: ".1s", boxShadow: "0 10px 25px rgba(221,42,123,.35)" }}
             >
               <span className="text-xs font-extrabold uppercase tracking-widest opacity-90">Passo 1 — obrigatório 📸</span>
-              <span className="mt-1 block text-lg font-black">Seguir nosso Instagram @minicucassol</span>
+              <span className="mt-1 block text-lg font-black">Seguir nosso Instagram @docessol26</span>
             </a>
 
             <div className="anim-rise rounded-3xl border-2 border-dashed bg-white/70 p-5 text-center" style={{ borderColor: "#E8927C", animationDelay: ".2s" }}>

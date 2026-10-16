@@ -1024,11 +1024,46 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
     }
   }
 
+  // Base única: cardápio (loja_clientes) + degustação (degustacao_leads), sem repetir número.
+  // Degustação Mini-Cucas Sol pertence à Doces Sol (origem 'degustacao-sol' → slug 'doces-sol').
+  async function fetchTargets(loja: string, slug: string) {
+    if (!supabase) return { targets: [] as { phone: string; nome: string; fonte: string }[], cardapio: 0, degustacao: 0 };
+    const { data: rows } = await supabase.from("loja_clientes").select("phone,nome").eq("loja_id", loja).eq("opt_out", false).limit(500);
+    const map = new Map<string, { phone: string; nome: string; fonte: string }>();
+    for (const r of rows || []) {
+      const digits = String((r as any).phone).replace(/\D/g, "").replace(/^55/, "");
+      if (digits.length < 10) continue;
+      if (!map.has(digits)) {
+        map.set(digits, { phone: `55${digits}`, nome: String((r as any).nome || "").split(" ")[0].slice(0, 20), fonte: "cardápio" });
+      }
+    }
+    const cardapio = map.size;
+    let degustacao = 0;
+    if (slug === "doces-sol") {
+      try {
+        const { data: leads } = await supabase.from("degustacao_leads").select("nome,phone").eq("origem", "degustacao-sol").limit(500);
+        for (const l of leads || []) {
+          const digits = String((l as any).phone).replace(/\D/g, "").replace(/^55/, "");
+          if (digits.length < 10) continue;
+          if (!map.has(digits)) {
+            map.set(digits, { phone: `55${digits}`, nome: String((l as any).nome || "").split(" ")[0].slice(0, 20), fonte: "degustação" });
+            degustacao++;
+          }
+        }
+      } catch {}
+    }
+    return { targets: [...map.values()].filter((t) => t.phone.length >= 12), cardapio, degustacao };
+  }
+
+  const [mix, setMix] = useState({ cardapio: 0, degustacao: 0 });
+
   async function loadLoja(loja: string) {
     if (!supabase || !loja) return;
     try {
-      const { count: c } = await supabase.from("loja_clientes").select("id", { count: "exact", head: true }).eq("loja_id", loja).eq("opt_out", false);
-      setCount(c ?? 0);
+      const store = stores.find((s) => s.id === loja);
+      const { targets, cardapio, degustacao } = await fetchTargets(loja, store?.slug || "");
+      setCount(targets.length);
+      setMix({ cardapio, degustacao });
       // Disparos de hoje (limite 10/dia p/ não queimar o número nem o banco)
       const start = new Date();
       start.setHours(0, 0, 0, 0);
@@ -1045,11 +1080,12 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
 
   async function copyNumbers() {
     if (!supabase || !lojaId) return;
-    const { data } = await supabase.from("loja_clientes").select("phone").eq("loja_id", lojaId).eq("opt_out", false).limit(500);
-    const nums = (data || []).map((r: any) => `55${String(r.phone).replace(/\D/g, "").replace(/^55/, "")}`);
+    const store = stores.find((s) => s.id === lojaId);
+    const { targets } = await fetchTargets(lojaId, store?.slug || "");
+    const nums = targets.map((t) => t.phone);
     try {
       await navigator.clipboard.writeText(nums.join(","));
-      alert(`${nums.length} números copiados!`);
+      alert(`${nums.length} números únicos copiados!`);
     } catch {
       alert(nums.join("\n"));
     }
@@ -1096,15 +1132,10 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
         image_url: imageUrl.slice(0, 500),
       }).select("id").single();
       if (batchError) throw batchError;
-      // Envio real via proxy: 1 por vez, {nome} personaliza, pausa anti-ban.
+      // Envio real via proxy: base única (cardápio + degustação, sem repetidos).
       if (hasEvo) {
-        const { data: rows } = await supabase.from("loja_clientes").select("phone,nome").eq("loja_id", lojaId).eq("opt_out", false).limit(500);
-        const targets = (rows || [])
-          .map((r: any) => ({
-            phone: `55${String(r.phone).replace(/\D/g, "").replace(/^55/, "")}`,
-            nome: String(r.nome || "").split(" ")[0].slice(0, 20),
-          }))
-          .filter((t: any) => t.phone.length >= 12);
+        const store2 = stores.find((s) => s.id === lojaId);
+        const { targets } = await fetchTargets(lojaId, store2?.slug || "");
         let done = 0;
         for (const t of targets) {
           if (stopRef.current) break;
@@ -1158,7 +1189,7 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
         </select>
         {lojaId && (
           <div className="flex flex-wrap gap-2 text-[11px] font-bold">
-            <span className="px-3 py-1.5 rounded-full bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/30">{count ?? "—"} contatos ativos</span>
+            <span className="px-3 py-1.5 rounded-full bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/30">{count ?? "—"} únicos {mix.degustacao > 0 ? `(${mix.cardapio} cardápio + ${mix.degustacao} degustação)` : "(cardápio)"}</span>
             <span className={`px-3 py-1.5 rounded-full ring-1 ${today >= 10 ? "bg-red-500/10 text-red-400 ring-red-500/30" : "bg-zinc-800 text-zinc-300 ring-zinc-700"}`}>{today}/10 disparos hoje</span>
           </div>
         )}
