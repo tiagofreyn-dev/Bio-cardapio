@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import imageCompression from "browser-image-compression";
 import { supabase } from "@/lib/supabase";
@@ -47,13 +47,31 @@ const GRADIENTS = [
   "from-zinc-700 via-zinc-800 to-zinc-900",
 ];
 
-function evoCfg() {
-  if (typeof window === "undefined") return { base: "", key: "", instance: "" };
-  return {
-    base: localStorage.getItem("insano.evo.base") || "",
-    key: localStorage.getItem("insano.evo.key") || "",
-    instance: localStorage.getItem("insano.evo.instance") || "",
-  };
+function slugToInstance(slug: string) {
+  return String(slug || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/(^-|-$)/g, "")
+    .slice(0, 48);
+}
+
+async function evoProxy(action: string, instance: string, payload?: any) {
+  const res = await fetch("/api/evo-proxy", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action, instance, payload }),
+  });
+  const text = await res.text();
+  let json: any = null;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    json = { raw: text.slice(0, 500) };
+  }
+  if (!res.ok) throw new Error(json?.error || json?.message || `HTTP ${res.status}`);
+  return json;
 }
 
 function MasterAdminPage() {
@@ -670,7 +688,7 @@ function MasterAdminPage() {
         {masterTab === "patrocinados" && <SponsorsTab />}
         {masterTab === "carrosseis" && <CarrosseisTab stores={stores} />}
         {masterTab === "disparos" && <DisparosTab stores={stores} />}
-        {masterTab === "evolution" && <EvolutionTab />}
+        {masterTab === "evolution" && <EvolutionTab stores={stores} />}
       </main>
 
       <footer className="py-4 border-t border-zinc-850/60 bg-zinc-950/40 text-center text-[10px] text-zinc-500">
@@ -721,7 +739,7 @@ function SponsorsTab() {
         try { await supabase.storage.from("products-images").remove([oldPath]); } catch {}
       }
       const fileName = `sponsor-${Date.now()}-${Math.floor(Math.random() * 9999)}.webp`;
-      const { data, error } = await supabase.storage.from("products-images").upload(fileName, webp);
+      const { data, error } = await supabase.storage.from("products-images").upload(fileName, webp, { cacheControl: "31536000", upsert: false });
       if (error) throw error;
       const { data: { publicUrl } } = supabase.storage.from("products-images").getPublicUrl(data.path);
       setImageUrl(publicUrl);
@@ -957,7 +975,7 @@ function CarrosseisTab({ stores }: { stores: Loja[] }) {
 
 // ── Disparos por loja (usa loja_clientes + broadcast_log, limite 10/dia) ──
 function DisparosTab({ stores }: { stores: Loja[] }) {
-  const [lojaId, setLojaId] = useState("");
+  const [lojaId, setLojaId] = useState(() => sessionStorage.getItem("insano.evo.lojaId") || "");
   const [count, setCount] = useState<number | null>(null);
   const [today, setToday] = useState(0);
   const [msg, setMsg] = useState("🔥 Promoção da semana! Mostre essa msg e ganhe 10% OFF hoje!");
@@ -994,7 +1012,7 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
         try { await supabase.storage.from("products-images").remove([oldPath]); } catch {}
       }
       const fileName = `disparo-${Date.now()}-${Math.floor(Math.random() * 9999)}.webp`;
-      const { data, error } = await supabase.storage.from("products-images").upload(fileName, webp);
+      const { data, error } = await supabase.storage.from("products-images").upload(fileName, webp, { cacheControl: "31536000", upsert: false });
       if (error) throw error;
       const { data: { publicUrl } } = supabase.storage.from("products-images").getPublicUrl(data.path);
       setImageUrl(publicUrl);
@@ -1009,10 +1027,7 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
   async function loadLoja(loja: string) {
     if (!supabase || !loja) return;
     try {
-      const [{ count: c }, { data: logs }] = await Promise.all([
-        supabase.from("loja_clientes").select("id", { count: "exact", head: true }).eq("loja_id", loja).eq("opt_out", false),
-        supabase.from("loja_clientes").select("id").eq("loja_id", loja).limit(1),
-      ]);
+      const { count: c } = await supabase.from("loja_clientes").select("id", { count: "exact", head: true }).eq("loja_id", loja).eq("opt_out", false);
       setCount(c ?? 0);
       // Disparos de hoje (limite 10/dia p/ não queimar o número nem o banco)
       const start = new Date();
@@ -1022,7 +1037,6 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
       // Últimos registros
       const { data: recent } = await supabase.from("broadcast_log").select("id,total,ok_count,message,image_url,created_at").eq("loja_id", loja).order("created_at", { ascending: false }).limit(5);
       setLast(recent || []);
-      void logs;
     } catch (err: any) {
       if (err?.code !== "42P01") alert("Erro: " + err.message);
       setCount(0);
@@ -1041,54 +1055,83 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
     }
   }
 
+  const [progress, setProgress] = useState({ done: 0, ok: 0, fail: 0 });
+  const stopRef = useRef(false);
+
   async function sendDisparo() {
     if (!supabase || !lojaId) return alert("Escolha a loja.");
     if (!msg.trim() && !imageUrl) return alert("Escreva a mensagem ou anexe uma foto.");
     if (today >= 10) return alert("Limite de 10 disparos/dia atingido para esta loja.");
-    const cfg = evoCfg();
-    const hasEvo = Boolean(cfg.base && cfg.instance);
-    if (!confirm(hasEvo ? `Enviar para ${count ?? "?"} clientes via Evolution${imageUrl ? " (com foto)" : ""}?` : `Simular disparo para ${count ?? "?"} clientes? (Evolution não conectada — registra só o log)`)) return;
-    setSending(true);
+    const store = stores.find((s) => s.id === lojaId);
+    const instance = slugToInstance(store?.slug || "");
+    if (!instance) return alert("Slug da loja inválido para instância.");
+    // Testa conexão da instância desta loja via proxy (sem expor apikey).
+    // Só envia de verdade se a instância estiver OPEN (só HTTP 200 não basta).
+    let hasEvo = false;
     try {
-      let okCount = count || 0;
-      let prefix = "[SIMULAÇÃO] ";
-      // Envio real via Evolution (foto ou texto). Números vêm do banco, 1 por vez.
-      if (hasEvo) {
-        const { data: rows } = await supabase.from("loja_clientes").select("phone").eq("loja_id", lojaId).eq("opt_out", false).limit(500);
-        const nums = (rows || []).map((r: any) => `55${String(r.phone).replace(/\D/g, "").replace(/^55/, "")}`).filter(Boolean);
-        let ok = 0;
-        for (const n of nums) {
-          try {
-            const endpoint = imageUrl
-              ? `${cfg.base}/message/sendMedia/${cfg.instance}`
-              : `${cfg.base}/message/sendText/${cfg.instance}`;
-            const body = imageUrl
-              ? { number: n, mediatype: "image", media: imageUrl, caption: msg.trim().slice(0, 500) }
-              : { number: n, text: msg.trim().slice(0, 500) };
-            const res = await fetch(endpoint, {
-              method: "POST",
-              headers: { "Content-Type": "application/json", apikey: cfg.key },
-              body: JSON.stringify(body),
-            });
-            if (res.ok) ok++;
-          } catch {}
-          // Respiro 300ms entre envios p/ não bloquear a instância.
-          await new Promise((r) => setTimeout(r, 300));
-        }
-        okCount = ok;
-        prefix = imageUrl ? "[EVOLUTION+FOTO] " : "[EVOLUTION] ";
+      const st: any = await evoProxy("status", instance);
+      hasEvo = String(st?.instance?.state || st?.state || "").toLowerCase() === "open";
+      if (!hasEvo) {
+        alert(`WhatsApp desconectado (estado: ${st?.instance?.state || st?.state || "?"}). Vá na aba 🔌 > 2. Gerar QR e escaneie de novo. Nada foi enviado.`);
+        setSending(false);
+        return;
       }
-      const { error } = await supabase.from("broadcast_log").insert({
+    } catch {
+      hasEvo = false;
+    }
+    if (!confirm(hasEvo ? `Enviar para ${count ?? "?"} clientes via ${instance}${imageUrl ? " (com foto)" : ""}?` : `Simular disparo para ${count ?? "?"} clientes? (instância ${instance} desconectada — registra só o log)`)) return;
+    setSending(true);
+    stopRef.current = false;
+    setProgress({ done: 0, ok: 0, fail: 0 });
+    try {
+      let okCount = 0;
+      let failCount = 0;
+      let prefix = "[SIMULAÇÃO] ";
+      // Cria o lote primeiro (1 linha = 1 disparo) para controlar limite 10/dia.
+      const { data: batch, error: batchError } = await supabase.from("broadcast_log").insert({
         loja_id: lojaId,
         total: count || 0,
-        ok_count: okCount,
-        message: `${prefix}${msg.trim().slice(0, 500)}`,
+        ok_count: 0,
+        message: `${hasEvo ? "[EVOLUTION] " : prefix}${msg.trim().slice(0, 500)}`,
         image_url: imageUrl.slice(0, 500),
-      });
-      if (error) throw error;
+      }).select("id").single();
+      if (batchError) throw batchError;
+      // Envio real via proxy: 1 por vez, {nome} personaliza, pausa anti-ban.
+      if (hasEvo) {
+        const { data: rows } = await supabase.from("loja_clientes").select("phone,nome").eq("loja_id", lojaId).eq("opt_out", false).limit(500);
+        const targets = (rows || [])
+          .map((r: any) => ({
+            phone: `55${String(r.phone).replace(/\D/g, "").replace(/^55/, "")}`,
+            nome: String(r.nome || "").split(" ")[0].slice(0, 20),
+          }))
+          .filter((t: any) => t.phone.length >= 12);
+        let done = 0;
+        for (const t of targets) {
+          if (stopRef.current) break;
+          const text = msg.trim().slice(0, 500).replace(/\{nome\}/gi, t.nome || "cliente");
+          try {
+            if (imageUrl) {
+              await evoProxy("sendMedia", instance, { number: t.phone, mediatype: "image", media: imageUrl, caption: text });
+            } else {
+              await evoProxy("sendText", instance, { number: t.phone, text });
+            }
+            okCount++;
+          } catch {
+            failCount++;
+          }
+          done++;
+          setProgress({ done, ok: okCount, fail: failCount });
+          // Anti-ban WhatsApp: 2–4s aleatórios entre envios (500 msgs ≈ 25–35min).
+          await new Promise((r) => setTimeout(r, 2000 + Math.random() * 2000));
+        }
+        prefix = imageUrl ? "[EVOLUTION+FOTO] " : "[EVOLUTION] ";
+        await supabase.from("broadcast_log").update({ ok_count: okCount, total: targets.length }).eq("id", (batch as any).id);
+      } else {
+        okCount = count || 0;
+      }
       setToday((t) => t + 1);
       loadLoja(lojaId);
-      alert(hasEvo ? `Disparo enviado: ${okCount}/${count || 0}!` : "Disparo simulado e registrado no log!");
+      alert(hasEvo ? `Disparo concluído: ${okCount} ok / ${failCount} falhas.` : "Disparo simulado e registrado no log!");
     } catch (err: any) {
       alert("Erro: " + (err?.message || err));
     } finally {
@@ -1096,14 +1139,18 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
     }
   }
 
+  function stopDisparo() {
+    stopRef.current = true;
+  }
+
   return (
     <section className="space-y-4">
       <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-4 space-y-3">
         <div>
-          <h4 className="font-extrabold text-sm text-white">📲 Disparos por loja</h4>
-          <p className="text-[11px] text-zinc-400">Base: telefones coletados no checkout (opt-out respeitado). Limite 10/dia por loja. Conecte a Evolution na aba 🔌 para envio real.</p>
+          <h4 className="font-extrabold text-sm text-white">📲 Disparos por loja (1 número por loja)</h4>
+          <p className="text-[11px] text-zinc-400">Base: telefones do checkout (opt-out respeitado). Limite 10/dia por loja. Instância = slug da loja. Conecte o WhatsApp na aba 🔌 e o envio real liga via proxy seguro.</p>
         </div>
-        <select value={lojaId} onChange={(e) => { setLojaId(e.target.value); loadLoja(e.target.value); }} className="w-full h-11 rounded-xl bg-zinc-950 border border-zinc-800 px-3 text-xs font-bold">
+        <select value={lojaId} onChange={(e) => { setLojaId(e.target.value); try { sessionStorage.setItem("insano.evo.lojaId", e.target.value); } catch {} loadLoja(e.target.value); }} className="w-full h-11 rounded-xl bg-zinc-950 border border-zinc-800 px-3 text-xs font-bold">
           <option value="">Escolha a loja...</option>
           {stores.map((s) => (
             <option key={s.id} value={s.id}>{s.nome} ({s.slug})</option>
@@ -1115,8 +1162,16 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
             <span className={`px-3 py-1.5 rounded-full ring-1 ${today >= 10 ? "bg-red-500/10 text-red-400 ring-red-500/30" : "bg-zinc-800 text-zinc-300 ring-zinc-700"}`}>{today}/10 disparos hoje</span>
           </div>
         )}
-        <textarea value={msg} onChange={(e) => setMsg(e.target.value)} rows={4} maxLength={600} placeholder="Mensagem do disparo..." className="w-full p-3 rounded-xl bg-zinc-950 border border-zinc-800 text-xs outline-none focus:border-primary/50" />
-        <p className="text-[10px] text-zinc-500 text-right">{msg.length}/600</p>
+        <textarea value={msg} onChange={(e) => setMsg(e.target.value)} rows={4} maxLength={600} placeholder="Mensagem do disparo... use {nome} para personalizar. Ex: Oi {nome}! 🔥" className="w-full p-3 rounded-xl bg-zinc-950 border border-zinc-800 text-xs outline-none focus:border-primary/50" />
+        <p className="text-[10px] text-zinc-500 text-right">{msg.length}/600 • {"{nome}"} vira o 1º nome do cliente</p>
+        {sending && progress.done > 0 && (
+          <div className="space-y-1">
+            <div className="h-2 rounded-full bg-zinc-800 overflow-hidden">
+              <div className="h-full bg-emerald-500 transition-all" style={{ width: `${Math.round((progress.done / Math.max(count || 1, 1)) * 100)}%` }} />
+            </div>
+            <p className="text-[11px] font-bold text-zinc-300">{progress.done}/{count} • ✅ {progress.ok} • ❌ {progress.fail} • ~2-4s/msg anti-ban</p>
+          </div>
+        )}
         {imageUrl ? (
           <div className="relative rounded-xl overflow-hidden ring-1 ring-zinc-700 w-full max-w-xs">
             <img src={imageUrl} alt="Foto do disparo" className="w-full h-32 object-cover" />
@@ -1142,9 +1197,13 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
         )}
         <div className="flex gap-2">
           <button onClick={copyNumbers} disabled={!lojaId} className="flex-1 h-10 rounded-xl bg-zinc-800 text-zinc-200 text-xs font-bold ring-1 ring-zinc-700 disabled:opacity-40">Copiar números</button>
-          <button onClick={sendDisparo} disabled={!lojaId || sending || uploading || today >= 10} className="flex-1 h-10 rounded-xl bg-emerald-500 text-black text-xs font-extrabold disabled:opacity-40">
-            {sending ? "Enviando..." : imageUrl ? "Enviar com foto" : "Enviar / simular"}
-          </button>
+          {sending ? (
+            <button onClick={stopDisparo} className="flex-1 h-10 rounded-xl bg-red-500 text-black text-xs font-extrabold">Parar ({progress.done}/{count})</button>
+          ) : (
+            <button onClick={sendDisparo} disabled={!lojaId || sending || uploading || today >= 10} className="flex-1 h-10 rounded-xl bg-emerald-500 text-black text-xs font-extrabold disabled:opacity-40">
+              {imageUrl ? "Enviar com foto" : "Enviar / simular"}
+            </button>
+          )}
         </div>
       </div>
 
@@ -1166,42 +1225,43 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
   );
 }
 
-// ── Evolution (config local + teste de conexão, sem nada no banco) ──
-function EvolutionTab() {
-  const [base, setBase] = useState("");
-  const [key, setKey] = useState("");
-  const [instance, setInstance] = useState("");
+// ── Evolution por loja: 1 instância = 1 WhatsApp (slug), via proxy seguro ──
+function EvolutionTab({ stores }: { stores: Loja[] }) {
+  const [lojaId, setLojaId] = useState(() => sessionStorage.getItem("insano.evo.lojaId") || "");
   const [status, setStatus] = useState("");
-  const [testing, setTesting] = useState(false);
+  const [qr, setQr] = useState("");
+  const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    const c = evoCfg();
-    setBase(c.base);
-    setKey(c.key);
-    setInstance(c.instance);
-  }, []);
+  const store = stores.find((s) => s.id === lojaId);
+  const instance = store ? slugToInstance(store.slug) : "";
 
-  function save() {
-    localStorage.setItem("insano.evo.base", base.trim().replace(/\/$/, ""));
-    localStorage.setItem("insano.evo.key", key.trim());
-    localStorage.setItem("insano.evo.instance", instance.trim());
-    setStatus("✅ Configuração salva neste navegador.");
-  }
-
-  async function test() {
-    if (!base.trim() || !instance.trim()) return setStatus("⚠️ Preencha URL e instância primeiro.");
-    setTesting(true);
-    setStatus("Testando...");
+  async function call(action: string) {
+    if (!instance) return setStatus("⚠️ Escolha a loja primeiro.");
+    setBusy(true);
+    setStatus("Aguarde...");
     try {
-      const res = await fetch(`${base.trim().replace(/\/$/, "")}/instance/connectionState/${instance.trim()}`, {
-        headers: { apikey: key.trim() },
-      });
-      const txt = await res.text();
-      setStatus(res.ok ? `✅ Conectado: ${txt.slice(0, 200)}` : `❌ HTTP ${res.status}: ${txt.slice(0, 200)}`);
+      if (action === "create") {
+        await evoProxy("create", instance);
+        setStatus(`✅ Instância ${instance} criada. Clique em "Gerar QR" e escaneie no WhatsApp.`);
+      } else if (action === "qrcode") {
+        const j: any = await evoProxy("qrcode", instance);
+        const code = j?.qrcode?.base64 || j?.base64 || j?.qrcode?.code || "";
+        setQr(typeof code === "string" ? code : "");
+        setStatus(code ? "📷 Escaneie o QR no WhatsApp (Configurações > Aparelhos conectados)." : `Resposta: ${JSON.stringify(j).slice(0, 200)}`);
+      } else {
+        const j: any = await evoProxy("status", instance);
+        const st = j?.instance?.state || j?.state || JSON.stringify(j).slice(0, 200);
+        setStatus(`Status ${instance}: ${st}`);
+        if (supabase && lojaId && String(st).toLowerCase().includes("open")) {
+          try {
+            await supabase.from("evo_instances").upsert({ loja_id: lojaId, instance_name: instance, status: "conectado", last_connected_at: new Date().toISOString() }, { onConflict: "loja_id" });
+          } catch {}
+        }
+      }
     } catch (err: any) {
-      setStatus("❌ Falha de rede/CORS: " + (err?.message || err));
+      setStatus("❌ " + (err?.message || err));
     } finally {
-      setTesting(false);
+      setBusy(false);
     }
   }
 
@@ -1209,26 +1269,28 @@ function EvolutionTab() {
     <section className="space-y-4">
       <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-4 space-y-3">
         <div>
-          <h4 className="font-extrabold text-sm text-white">🔌 Evolution API (modo simulação)</h4>
-          <p className="text-[11px] text-zinc-400">Você ainda não tem a Evolution — os disparos rodam em simulação + log. Quando contratar, preencha aqui e o envio real liga sem mexer no banco (config fica só neste navegador).</p>
+          <h4 className="font-extrabold text-sm text-white">🔌 Evolution API — 1 número por loja</h4>
+          <p className="text-[11px] text-zinc-400">A apikey fica SÓ no servidor (EVO_API_KEY na Vercel). Aqui você só conecta o WhatsApp de cada loja. Instância = slug, ex: <code className="font-mono bg-black/40 px-1 rounded">doces-sol</code>.</p>
         </div>
-        <label className="block space-y-1">
-          <span className="text-[10px] uppercase font-bold text-zinc-500">URL base (ex: https://evo.seudominio.com)</span>
-          <input value={base} onChange={(e) => setBase(e.target.value)} placeholder="https://..." className="w-full h-10 rounded-xl bg-zinc-950 border border-zinc-800 px-3 text-xs font-mono" />
-        </label>
-        <label className="block space-y-1">
-          <span className="text-[10px] uppercase font-bold text-zinc-500">API key global</span>
-          <input value={key} onChange={(e) => setKey(e.target.value)} type="password" placeholder="apikey..." className="w-full h-10 rounded-xl bg-zinc-950 border border-zinc-800 px-3 text-xs font-mono" />
-        </label>
-        <label className="block space-y-1">
-          <span className="text-[10px] uppercase font-bold text-zinc-500">Nome da instância</span>
-          <input value={instance} onChange={(e) => setInstance(e.target.value)} placeholder="cardapio-master" className="w-full h-10 rounded-xl bg-zinc-950 border border-zinc-800 px-3 text-xs font-mono" />
-        </label>
+        <select value={lojaId} onChange={(e) => { setLojaId(e.target.value); try { sessionStorage.setItem("insano.evo.lojaId", e.target.value); } catch {} setQr(""); setStatus(""); }} className="w-full h-11 rounded-xl bg-zinc-950 border border-zinc-800 px-3 text-xs font-bold">
+          <option value="">Escolha a loja...</option>
+          {stores.map((s) => (
+            <option key={s.id} value={s.id}>{s.nome} ({s.slug}) → {slugToInstance(s.slug)}</option>
+          ))}
+        </select>
+        {instance && <p className="text-[11px] font-mono text-zinc-400">Instância: <span className="text-white font-bold">{instance}</span></p>}
         <div className="flex gap-2">
-          <button onClick={save} className="flex-1 h-10 rounded-xl bg-primary text-primary-foreground text-xs font-extrabold">Salvar</button>
-          <button onClick={test} disabled={testing} className="flex-1 h-10 rounded-xl bg-zinc-800 text-zinc-200 text-xs font-bold ring-1 ring-zinc-700 disabled:opacity-50">{testing ? "Testando..." : "Testar conexão"}</button>
+          <button onClick={() => call("create")} disabled={!lojaId || busy} className="flex-1 h-10 rounded-xl bg-zinc-800 text-zinc-200 text-xs font-bold ring-1 ring-zinc-700 disabled:opacity-50">1. Criar</button>
+          <button onClick={() => call("qrcode")} disabled={!lojaId || busy} className="flex-1 h-10 rounded-xl bg-amber-500 text-black text-xs font-extrabold disabled:opacity-50">2. Gerar QR</button>
+          <button onClick={() => call("status")} disabled={!lojaId || busy} className="flex-1 h-10 rounded-xl bg-primary text-primary-foreground text-xs font-extrabold disabled:opacity-50">3. Status</button>
         </div>
+        {qr && <img src={qr.startsWith("data:") ? qr : `data:image/png;base64,${qr}`} alt="QR WhatsApp" className="w-52 h-52 mx-auto rounded-xl bg-white p-2" />}
         {status && <p className="text-[11px] font-bold text-zinc-300 break-all">{status}</p>}
+        <div className="rounded-xl bg-black/30 border border-zinc-800 p-3 text-[11px] text-zinc-400 leading-relaxed">
+          <p className="font-bold text-zinc-200 mb-1">Como funciona (já configurado ✅):</p>
+          <p className="font-mono text-[10px]">docker compose -f docker-compose.evolution.yml up -d</p>
+          <p className="mt-1">Evolution local na porta 8082 + apikey no .env.local. Pra produção 24/7, suba o mesmo arquivo numa VPS gratuita (Oracle Always Free) e cadastre <code className="font-mono">EVO_BASE_URL</code> + <code className="font-mono">EVO_API_KEY</code> na Vercel. SQL <code className="font-mono">supabase-evolution.sql</code> já aplicado 1x no Supabase.</p>
+        </div>
       </div>
     </section>
   );

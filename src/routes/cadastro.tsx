@@ -109,7 +109,7 @@ function CadastroPage() {
             cor_tema: "Vermelho",
             status_assinatura: "pendente",
           })
-          .select()
+          .select("id")
           .single();
 
         if (storeError) throw storeError;

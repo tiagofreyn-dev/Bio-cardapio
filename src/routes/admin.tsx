@@ -98,8 +98,8 @@ async function compressImage(
   file: File,
   maxWidth = 800,
   maxHeight = 800,
-  quality = 0.75,
-  maxSizeMB = 0.8,
+  quality = 0.7,
+  maxSizeMB = 0.5,
 ): Promise<File> {
   if (!file.type.startsWith("image/")) throw new Error("Arquivo não é imagem.");
   // ULTRA-LEVE: rejeita >5MB antes de comprimir (evita upload gigante
@@ -721,12 +721,18 @@ function GeneralTab({
       if (!supabase) {
         throw new Error("Supabase não está configurado.");
       }
+      // Apaga o logo anterior antes de subir o novo (não acumular lixo no free).
+      const prev = storage.getSettings().logoUrl || "";
+      const prevPath = prev.match(/\/products-images\/(.+?)(?:\?.*)?$/)?.[1] ?? null;
+      if (prevPath) {
+        try { await supabase.storage.from("products-images").remove([prevPath]); } catch {}
+      }
       const compressed = await compressImage(file);
       const ext = compressed.name.split(".").pop();
       const fileName = `logo-${lojaId || "store"}-${Date.now()}.${ext}`;
       const { data, error } = await supabase.storage
         .from("products-images")
-        .upload(fileName, compressed);
+        .upload(fileName, compressed, { cacheControl: "31536000", upsert: false });
       if (error) throw error;
       const {
         data: { publicUrl },
@@ -784,7 +790,7 @@ function GeneralTab({
         const fileName = `banner-${lojaId || "store"}-${Date.now()}-${Math.floor(Math.random() * 9999)}.${ext}`;
         const { data, error } = await supabase.storage
           .from("products-images")
-          .upload(fileName, compressed);
+          .upload(fileName, compressed, { cacheControl: "31536000", upsert: false });
         if (error) throw error;
         const {
           data: { publicUrl },
@@ -1944,7 +1950,11 @@ function ProductsTab({
                           if (!supabase) return;
                           try {
                             // We skip direct DB deletion because storage syncs automatically
-
+                            // Apaga a foto do produto no storage (evita lixo no plano free).
+                            const oldPath = typeof p.image === "string" ? (p.image.match(/\/products-images\/(.+?)(?:\?.*)?$/)?.[1] ?? null) : null;
+                            if (oldPath) {
+                              try { await supabase.storage.from("products-images").remove([oldPath]); } catch {}
+                            }
                             storage.setProducts(products.filter((x) => x.id !== p.id));
                             setDeletingId(null);
 
@@ -2140,7 +2150,7 @@ function ProductModal({
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${ext}`;
       const { data, error } = await supabase.storage
         .from("products-images")
-        .upload(fileName, compressed);
+        .upload(fileName, compressed, { cacheControl: "31536000", upsert: false });
       if (error) throw error;
       const {
         data: { publicUrl },
@@ -3023,7 +3033,7 @@ function CampaignsTab({ lojaId }: { lojaId: string | null }) {
       const fileName = `campaign-${Date.now()}-${Math.random().toString(36).substring(2)}.${ext}`;
       const { data, error } = await supabase.storage
         .from("products-images")
-        .upload(fileName, compressed);
+        .upload(fileName, compressed, { cacheControl: "31536000", upsert: false });
       if (error) throw error;
       const {
         data: { publicUrl },
@@ -3886,14 +3896,14 @@ function FaturamentoTab({ lojaId }: { lojaId: string | null }) {
   }, [period]);
 
   useEffect(() => {
-    // ULTRA-LEVE: polling 30s + pausa em aba oculta + refresh ao voltar.
+    // ULTRA-LEVE: polling 60s + pausa em aba oculta + refresh ao voltar.
     // Sem realtime (sockets custam no plano gratuito): pedido novo é detectado
     // comparando o id mais recente + alerta sonoro local. Projeção mínima +
-    // limite 200 mantidos. ~240 req/dia/aba visível; 0 com aba oculta.
+    // limite 200 mantidos. ~120 req/dia/aba visível; 0 com aba oculta.
     const interval = setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       fetchOrders(period);
-    }, 30000);
+    }, 60000);
     const onVis = () => {
       if (typeof document !== "undefined" && !document.hidden) fetchOrders(period);
     };
