@@ -1041,7 +1041,9 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
     let degustacao = 0;
     if (slug === "doces-sol") {
       try {
-        const { data: leads } = await supabase.from("degustacao_leads").select("nome,phone").eq("origem", "degustacao-sol").limit(1000);
+        const { data: leads, error: leadsError } = await supabase.from("degustacao_leads").select("nome,phone").eq("origem", "degustacao-sol").limit(1000);
+        if (leadsError) throw leadsError;
+        setDegErr("");
         for (const l of leads || []) {
           const digits = String((l as any).phone).replace(/\D/g, "").replace(/^55/, "");
           if (digits.length < 10) continue;
@@ -1050,12 +1052,15 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
             degustacao++;
           }
         }
-      } catch {}
+      } catch (e: any) {
+        setDegErr(`degustação: ${e?.message || e?.code || e}`);
+      }
     }
     return { targets: [...map.values()].filter((t) => t.phone.length >= 12), cardapio, degustacao };
   }
 
   const [mix, setMix] = useState({ cardapio: 0, degustacao: 0 });
+  const [degErr, setDegErr] = useState("");
 
   async function loadLoja(loja: string) {
     if (!supabase || !loja) return;
@@ -1217,6 +1222,7 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
           <div className="flex flex-wrap gap-2 text-[11px] font-bold">
             <span className="px-3 py-1.5 rounded-full bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/30">{count ?? "—"} únicos {mix.degustacao > 0 ? `(${mix.cardapio} cardápio + ${mix.degustacao} degustação)` : "(cardápio)"}</span>
             <span className={`px-3 py-1.5 rounded-full ring-1 ${today >= 10 ? "bg-red-500/10 text-red-400 ring-red-500/30" : "bg-zinc-800 text-zinc-300 ring-zinc-700"}`}>{today}/10 disparos hoje</span>
+            {degErr && <span className="px-3 py-1.5 rounded-full bg-red-500/10 text-red-400 ring-1 ring-red-500/30">⚠️ {degErr}</span>}
           </div>
         )}
         <div className="flex items-center gap-2">
