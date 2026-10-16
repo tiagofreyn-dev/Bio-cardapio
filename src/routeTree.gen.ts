@@ -9,33 +9,19 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
-import { Route as MasterAdminRouteImport } from './routes/master-admin'
-import { Route as CadastroRouteImport } from './routes/cadastro'
-import { Route as AutocreateRouteImport } from './routes/autocreate'
-import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as CardapioSlugRouteImport } from './routes/cardapio.$slug'
+import { Route as AdminRouteImport } from './routes/admin'
+import { Route as AutocreateRouteImport } from './routes/autocreate'
+import { Route as CadastroRouteImport } from './routes/cadastro'
+import { Route as DegustacaoSolRouteImport } from './routes/degustacao-sol'
+import { Route as MasterAdminRouteImport } from './routes/master-admin'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as ApiEvoProxyRouteImport } from './routes/api.evo-proxy'
+import { Route as CardapioSlugRouteImport } from './routes/cardapio.$slug'
 
-const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
-  id: '/sitemap.xml',
-  path: '/sitemap.xml',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MasterAdminRoute = MasterAdminRouteImport.update({
-  id: '/master-admin',
-  path: '/master-admin',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CadastroRoute = CadastroRouteImport.update({
-  id: '/cadastro',
-  path: '/cadastro',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AutocreateRoute = AutocreateRouteImport.update({
-  id: '/autocreate',
-  path: '/autocreate',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminRoute = AdminRouteImport.update({
@@ -43,19 +29,39 @@ const AdminRoute = AdminRouteImport.update({
   path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const AutocreateRoute = AutocreateRouteImport.update({
+  id: '/autocreate',
+  path: '/autocreate',
   getParentRoute: () => rootRouteImport,
 } as any)
-const CardapioSlugRoute = CardapioSlugRouteImport.update({
-  id: '/cardapio/$slug',
-  path: '/cardapio/$slug',
+const CadastroRoute = CadastroRouteImport.update({
+  id: '/cadastro',
+  path: '/cadastro',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DegustacaoSolRoute = DegustacaoSolRouteImport.update({
+  id: '/degustacao-sol',
+  path: '/degustacao-sol',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MasterAdminRoute = MasterAdminRouteImport.update({
+  id: '/master-admin',
+  path: '/master-admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiEvoProxyRoute = ApiEvoProxyRouteImport.update({
   id: '/api/evo-proxy',
   path: '/api/evo-proxy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CardapioSlugRoute = CardapioSlugRouteImport.update({
+  id: '/cardapio/$slug',
+  path: '/cardapio/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -64,6 +70,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRoute
   '/autocreate': typeof AutocreateRoute
   '/cadastro': typeof CadastroRoute
+  '/degustacao-sol': typeof DegustacaoSolRoute
   '/master-admin': typeof MasterAdminRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/api/evo-proxy': typeof ApiEvoProxyRoute
@@ -74,6 +81,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminRoute
   '/autocreate': typeof AutocreateRoute
   '/cadastro': typeof CadastroRoute
+  '/degustacao-sol': typeof DegustacaoSolRoute
   '/master-admin': typeof MasterAdminRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/api/evo-proxy': typeof ApiEvoProxyRoute
@@ -85,6 +93,7 @@ export interface FileRoutesById {
   '/admin': typeof AdminRoute
   '/autocreate': typeof AutocreateRoute
   '/cadastro': typeof CadastroRoute
+  '/degustacao-sol': typeof DegustacaoSolRoute
   '/master-admin': typeof MasterAdminRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/api/evo-proxy': typeof ApiEvoProxyRoute
@@ -97,6 +106,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/autocreate'
     | '/cadastro'
+    | '/degustacao-sol'
     | '/master-admin'
     | '/sitemap.xml'
     | '/api/evo-proxy'
@@ -107,6 +117,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/autocreate'
     | '/cadastro'
+    | '/degustacao-sol'
     | '/master-admin'
     | '/sitemap.xml'
     | '/api/evo-proxy'
@@ -117,6 +128,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/autocreate'
     | '/cadastro'
+    | '/degustacao-sol'
     | '/master-admin'
     | '/sitemap.xml'
     | '/api/evo-proxy'
@@ -128,6 +140,7 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRoute
   AutocreateRoute: typeof AutocreateRoute
   CadastroRoute: typeof CadastroRoute
+  DegustacaoSolRoute: typeof DegustacaoSolRoute
   MasterAdminRoute: typeof MasterAdminRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   ApiEvoProxyRoute: typeof ApiEvoProxyRoute
@@ -136,32 +149,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/sitemap.xml': {
-      id: '/sitemap.xml'
-      path: '/sitemap.xml'
-      fullPath: '/sitemap.xml'
-      preLoaderRoute: typeof SitemapDotxmlRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/master-admin': {
-      id: '/master-admin'
-      path: '/master-admin'
-      fullPath: '/master-admin'
-      preLoaderRoute: typeof MasterAdminRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/cadastro': {
-      id: '/cadastro'
-      path: '/cadastro'
-      fullPath: '/cadastro'
-      preLoaderRoute: typeof CadastroRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/autocreate': {
-      id: '/autocreate'
-      path: '/autocreate'
-      fullPath: '/autocreate'
-      preLoaderRoute: typeof AutocreateRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin': {
@@ -171,18 +163,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/autocreate': {
+      id: '/autocreate'
+      path: '/autocreate'
+      fullPath: '/autocreate'
+      preLoaderRoute: typeof AutocreateRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/cardapio/$slug': {
-      id: '/cardapio/$slug'
-      path: '/cardapio/$slug'
-      fullPath: '/cardapio/$slug'
-      preLoaderRoute: typeof CardapioSlugRouteImport
+    '/cadastro': {
+      id: '/cadastro'
+      path: '/cadastro'
+      fullPath: '/cadastro'
+      preLoaderRoute: typeof CadastroRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/degustacao-sol': {
+      id: '/degustacao-sol'
+      path: '/degustacao-sol'
+      fullPath: '/degustacao-sol'
+      preLoaderRoute: typeof DegustacaoSolRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/master-admin': {
+      id: '/master-admin'
+      path: '/master-admin'
+      fullPath: '/master-admin'
+      preLoaderRoute: typeof MasterAdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/evo-proxy': {
@@ -190,6 +203,13 @@ declare module '@tanstack/react-router' {
       path: '/api/evo-proxy'
       fullPath: '/api/evo-proxy'
       preLoaderRoute: typeof ApiEvoProxyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cardapio/$slug': {
+      id: '/cardapio/$slug'
+      path: '/cardapio/$slug'
+      fullPath: '/cardapio/$slug'
+      preLoaderRoute: typeof CardapioSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -200,6 +220,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRoute,
   AutocreateRoute: AutocreateRoute,
   CadastroRoute: CadastroRoute,
+  DegustacaoSolRoute: DegustacaoSolRoute,
   MasterAdminRoute: MasterAdminRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   ApiEvoProxyRoute: ApiEvoProxyRoute,
@@ -208,13 +229,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
