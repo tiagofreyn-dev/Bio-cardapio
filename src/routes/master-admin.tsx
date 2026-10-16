@@ -1028,7 +1028,7 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
   // Degustação Mini-Cucas Sol pertence à Doces Sol (origem 'degustacao-sol' → slug 'doces-sol').
   async function fetchTargets(loja: string, slug: string) {
     if (!supabase) return { targets: [] as { phone: string; nome: string; fonte: string }[], cardapio: 0, degustacao: 0 };
-    const { data: rows } = await supabase.from("loja_clientes").select("phone,nome").eq("loja_id", loja).eq("opt_out", false).limit(500);
+    const { data: rows } = await supabase.from("loja_clientes").select("phone,nome").eq("loja_id", loja).eq("opt_out", false).limit(1000);
     const map = new Map<string, { phone: string; nome: string; fonte: string }>();
     for (const r of rows || []) {
       const digits = String((r as any).phone).replace(/\D/g, "").replace(/^55/, "");
@@ -1041,7 +1041,7 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
     let degustacao = 0;
     if (slug === "doces-sol") {
       try {
-        const { data: leads } = await supabase.from("degustacao_leads").select("nome,phone").eq("origem", "degustacao-sol").limit(500);
+        const { data: leads } = await supabase.from("degustacao_leads").select("nome,phone").eq("origem", "degustacao-sol").limit(1000);
         for (const l of leads || []) {
           const digits = String((l as any).phone).replace(/\D/g, "").replace(/^55/, "");
           if (digits.length < 10) continue;
@@ -1093,6 +1093,15 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
 
   const [progress, setProgress] = useState({ done: 0, ok: 0, fail: 0 });
   const stopRef = useRef(false);
+  // Lotes anti-ban: 1000 números = 5 lotes de 200 (~15min cada). O offset
+  // sobrevive na sessão — fechou a aba, continua de onde parou.
+  const [lote, setLote] = useState(200);
+  function getOffset(key: string) {
+    try { return Number(sessionStorage.getItem(key) || 0) || 0; } catch { return 0; }
+  }
+  function offsetKey() {
+    return `insano.disparo.offset.${lojaId}.${new Date().toISOString().slice(0, 10)}`;
+  }
 
   async function sendDisparo() {
     if (!supabase || !lojaId) return alert("Escolha a loja.");
@@ -1122,6 +1131,7 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
     try {
       let okCount = 0;
       let failCount = 0;
+      let rest = 0;
       let prefix = "[SIMULAÇÃO] ";
       // Cria o lote primeiro (1 linha = 1 disparo) para controlar limite 10/dia.
       const { data: batch, error: batchError } = await supabase.from("broadcast_log").insert({
@@ -1132,10 +1142,23 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
         image_url: imageUrl.slice(0, 500),
       }).select("id").single();
       if (batchError) throw batchError;
-      // Envio real via proxy: base única (cardápio + degustação, sem repetidos).
+      // Envio real via proxy: base única (cardápio + degustação, sem repetidos), em LOTES.
       if (hasEvo) {
         const store2 = stores.find((s) => s.id === lojaId);
-        const { targets } = await fetchTargets(lojaId, store2?.slug || "");
+        const { targets: all } = await fetchTargets(lojaId, store2?.slug || "");
+        const key = offsetKey();
+        const start = Math.min(getOffset(key), all.length);
+        const targets = all.slice(start, start + lote);
+        if (!targets.length) {
+          try { sessionStorage.removeItem(key); } catch {}
+          alert("Base concluída — todos os números já receberam hoje. Offset zerado.");
+          setSending(false);
+          return;
+        }
+        if (!confirm(`Lote de ${targets.length} (do ${start + 1}º ao ${start + targets.length}º de ${all.length}) via ${instance}?`)) {
+          setSending(false);
+          return;
+        }
         let done = 0;
         for (const t of targets) {
           if (stopRef.current) break;
@@ -1157,12 +1180,15 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
         }
         prefix = imageUrl ? "[EVOLUTION+FOTO] " : "[EVOLUTION] ";
         await supabase.from("broadcast_log").update({ ok_count: okCount, total: targets.length }).eq("id", (batch as any).id);
+        const end = start + done;
+        try { sessionStorage.setItem(key, String(stopRef.current ? start + done : end)); } catch {}
+        rest = all.length - end;
       } else {
         okCount = count || 0;
       }
       setToday((t) => t + 1);
       loadLoja(lojaId);
-      alert(hasEvo ? `Disparo concluído: ${okCount} ok / ${failCount} falhas.` : "Disparo simulado e registrado no log!");
+      alert(hasEvo ? `Lote concluído: ${okCount} ok / ${failCount} falhas.${rest > 0 ? ` Faltam ${rest} — mande o próximo lote.` : " Base 100% alcançada! 🎉"}` : "Disparo simulado e registrado no log!");
     } catch (err: any) {
       alert("Erro: " + (err?.message || err));
     } finally {
@@ -1193,6 +1219,16 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
             <span className={`px-3 py-1.5 rounded-full ring-1 ${today >= 10 ? "bg-red-500/10 text-red-400 ring-red-500/30" : "bg-zinc-800 text-zinc-300 ring-zinc-700"}`}>{today}/10 disparos hoje</span>
           </div>
         )}
+        <div className="flex items-center gap-2">
+          <label className="text-[11px] font-bold text-zinc-400 whitespace-nowrap">Tamanho do lote (anti-ban):</label>
+          <select value={lote} onChange={(e) => setLote(Number(e.target.value))} className="h-10 flex-1 rounded-xl bg-zinc-950 border border-zinc-800 px-3 text-xs font-bold">
+            <option value={100}>100/lote (~7min) — número novo</option>
+            <option value={200}>200/lote (~15min) — recomendado</option>
+            <option value={250}>250/lote (~18min)</option>
+            <option value={500}>500/lote (~35min) — número aquecido</option>
+          </select>
+          <button onClick={() => { try { sessionStorage.removeItem(offsetKey()); } catch {} alert("Contador do lote zerado — próximo envio recomeça do 1º."); }} disabled={!lojaId} className="h-10 px-3 rounded-xl bg-zinc-800 text-zinc-300 text-[11px] font-bold ring-1 ring-zinc-700 disabled:opacity-40" title="Recomeçar do primeiro número">↺</button>
+        </div>
         <textarea value={msg} onChange={(e) => setMsg(e.target.value)} rows={4} maxLength={600} placeholder="Mensagem do disparo... use {nome} para personalizar. Ex: Oi {nome}! 🔥" className="w-full p-3 rounded-xl bg-zinc-950 border border-zinc-800 text-xs outline-none focus:border-primary/50" />
         <p className="text-[10px] text-zinc-500 text-right">{msg.length}/600 • {"{nome}"} vira o 1º nome do cliente</p>
         {sending && progress.done > 0 && (
