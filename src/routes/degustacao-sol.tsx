@@ -37,6 +37,7 @@ function DegustacaoSolPage() {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState<Lead | null>(null);
+  const [followed, setFollowed] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -63,21 +64,10 @@ function DegustacaoSolPage() {
     } catch {}
     setSaving(false);
     setDone(lead);
+    setFollowed(false);
     try {
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch {}
-  }
-
-  function exportCsv() {
-    const leads = loadLeads();
-    if (!leads.length) return alert("Nenhum cadastro ainda.");
-    const csv = ["nome;whatsapp;data", ...leads.map((l) => `"${l.nome}";"${l.phone}";"${l.at}"`)].join("\n");
-    const url = URL.createObjectURL(new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" }));
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "leads-minicucas-sol.csv";
-    a.click();
-    URL.revokeObjectURL(url);
   }
 
   return (
@@ -158,7 +148,7 @@ function DegustacaoSolPage() {
                 {saving ? "GUARDANDO... ✨" : "QUERO MINHA AMOSTRA GRÁTIS! 🎁"}
               </button>
               <p className="text-center text-[11px] font-medium" style={{ color: "#B98D7B" }}>
-                Leva 10 segundos • Sem spam, prometido 🤙
+                Cadastro rapidinho • Sem spam, prometido 🤙
               </p>
             </form>
           </main>
@@ -178,6 +168,7 @@ function DegustacaoSolPage() {
               href="https://www.instagram.com/docessol26/"
               target="_blank"
               rel="noopener noreferrer"
+              onClick={() => setFollowed(true)}
               className="anim-rise block rounded-3xl p-5 text-center text-white shadow-xl transition active:scale-[0.98]"
               style={{ background: "linear-gradient(135deg,#F58529,#DD2A7B,#8134AF)", animationDelay: ".1s", boxShadow: "0 10px 25px rgba(221,42,123,.35)" }}
             >
@@ -185,7 +176,8 @@ function DegustacaoSolPage() {
               <span className="mt-1 block text-lg font-black">Seguir nosso Instagram @docessol26</span>
             </a>
 
-            <div className="anim-rise rounded-3xl border-2 border-dashed bg-white/70 p-5 text-center" style={{ borderColor: "#E8927C", animationDelay: ".2s" }}>
+            {followed ? (
+            <div className="anim-pop rounded-3xl border-2 border-dashed bg-white/70 p-5 text-center" style={{ borderColor: "#E8927C" }}>
               <span className="text-xs font-extrabold uppercase tracking-widest" style={{ color: "#A9746E" }}>
                 Passo 2 — na hora 🧁
               </span>
@@ -196,14 +188,18 @@ function DegustacaoSolPage() {
                 🎟️ {firstName(done.nome)} • {done.phone.replace(/(\d{2})(\d{4,5})(\d{4})/, "($1) $2-$3")}
               </div>
             </div>
+            ) : (
+            <div className="rounded-3xl bg-white/60 p-5 text-center ring-1 ring-[#E8C9A8]">
+              <p className="text-sm font-bold" style={{ color: "#A9746E" }}>
+                👆 Toque no botão rosa acima pra liberar seu voucher
+              </p>
+            </div>
+            )}
           </main>
         )}
 
         <footer className="mt-8 text-center">
-          <button onClick={exportCsv} className="text-[11px] font-bold underline" style={{ color: "#B98D7B" }}>
-            Exportar cadastros (CSV)
-          </button>
-          <p className="mt-1 text-[11px] font-medium" style={{ color: "#C9A68C" }}>
+          <p className="text-[11px] font-medium" style={{ color: "#C9A68C" }}>
             Mini-Cucas Sol ☀️ • feita à mão com amor
           </p>
         </footer>
