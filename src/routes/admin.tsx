@@ -15,7 +15,7 @@ import type {
   ProductChoiceGroup,
 } from "@/lib/types";
 import { brl } from "@/lib/format";
-import { dataCurta, dataLonga, hojeIso, proximaDataEncomenda } from "@/lib/encomenda";
+import { dataCurta, dataLonga, hojeIso, proximaDataEncomenda, vendasDeHojePorSabor } from "@/lib/encomenda";
 import {
   MoreVertical,
   Edit2,
@@ -2972,6 +2972,18 @@ function ProducaoTab({ lojaId }: { lojaId: string | null }) {
   const [erro, setErro] = useState<string | null>(null);
   const [copiado, setCopiado] = useState("");
   const [lote, setLote] = useState<Record<string, string>>({});
+  const [vendidos, setVendidos] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    if (!lojaId) return;
+    let alive = true;
+    vendasDeHojePorSabor(lojaId).then((v) => {
+      if (alive) setVendidos(v);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [lojaId]);
 
   useEffect(() => {
     let alive = true;
@@ -3076,6 +3088,34 @@ function ProducaoTab({ lojaId }: { lojaId: string | null }) {
     storage.setProducts(list);
     reloadPreview();
     setCopiado("lote-" + id);
+    setTimeout(() => setCopiado(""), 1800);
+  }
+
+  // Lote POR SABOR: define quantas unidades de cada sabor foram feitas hoje.
+  // O total do produto passa a ser a soma, pra o cardápio fechar sozinho.
+  function anunciarSabores(p: Product) {
+    const sabores = (p.sabores || [])
+      .filter((s) => String(s?.nome || "").trim())
+      .map((s) => {
+        const raw = lote[`${p.id}:${s.nome}`];
+        const n =
+          raw === undefined
+            ? typeof s.stock === "number"
+              ? s.stock
+              : 0
+            : Math.max(0, Math.floor(Number(raw) || 0));
+        return { ...s, stock: n };
+      });
+    const total = sabores.reduce((a, s) => a + (s.stock || 0), 0);
+    const list = storage.getProducts().map((x) =>
+      x.id === p.id ? { ...x, sabores, stock: total } : x,
+    );
+    storage.setProducts(list);
+    reloadPreview();
+    const novoLote: Record<string, string> = { ...lote };
+    for (const s of sabores) novoLote[`${p.id}:${s.nome}`] = String(s.stock || 0);
+    setLote(novoLote);
+    setCopiado("lote-" + p.id);
     setTimeout(() => setCopiado(""), 1800);
   }
 
@@ -3262,43 +3302,108 @@ function ProducaoTab({ lojaId }: { lojaId: string | null }) {
         })}
       </div>
 
-      <div className="p-4 rounded-2xl bg-surface ring-1 ring-border space-y-2">
-        <h4 className="font-extrabold text-sm text-white">📣 Anunciar lote de hoje</h4>
-        <p className="text-[10px] text-zinc-500 leading-relaxed">
-          Digite quantas unidades você fez. Ao chegar em <span className="font-bold text-zinc-300">0</span>,
-          o cardápio mostra "encomende para {dataCurta(proximaDataEncomenda(settings))}".
-        </p>
+      <div className="p-4 rounded-2xl bg-surface ring-1 ring-border space-y-3">
+        <div>
+          <h4 className="font-extrabold text-sm text-white">📣 Anunciar lote de hoje</h4>
+          <p className="text-[10px] text-zinc-500 leading-relaxed">
+            Digite quantas unidades de <span className="font-bold text-zinc-300">cada sabor</span>{" "}
+            você fez. O cardápio trava a escolha conforme vão acabando e libera a encomenda
+            para {dataCurta(proximaDataEncomenda(settings))} quando zerar.
+          </p>
+        </div>
         {produtosLote.length === 0 && (
           <p className="text-xs text-zinc-500">
             Nenhum produto com combo ou estoque controlado ainda.
           </p>
         )}
-        {produtosLote.map((p) => (
-          <div key={p.id} className="flex items-center gap-2">
-            <span className="flex-1 min-w-0 text-xs font-bold text-white truncate">
-              {p.name}
-              {typeof p.stock === "number" && (
-                <span className="text-zinc-500 font-normal"> • {p.stock} un agora</span>
-              )}
-            </span>
-            <input
-              type="number"
-              min={0}
-              inputMode="numeric"
-              value={lote[p.id] ?? (typeof p.stock === "number" ? String(p.stock) : "")}
-              onChange={(e) => setLote({ ...lote, [p.id]: e.target.value })}
-              className="w-20 h-9 px-2 rounded-lg bg-input text-foreground ring-1 ring-border outline-none text-sm text-center shrink-0"
-              placeholder="0"
-            />
-            <button
-              type="button"
-              onClick={() => anunciar(p.id)}
-              className="h-9 px-3 rounded-lg bg-primary text-primary-foreground text-[11px] font-bold shrink-0"
-            >
-              {copiado === "lote-" + p.id ? "✓" : "Anunciar"}
-            </button>
-          </div>
-        ))}
+        {produtosLote.map((p) => {
+          const sabores = (p.sabores || []).filter((s) => String(s?.nome || "").trim());
+          const temSabores = sabores.length > 0 && (p.combos?.length ?? 0) > 0;
+
+          // Produto comum (sem sabores): continua com 1 campo só.
+          if (!temSabores) {
+            return (
+              <div key={p.id} className="flex items-center gap-2">
+                <span className="flex-1 min-w-0 text-xs font-bold text-white truncate">
+                  {p.name}
+                  {typeof p.stock === "number" && (
+                    <span className="text-zinc-500 font-normal"> • {p.stock} un agora</span>
+                  )}
+                </span>
+                <input
+                  type="number"
+                  min={0}
+                  inputMode="numeric"
+                  value={lote[p.id] ?? (typeof p.stock === "number" ? String(p.stock) : "")}
+                  onChange={(e) => setLote({ ...lote, [p.id]: e.target.value })}
+                  className="w-20 h-9 px-2 rounded-lg bg-input text-foreground ring-1 ring-border outline-none text-sm text-center shrink-0"
+                  placeholder="0"
+                />
+                <button
+                  type="button"
+                  onClick={() => anunciar(p.id)}
+                  className="h-9 px-3 rounded-lg bg-primary text-primary-foreground text-[11px] font-bold shrink-0"
+                >
+                  {copiado === "lote-" + p.id ? "✓" : "Anunciar"}
+                </button>
+              </div>
+            );
+          }
+
+          const feitas = sabores.reduce(
+            (s, f) => s + (typeof f.stock === "number" ? f.stock : 0),
+            0,
+          );
+          const vendidas = sabores.reduce((s, f) => s + (vendidos[f.nome] || 0), 0);
+
+          return (
+            <div key={p.id} className="p-2.5 rounded-xl bg-zinc-950/60 ring-1 ring-zinc-800 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-bold text-white truncate">{p.name}</span>
+                <span className="text-[10px] text-zinc-500 shrink-0">
+                  {feitas} feitas • {vendidas} vendidas hoje
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {sabores.map((f) => {
+                  const feito = typeof f.stock === "number" ? f.stock : 0;
+                  const resta = Math.max(0, feito - (vendidos[f.nome] || 0));
+                  const chave = `${p.id}:${f.nome}`;
+                  return (
+                    <label key={f.nome} className="flex items-center gap-1.5 min-w-0">
+                      <span className="flex-1 min-w-0 text-[11px] text-zinc-300 truncate">
+                        {f.nome}
+                        <span
+                          className={`block text-[9px] font-bold ${
+                            resta === 0 ? "text-rose-400" : resta <= 3 ? "text-amber-400" : "text-zinc-500"
+                          }`}
+                        >
+                          {resta} restam
+                        </span>
+                      </span>
+                      <input
+                        type="number"
+                        min={0}
+                        inputMode="numeric"
+                        value={lote[chave] ?? String(feito)}
+                        onChange={(e) => setLote({ ...lote, [chave]: e.target.value })}
+                        className="w-14 h-9 px-1 rounded-lg bg-input text-foreground ring-1 ring-border outline-none text-sm text-center shrink-0"
+                        placeholder="0"
+                      />
+                    </label>
+                  );
+                })}
+              </div>
+              <button
+                type="button"
+                onClick={() => anunciarSabores(p)}
+                className="w-full h-9 rounded-lg bg-primary text-primary-foreground text-[11px] font-bold"
+              >
+                {copiado === "lote-" + p.id ? "✓ Anunciado" : "Anunciar sabores"}
+              </button>
+            </div>
+          );
+        })}
       </div>
     </section>
   );

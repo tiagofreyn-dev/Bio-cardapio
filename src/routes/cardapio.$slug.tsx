@@ -7,6 +7,7 @@ import { SponsorCarousel } from "@/components/menu/SponsorCarousel";
 import { LoyaltyCard } from "@/components/menu/LoyaltyCard";
 import { CategoryBar } from "@/components/menu/CategoryBar";
 import { ProductCard } from "@/components/menu/ProductCard";
+import { vendasDeHojePorSabor } from "@/lib/encomenda";
 import { CustomizeModal } from "@/components/menu/CustomizeModal";
 import { FlavorComboModal } from "@/components/menu/FlavorComboModal";
 import { CartFooter } from "@/components/menu/CartFooter";
@@ -59,6 +60,26 @@ function DynamicCardapio() {
   // ou loja fechada)? O CartDrawer exige data + janela nesse caso.
   const encomendaAtiva = !!settings.encomendaAtiva;
   const [customizingEncomenda, setCustomizingEncomenda] = useState(false);
+  // Lote por sabor: quanto já saiu hoje (1 leitura leve, cache de 60s).
+  const [vendidosHoje, setVendidosHoje] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    const lojaId = store?.id;
+    if (!lojaId) return;
+    const temLotePorSabor = (products || []).some((p) =>
+      (p.sabores || []).some((s) => typeof s.stock === "number"),
+    );
+    if (!temLotePorSabor) return;
+    let alive = true;
+    vendasDeHojePorSabor(lojaId)
+      .then((v) => {
+        if (alive) setVendidosHoje(v);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [store?.id, products]);
 
   // 1. Carregar Dados do Tenant a partir do Supabase
   // ULTRA-LEVE: projeção de colunas (sem select *), cache local 5min por
@@ -373,6 +394,27 @@ function DynamicCardapio() {
     return cart
       .filter((i) => i.productId === productId)
       .reduce((s, i) => s + (i.units ?? i.qty), 0);
+  }
+
+  // Quanto ainda resta HOJE de cada sabor: lote anunciado − vendidos − carrinho.
+  function restantesDe(p: Product): Record<string, number> {
+    const out: Record<string, number> = {};
+    const noCarrinho: Record<string, number> = {};
+    for (const it of cart.filter((i) => i.productId === p.id)) {
+      for (const c of it.selectedChoices || []) {
+        if (/sabor/i.test(c.groupName || "")) {
+          noCarrinho[c.optionName] = (noCarrinho[c.optionName] || 0) + c.qty;
+        }
+      }
+    }
+    for (const s of p.sabores || []) {
+      if (typeof s.stock !== "number") continue;
+      out[s.nome] = Math.max(
+        0,
+        s.stock - (vendidosHoje[s.nome] || 0) - (noCarrinho[s.nome] || 0),
+      );
+    }
+    return out;
   }
 
   function handleAdd(p: Product) {
@@ -693,6 +735,8 @@ function DynamicCardapio() {
         ((customizing.combos?.length ?? 0) > 0 && (customizing.sabores?.length ?? 0) > 0 ? (
           <FlavorComboModal
             product={customizing}
+            restantes={restantesDe(customizing)}
+            limitar={!customizingEncomenda}
             onClose={() => setCustomizing(null)}
             onConfirm={(finalPrice, additionsText, selectedChoices, meta) => {
               try {

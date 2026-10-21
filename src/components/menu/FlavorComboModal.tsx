@@ -16,6 +16,8 @@ export function FlavorComboModal({
   product,
   onClose,
   onConfirm,
+  restantes,
+  limitar,
 }: {
   product: Product;
   onClose: () => void;
@@ -25,6 +27,10 @@ export function FlavorComboModal({
     selectedChoices: any[],
     meta?: { units?: number },
   ) => void;
+  /** Unidades que ainda restam HOJE por sabor (lote anunciado − vendidos). */
+  restantes?: Record<string, number>;
+  /** false = encomenda p/ amanhã (produção sob demanda): não trava por sabor. */
+  limitar?: boolean;
 }) {
   const combos = useMemo(
     () =>
@@ -52,6 +58,17 @@ export function FlavorComboModal({
   const [comboIdx, setComboIdx] = useState(0);
   const [sel, setSel] = useState<Record<string, number>>({});
 
+  // Estoque por sabor do lote de HOJE. Sabor sem `stock` numérico = sem limite.
+  const limiteDe = (nome: string): number => {
+    if (!limitar || !restantes) return Infinity;
+    const v = restantes[nome];
+    return typeof v === "number" ? Math.max(0, v) : Infinity;
+  };
+  const totalRestante = flavors.reduce((soma, f) => {
+    const lim = limiteDe(f.nome);
+    return soma + (lim === Infinity ? 9999 : lim);
+  }, 0);
+
   const combo = combos[Math.min(comboIdx, combos.length - 1)] || {
     qty: 1,
     price: Number(product.price) || 0,
@@ -73,11 +90,25 @@ export function FlavorComboModal({
   }
 
   function adjust(nome: string, delta: number) {
-    if (delta > 0 && chosen >= combo.qty) {
-      alert(`Você já escolheu ${combo.qty} de ${combo.qty} mini cucas. Tire 1 de um sabor para trocar.`);
-      return;
+    const lim = limiteDe(nome);
+    const atual = sel[nome] || 0;
+    if (delta > 0) {
+      if (atual >= lim) {
+        alert(
+          lim <= 0
+            ? `O sabor ${nome} esgotou no lote de hoje. Escolha outro ou encomende para amanhã.`
+            : `Só restam ${lim} de ${nome} hoje.`,
+        );
+        return;
+      }
+      if (chosen >= combo.qty) {
+        alert(
+          `Você já escolheu ${combo.qty} de ${combo.qty} mini cucas. Tire 1 de um sabor para trocar.`,
+        );
+        return;
+      }
     }
-    const next = Math.max(0, (sel[nome] || 0) + delta);
+    const next = Math.max(0, atual + delta);
     setSel((prev) => {
       const copy = { ...prev };
       if (next === 0) delete copy[nome];
@@ -138,16 +169,18 @@ export function FlavorComboModal({
                 const active = i === Math.min(comboIdx, combos.length - 1);
                 const unit = c.qty > 0 ? c.price / c.qty : 0;
                 const save = Math.max(0, baseUnit * c.qty - c.price);
+                const semLote = !!limitar && totalRestante < c.qty;
                 return (
                   <button
                     key={`${c.qty}-${i}`}
                     type="button"
+                    disabled={semLote}
                     onClick={() => pickCombo(i)}
                     className={`w-full flex items-center justify-between gap-2 p-3.5 rounded-2xl border text-left transition ${
                       active
                         ? "border-primary bg-primary/10 ring-1 ring-primary"
                         : "border-border bg-surface-elevated"
-                    }`}
+                    } ${semLote ? "opacity-45" : ""}`}
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <span
@@ -162,8 +195,9 @@ export function FlavorComboModal({
                           {c.qty} {c.qty > 1 ? "unidades" : "unidade"}
                         </p>
                         <p className="text-[11px] text-muted-foreground">
-                          {brl(unit)} cada
-                          {save > 0 ? ` • economize ${brl(save)}` : ""}
+                          {semLote
+                            ? `só restam ${totalRestante} hoje`
+                            : `${brl(unit)} cada${save > 0 ? ` • economize ${brl(save)}` : ""}`}
                         </p>
                       </div>
                     </div>
@@ -204,6 +238,9 @@ export function FlavorComboModal({
               {flavors.map((f) => {
                 const qty = sel[f.nome] || 0;
                 const isSelected = qty > 0;
+                const lim = limiteDe(f.nome);
+                const semEstoque = lim <= 0;
+                const noLimite = qty >= lim;
                 return (
                   <div
                     key={f.nome}
@@ -211,21 +248,37 @@ export function FlavorComboModal({
                       isSelected
                         ? "border-primary bg-primary/10 ring-1 ring-primary"
                         : "border-border bg-surface-elevated"
-                    }`}
+                    } ${semEstoque ? "opacity-45" : ""}`}
                   >
                     <button
                       type="button"
+                      disabled={semEstoque}
                       onClick={() => {
                         // Combo de 1 unidade: tocar no sabor já seleciona.
-                        if (combo.qty === 1) setSel({ [f.nome]: 1 });
-                        else adjust(f.nome, 1);
+                        if (combo.qty === 1) {
+                          if (semEstoque) return;
+                          setSel({ [f.nome]: 1 });
+                        } else adjust(f.nome, 1);
                       }}
-                      className="flex flex-col min-w-0 pr-2 text-left"
+                      className="flex flex-col min-w-0 pr-2 text-left disabled:cursor-not-allowed"
                     >
                       <span className="text-sm font-bold text-white truncate">{f.nome}</span>
                       {f.extra > 0 && (
                         <span className="text-[11px] font-black text-primary mt-0.5">
                           + {brl(f.extra)} por unidade
+                        </span>
+                      )}
+                      {Number.isFinite(lim) && (
+                        <span
+                          className={`text-[10px] font-bold mt-0.5 ${
+                            semEstoque
+                              ? "text-rose-400"
+                              : lim <= 3
+                                ? "text-amber-400"
+                                : "text-zinc-500"
+                          }`}
+                        >
+                          {semEstoque ? "esgotou hoje" : `restam ${lim} hoje`}
                         </span>
                       )}
                     </button>
@@ -254,7 +307,8 @@ export function FlavorComboModal({
                         <button
                           type="button"
                           onClick={() => adjust(f.nome, 1)}
-                          className="w-7 h-7 rounded-lg bg-primary text-primary-foreground flex items-center justify-center transition active:scale-90"
+                          disabled={semEstoque || noLimite}
+                          className="w-7 h-7 rounded-lg bg-primary text-primary-foreground disabled:opacity-40 flex items-center justify-center transition active:scale-90"
                         >
                           <Plus className="w-3.5 h-3.5" />
                         </button>

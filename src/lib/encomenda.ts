@@ -63,3 +63,80 @@ export function janelasDe(settings?: Settings | null): string[] {
   const list = (settings?.encomendaJanelas || []).map((s) => String(s).trim()).filter(Boolean);
   return list.length > 0 ? list : JANELAS_PADRAO;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Estoque POR SABOR (lote do dia)
+// Somamos o que já foi vendido hoje direto dos pedidos salvos — sem write
+// extra e sem risco de race: o número é sempre derivado da fonte da verdade.
+// Pedido agendado para amanhã NÃO consome o lote de hoje.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type VendasPorSabor = Record<string, number>;
+
+const VENDAS_CACHE_MS = 60 * 1000;
+
+/** Soma as unidades por sabor dos pedidos de HOJE (cancelados/apagados somem). */
+export async function vendasDeHojePorSabor(
+  lojaId: string,
+  opts?: { force?: boolean },
+): Promise<VendasPorSabor> {
+  const vazio: VendasPorSabor = {};
+  if (!lojaId) return vazio;
+  const cacheKey = `insano.vendas.${lojaId}.${hojeIso()}`;
+
+  if (!opts?.force && typeof window !== "undefined") {
+    try {
+      const raw = sessionStorage.getItem(cacheKey);
+      if (raw) {
+        const c = JSON.parse(raw);
+        if (c && Date.now() - (c.at || 0) < VENDAS_CACHE_MS && c.vendas) return c.vendas;
+      }
+    } catch {}
+  }
+
+  const { supabase } = await import("./supabase");
+  if (!supabase) return vazio;
+
+  const inicio = new Date();
+  inicio.setHours(0, 0, 0, 0);
+  const hoje = isoDate(new Date());
+
+  try {
+    // Pedidos para hoje + pedidos de balcão criados hoje.
+    const { data, error } = await supabase
+      .from("orders_history")
+      .select("itens,agendado_para")
+      .eq("loja_id", lojaId)
+      .or(`agendado_para.eq.${hoje},and(agendado_para.is.null,created_at.gte.${inicio.toISOString()})`)
+      .limit(500);
+    if (error || !data) return vazio;
+
+    const vendas: VendasPorSabor = {};
+    for (const row of data as any[]) {
+      const itens = Array.isArray(row?.itens) ? row.itens : [];
+      for (const it of itens) {
+        for (const f of Array.isArray(it?.flavors) ? it.flavors : []) {
+          const nome = String(f?.name || "").trim();
+          const q = Number(f?.qty) || 0;
+          if (nome && q > 0) vendas[nome] = (vendas[nome] || 0) + q;
+        }
+      }
+    }
+
+    if (typeof window !== "undefined") {
+      try {
+        sessionStorage.setItem(cacheKey, JSON.stringify({ at: Date.now(), vendas }));
+      } catch {}
+    }
+    return vendas;
+  } catch {
+    return vazio;
+  }
+}
+
+/** Esquece o cache (chamar depois de enviar um pedido). */
+export function limparCacheVendas(lojaId: string) {
+  try {
+    sessionStorage.removeItem(`insano.vendas.${lojaId}.${hojeIso()}`);
+  } catch {}
+}

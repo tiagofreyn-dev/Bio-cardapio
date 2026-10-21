@@ -28,9 +28,12 @@ export interface ProductChoiceGroup {
 }
 
 // Sabor de mini cuca/cupcake. `extra` = acréscimo POR UNIDADE (ex: Nutella +R$1).
+// `stock` = quantas unidades desse sabor foram feitas HOJE (lote anunciado).
+// O cardápio desconta o que já foi vendido e trava a escolha no combo.
 export interface FlavorOption {
   nome: string;
   extra?: number;
+  stock?: number;
 }
 
 // Faixa de preço por quantidade: 1 un R$5, 5 un R$20...
