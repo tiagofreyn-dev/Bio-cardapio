@@ -15,7 +15,7 @@ import type {
   ProductChoiceGroup,
 } from "@/lib/types";
 import { brl } from "@/lib/format";
-import { dataCurta, dataLonga, proximaDataEncomenda } from "@/lib/encomenda";
+import { dataCurta, dataLonga, hojeIso, proximaDataEncomenda } from "@/lib/encomenda";
 import {
   MoreVertical,
   Edit2,
@@ -2964,7 +2964,9 @@ function itensCurto(o: PedidoProducao): string {
 function ProducaoTab({ lojaId }: { lojaId: string | null }) {
   const settings = useStorageSync(() => storage.getSettings());
   const products = useStorageSync(() => storage.getProducts());
-  const [data, setData] = useState(() => proximaDataEncomenda(storage.getSettings()));
+  // Padrão = HOJE: é o que a dona precisa assar quando acorda. À noite ela
+  // alterna para "Próxima produção" com 1 toque.
+  const [data, setData] = useState(() => hojeIso());
   const [pedidos, setPedidos] = useState<PedidoProducao[]>([]);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -3110,8 +3112,32 @@ function ProducaoTab({ lojaId }: { lojaId: string | null }) {
             <span className="text-[9px] uppercase font-bold text-zinc-500">a receber</span>
           </div>
         </div>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setData(hojeIso())}
+            className={`flex-1 h-9 rounded-lg text-[11px] font-bold ring-1 transition ${
+              data === hojeIso()
+                ? "bg-primary text-primary-foreground ring-primary"
+                : "bg-zinc-950 text-zinc-400 ring-zinc-800"
+            }`}
+          >
+            ☀️ Hoje
+          </button>
+          <button
+            type="button"
+            onClick={() => setData(proximaDataEncomenda(settings))}
+            className={`flex-1 h-9 rounded-lg text-[11px] font-bold ring-1 transition ${
+              data === proximaDataEncomenda(settings)
+                ? "bg-amber-500 text-black ring-amber-400"
+                : "bg-zinc-950 text-zinc-400 ring-zinc-800"
+            }`}
+          >
+            🍬 {dataCurta(proximaDataEncomenda(settings))}
+          </button>
+        </div>
         <p className="text-[10px] text-zinc-500">
-          Data de hoje: <span className="text-zinc-300 font-bold">{dataLonga(data)}</span> •
+          Dia selecionado: <span className="text-zinc-300 font-bold">{dataLonga(data)}</span> •
           Encomendas aceitas até <span className="text-zinc-300 font-bold">{settings.encomendaCorte || "23:00"}</span>
         </p>
       </div>
