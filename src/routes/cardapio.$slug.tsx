@@ -8,6 +8,7 @@ import { LoyaltyCard } from "@/components/menu/LoyaltyCard";
 import { CategoryBar } from "@/components/menu/CategoryBar";
 import { ProductCard } from "@/components/menu/ProductCard";
 import { CustomizeModal } from "@/components/menu/CustomizeModal";
+import { FlavorComboModal } from "@/components/menu/FlavorComboModal";
 import { CartFooter } from "@/components/menu/CartFooter";
 import { CartDrawer } from "@/components/menu/CartDrawer";
 import type { CartItem, Category, Product, Campaign, Loja } from "@/lib/types";
@@ -364,7 +365,10 @@ function DynamicCardapio() {
     return typeof p.stock === "number" ? (p.stock as number) : null;
   }
   function cartQtyFor(productId: string) {
-    return cart.filter((i) => i.productId === productId).reduce((s, i) => s + i.qty, 0);
+    // Combo de 5 mini cucas conta 5 unidades no estoque (units), não 1.
+    return cart
+      .filter((i) => i.productId === productId)
+      .reduce((s, i) => s + (i.units ?? i.qty), 0);
   }
 
   function handleAdd(p: Product) {
@@ -372,16 +376,19 @@ function DynamicCardapio() {
       alert("Loja fechada no momento.");
       return;
     }
+    const hasFlavorCombo = (p.combos?.length ?? 0) > 0 && (p.sabores?.length ?? 0) > 0;
     const st = stockOf(p);
     if (st !== null && st <= 0) {
       alert(`${p.name} está esgotado no momento.`);
       return;
     }
-    if (st !== null && cartQtyFor(p.id) + 1 > st) {
+    // Em combo (5 un) o tamanho real só é escolhido no modal: bloqueia quando
+    // já não cabe nem 1 unidade, em vez de contar sempre +1.
+    if (st !== null && cartQtyFor(p.id) + (hasFlavorCombo ? 0 : 1) >= st) {
       alert(`Só restam ${st} un. de ${p.name}.`);
       return;
     }
-    if (p.customizable) {
+    if (hasFlavorCombo || p.customizable) {
       setCustomizing(p);
     } else {
       setCart((c) => [
@@ -662,34 +669,61 @@ function DynamicCardapio() {
         </p>
       </footer>
 
-      {customizing && (
-        <CustomizeModal
-          product={customizing}
-          onClose={() => setCustomizing(null)}
-          onConfirm={(finalPrice, additionsText, selectedChoices) => {
-            try {
-              const namePlus = (customizing.name || "Item") + additionsText;
+      {customizing &&
+        ((customizing.combos?.length ?? 0) > 0 && (customizing.sabores?.length ?? 0) > 0 ? (
+          <FlavorComboModal
+            product={customizing}
+            onClose={() => setCustomizing(null)}
+            onConfirm={(finalPrice, additionsText, selectedChoices, meta) => {
+              try {
+                setCart((c) => [
+                  ...c,
+                  {
+                    id: safeUUID(),
+                    productId: customizing.id,
+                    name: (customizing.name || "Item") + additionsText,
+                    price: finalPrice,
+                    qty: 1,
+                    units: meta?.units,
+                    selectedChoices: selectedChoices,
+                  },
+                ]);
+                setCustomizing(null);
+              } catch (err) {
+                console.error("ERRO COMPLETO NO CARRINHO:", err);
+                alert("Erro ao adicionar item ao carrinho. Detalhes salvos no console.");
+                setCustomizing(null);
+              }
+            }}
+          />
+        ) : (
+          <CustomizeModal
+            product={customizing}
+            onClose={() => setCustomizing(null)}
+            onConfirm={(finalPrice, additionsText, selectedChoices) => {
+              try {
+                const namePlus = (customizing.name || "Item") + additionsText;
 
-              setCart((c) => [
-                ...c,
-                {
-                  id: safeUUID(),
-                  productId: customizing.id,
-                  name: namePlus,
-                  price: finalPrice,
-                  qty: 1,
-                  selectedChoices: selectedChoices,
-                },
-              ]);
-              setCustomizing(null);
-            } catch (err) {
-              console.error("ERRO COMPLETO NO CARRINHO:", err);
-              alert("Erro ao adicionar item ao carrinho. Detalhes salvos no console.");
-              setCustomizing(null);
-            }
-          }}
-        />
-      )}
+                setCart((c) => [
+                  ...c,
+                  {
+                    id: safeUUID(),
+                    productId: customizing.id,
+                    name: namePlus,
+                    price: finalPrice,
+                    qty: 1,
+                    selectedChoices: selectedChoices,
+                  },
+                ]);
+                setCustomizing(null);
+              } catch (err) {
+                console.error("ERRO COMPLETO NO CARRINHO:", err);
+                alert("Erro ao adicionar item ao carrinho. Detalhes salvos no console.");
+                setCustomizing(null);
+              }
+            }}
+          />
+        ))}
 
       {count > 0 && (
         <CartFooter count={count} subtotal={subtotal} onOpen={() => setCartOpen(true)} />

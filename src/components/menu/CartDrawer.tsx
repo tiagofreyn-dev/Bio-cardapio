@@ -337,12 +337,22 @@ export function CartDrawer({
     lines.push("");
     lines.push("🛒 *ITENS DO PEDIDO:*");
     items.forEach((i) => {
-      lines.push(`• ${i.qty}x ${i.name} (${brl(i.price * i.qty)})`);
+      // "1x" só quando há mais de um item — combo já traz "(5 un)" no nome.
+      const qtyLabel = i.qty > 1 ? `${i.qty}x ` : "";
+      lines.push(`• ${qtyLabel}${i.name} (${brl(i.price * i.qty)})`);
       if (i.selectedChoices && i.selectedChoices.length > 0) {
-        i.selectedChoices.forEach((addon) => {
-          lines.push(
-            `   - ${addon.groupName}: ${addon.qty > 1 ? addon.qty + "x " : ""}${addon.optionName} (${brl(addon.price)})`,
-          );
+        // Agrupa por grupo numa linha só: "Sabores: 3x Chocolate, 2x Coco".
+        const byGroup = new Map<string, string[]>();
+        for (const c of i.selectedChoices) {
+          const label = `${c.qty > 1 ? c.qty + "x " : ""}${c.optionName}${
+            c.price > 0 ? ` (+${brl(c.price)})` : ""
+          }`;
+          const arr = byGroup.get(c.groupName) || [];
+          arr.push(label);
+          byGroup.set(c.groupName, arr);
+        }
+        byGroup.forEach((labels, group) => {
+          lines.push(`   - ${group}: ${labels.join(", ")}`);
         });
       } else if (i.adicionaisSelecionados && i.adicionaisSelecionados.length > 0) {
         i.adicionaisSelecionados.forEach((addon) => {
@@ -454,7 +464,7 @@ export function CartDrawer({
       if (fp && typeof fp.stock === "number") {
         const bought = items
           .filter((x) => x.productId === i.productId)
-          .reduce((s, x) => s + x.qty, 0);
+          .reduce((s, x) => s + (x.units ?? x.qty), 0);
         if (bought > fp.stock) {
           alert(`Estoque insuficiente: só restam ${fp.stock} un. de ${fp.name}. Ajuste a sacola.`);
           setIsSubmitting(false);
@@ -663,7 +673,7 @@ export function CartDrawer({
         if (typeof p.stock !== "number") return p;
         const bought = items
           .filter((x) => x.productId === p.id)
-          .reduce((s, x) => s + x.qty, 0);
+          .reduce((s, x) => s + (x.units ?? x.qty), 0);
         return bought > 0 ? { ...p, stock: Math.max(0, (p.stock as number) - bought) } : p;
       });
       if (updated.some((p, idx) => p !== freshProducts[idx])) storage.setProducts(updated);
@@ -832,7 +842,8 @@ export function CartDrawer({
                           {i.selectedChoices.map((addon) => (
                             <p key={addon.groupId + addon.optionId}>
                               • {addon.groupName}: {addon.qty > 1 ? addon.qty + "x " : ""}
-                              {addon.optionName} ({brl(addon.price)})
+                              {addon.optionName}
+                              {addon.price > 0 ? ` (+${brl(addon.price)})` : ""}
                             </p>
                           ))}
                         </div>

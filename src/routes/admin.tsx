@@ -12,6 +12,7 @@ import type {
   OrderHistory,
   DeliveryLocation,
   ChoiceGroup,
+  ProductChoiceGroup,
 } from "@/lib/types";
 import { brl } from "@/lib/format";
 import {
@@ -2172,6 +2173,51 @@ function ProductModal({
   const [newAddonName, setNewAddonName] = useState("");
   const [newAddonPrice, setNewAddonPrice] = useState("");
   const [newAddonDesc, setNewAddonDesc] = useState("");
+  const [novoSabor, setNovoSabor] = useState("");
+
+  // ── Combos com sabores (mini cucas, cupcakes...) ────────────────────────
+  const temCombos = (p.combos || []).length > 0;
+  const saboresLista = (p.sabores || []).map((s: any) =>
+    typeof s === "string" ? { nome: s, extra: 0 } : { nome: String(s?.nome || ""), extra: Number(s?.extra) || 0 },
+  );
+  const baseUnit = Number(p.price) || 5;
+
+  function setCombos(list: { qty: number; price: number }[]) {
+    setP({ ...p, combos: list });
+  }
+  function ativarCombos(on: boolean) {
+    if (on) {
+      setCombos([
+        { qty: 1, price: baseUnit },
+        { qty: 5, price: Math.round(baseUnit * 5 * 0.8 * 100) / 100 },
+      ]);
+    } else {
+      setP({ ...p, combos: [], sabores: [] });
+    }
+  }
+  function addFaixa() {
+    const list = p.combos || [];
+    const last = list[list.length - 1];
+    const qty = (last?.qty || 1) + 1;
+    setCombos([...list, { qty, price: Math.round(baseUnit * qty * 0.8 * 100) / 100 }]);
+  }
+  function presetFaixas() {
+    setCombos([
+      { qty: 1, price: baseUnit },
+      { qty: 2, price: Math.round(baseUnit * 2 * 0.9 * 100) / 100 },
+      { qty: 5, price: Math.round(baseUnit * 5 * 0.8 * 100) / 100 },
+    ]);
+  }
+  function addSabor() {
+    const nome = novoSabor.trim();
+    if (!nome) return;
+    if (saboresLista.some((s) => s.nome.toLowerCase() === nome.toLowerCase())) {
+      alert("Esse sabor já está na lista.");
+      return;
+    }
+    setP({ ...p, sabores: [...saboresLista, { nome, extra: 0 }] });
+    setNovoSabor("");
+  }
 
   const allProducts = useStorageSync(() => storage.getProducts());
   const settings = useStorageSync(() => storage.getSettings());
@@ -2357,6 +2403,174 @@ function ProductModal({
             </div>
           </Field>
         )}
+
+        {/* Combos com sabores (mini cucas, cupcakes, doces) */}
+        <div className="space-y-3 p-4 rounded-2xl bg-zinc-900 border border-zinc-800">
+          <label className="flex items-start justify-between gap-3 cursor-pointer">
+            <div>
+              <span className="text-[11px] uppercase font-black text-primary tracking-wider block">
+                🍬 Combos com sabores
+              </span>
+              <span className="text-[10px] text-zinc-500 leading-snug block mt-0.5">
+                Pra vender por quantidade com sabor em cada unidade (mini cucas, cupcakes, doces).
+                O cliente escolhe a faixa e o sabor de cada uma.
+              </span>
+            </div>
+            <input
+              type="checkbox"
+              className="w-5 h-5 accent-primary shrink-0 mt-1"
+              checked={temCombos}
+              onChange={(e) => ativarCombos(e.target.checked)}
+            />
+          </label>
+
+          {temCombos && (
+            <>
+              <div className="space-y-2">
+                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wide block">
+                  Faixas de preço
+                </span>
+                {(p.combos || []).map((c, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={1}
+                      value={c.qty}
+                      onChange={(e) => {
+                        const list = [...(p.combos || [])];
+                        list[i] = { ...list[i], qty: Math.max(1, Number(e.target.value) || 1) };
+                        setCombos(list);
+                      }}
+                      className={`${inputCls} w-16 text-center`}
+                    />
+                    <span className="text-[10px] font-bold text-zinc-500 whitespace-nowrap">un por R$</span>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={c.price}
+                      onChange={(e) => {
+                        const list = [...(p.combos || [])];
+                        list[i] = { ...list[i], price: Math.max(0, Number(e.target.value) || 0) };
+                        setCombos(list);
+                      }}
+                      className={`${inputCls} flex-1`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setCombos((p.combos || []).filter((_, idx) => idx !== i))}
+                      className="text-rose-400 hover:text-rose-300 text-sm font-bold px-1"
+                      title="Remover faixa"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+                <div className="flex gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={addFaixa}
+                    className="text-[10px] font-bold px-2.5 py-1.5 rounded-lg bg-surface-elevated ring-1 ring-border text-zinc-300"
+                  >
+                    + faixa
+                  </button>
+                  <button
+                    type="button"
+                    onClick={presetFaixas}
+                    className="text-[10px] font-bold px-2.5 py-1.5 rounded-lg bg-primary/15 text-primary ring-1 ring-primary/40"
+                  >
+                    Sugestão: 1 un, 2 un e 5 un
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wide block">
+                  Sabores disponíveis
+                </span>
+                {saboresLista.length === 0 && (
+                  <p className="text-[10px] text-zinc-500 italic">
+                    Nenhum sabor ainda. Digite abaixo (ex: Chocolate, Coco, Tradicional).
+                  </p>
+                )}
+                {saboresLista.map((s, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <input
+                      value={s.nome}
+                      onChange={(e) => {
+                        const list = saboresLista.map((x, j) =>
+                          j === idx ? { ...x, nome: e.target.value } : x,
+                        );
+                        setP({ ...p, sabores: list });
+                      }}
+                      className={`${inputCls} flex-1`}
+                    />
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={s.extra || ""}
+                      placeholder="+R$"
+                      onChange={(e) => {
+                        const list = saboresLista.map((x, j) =>
+                          j === idx ? { ...x, extra: Math.max(0, Number(e.target.value) || 0) } : x,
+                        );
+                        setP({ ...p, sabores: list });
+                      }}
+                      className={`${inputCls} w-20 text-center`}
+                      title="Acréscimo por unidade (opcional)"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setP({ ...p, sabores: saboresLista.filter((_, j) => j !== idx) })}
+                      className="text-rose-400 hover:text-rose-300 text-sm font-bold px-1"
+                      title="Remover sabor"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+                <div className="flex gap-2">
+                  <input
+                    value={novoSabor}
+                    onChange={(e) => setNovoSabor(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addSabor();
+                      }
+                    }}
+                    placeholder="Ex: Chocolate"
+                    className={`${inputCls} flex-1`}
+                  />
+                  <button
+                    type="button"
+                    onClick={addSabor}
+                    className="text-[11px] font-bold px-3 rounded-lg bg-primary text-primary-foreground"
+                  >
+                    Adicionar
+                  </button>
+                </div>
+                <p className="text-[10px] text-zinc-500">
+                  O campo “+R$” é opcional — use só em sabor mais caro (ex: Nutella). Por unidade.
+                </p>
+              </div>
+
+              <div className="rounded-xl bg-black/30 border border-zinc-800 p-2.5 text-[10px] text-zinc-400">
+                <span className="font-bold text-zinc-300">No cardápio vai aparecer:</span>{" "}
+                {(p.combos || [])
+                  .slice()
+                  .sort((a, b) => a.qty - b.qty)
+                  .map((c) => `${c.qty} un ${brl(c.price)}`)
+                  .join(" · ") || "—"}
+                <br />
+                <span className="text-zinc-500">
+                  O preço do campo “Preço (R$)” vira a base do cardápio (“a partir de”) ao salvar.
+                </span>
+              </div>
+            </>
+          )}
+        </div>
 
         <div className="space-y-4 p-4 rounded-2xl bg-zinc-900 border border-zinc-800">
           <div className="flex items-center justify-between mb-2">
@@ -2562,12 +2776,21 @@ function ProductModal({
           </button>
           <button
             onClick={() => {
+              const combos = (p.combos || []).filter((c) => Number(c.qty) > 0);
+              const saboresValidos = (p.sabores || []).filter((s: any) =>
+                typeof s === "string" ? s.trim() : String(s?.nome || "").trim(),
+              );
               onSave({
                 ...p,
+                // Cardápio mostra o menor combo como "a partir de".
+                price: combos.length > 0 ? Math.min(...combos.map((c) => Number(c.price) || 0)) : p.price,
+                combos: combos.sort((a, b) => a.qty - b.qty),
+                sabores: saboresValidos,
                 customizable:
                   (p.adicionais || []).length > 0 ||
                   (p.choice_groups || []).length > 0 ||
-                  (p.allowed_addons || []).length > 0,
+                  (p.allowed_addons || []).length > 0 ||
+                  (combos.length > 0 && saboresValidos.length > 0),
               });
             }}
             className={`flex-1 ${btnPrimary}`}
@@ -2725,7 +2948,7 @@ function GroupsTab({ lojaId }: { lojaId: string | null }) {
     setSaving(true);
     try {
       const newSettings = { ...settings, choiceGroupTemplates: newTemplates };
-      storage.setSettings(newSettings as Settings);
+      storage.setSettings(newSettings as any);
       setTemplates(newTemplates);
     } catch (err) {
       console.error(err);

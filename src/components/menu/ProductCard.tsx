@@ -8,6 +8,11 @@ export function ProductCard({ product, onAdd, disabled }: { product: Product; on
   const out = !product.available || (tracked && (product.stock as number) <= 0);
   const lowThreshold = product.lowStockThreshold ?? 5;
   const low = tracked && !out && (product.stock as number) <= lowThreshold;
+  // Combo com sabores: mostra o menor preço como "a partir de".
+  const combos = product.combos || [];
+  const sabores = product.sabores || [];
+  const temCombo = combos.length > 0 && sabores.length > 0;
+  const fromPrice = combos.length > 0 ? Math.min(...combos.map((c) => Number(c.price) || 0)) : product.price;
   return (
     <button 
       onClick={onAdd}
@@ -24,8 +29,22 @@ export function ProductCard({ product, onAdd, disabled }: { product: Product; on
       <div className="flex-1 min-w-0 flex flex-col justify-center">
         <h4 className="font-bold text-sm leading-tight text-white">{product.name}</h4>
         <p className="text-[11px] text-muted-foreground mt-1 whitespace-pre-wrap break-words">{product.description}</p>
+        {temCombo && (
+          <p className="text-[10px] font-bold text-amber-400 mt-1">
+            🍬 Monte seu combo • {sabores.length} sabor{sabores.length > 1 ? "es" : ""}
+          </p>
+        )}
         <div className="flex items-center justify-between mt-2">
-          <span className="text-primary font-extrabold">{brl(product.price)}</span>
+          {combos.length > 1 ? (
+            <span className="flex flex-col leading-tight">
+              <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wide">
+                a partir de
+              </span>
+              <span className="text-primary font-extrabold">{brl(fromPrice)}</span>
+            </span>
+          ) : (
+            <span className="text-primary font-extrabold">{brl(fromPrice)}</span>
+          )}
           <div
             className={`inline-flex items-center justify-center w-9 h-9 rounded-full shadow-[0_4px_14px_oklch(0.62_0.22_22/0.4)] transition-colors ${out || disabled ? "bg-muted text-muted-foreground shadow-none" : "bg-primary text-primary-foreground"}`}
           >

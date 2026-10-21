@@ -27,6 +27,18 @@ export interface ProductChoiceGroup {
   pricing_logic: "sum" | "highest" | "average";
 }
 
+// Sabor de mini cuca/cupcake. `extra` = acréscimo POR UNIDADE (ex: Nutella +R$1).
+export interface FlavorOption {
+  nome: string;
+  extra?: number;
+}
+
+// Faixa de preço por quantidade: 1 un R$5, 5 un R$20...
+export interface ComboTier {
+  qty: number;
+  price: number;
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -49,6 +61,11 @@ export interface Product {
   adicionais?: { nome: string; preco: number; descricao?: string }[];
   choice_groups?: ProductChoiceGroup[];
   allowed_addons?: string[]; // IDs of GlobalAddons allowed for this product
+  // Combos com sabores (mini cucas, cupcakes, açaí...). Quando `combos` e
+  // `sabores` existem, o cardápio abre o "Monte seu combo" em vez do modal
+  // genérico: cliente escolhe a faixa (1/2/5 un) e o sabor de cada unidade.
+  sabores?: FlavorOption[];
+  combos?: ComboTier[];
 }
 
 export interface CartItem {
@@ -57,6 +74,9 @@ export interface CartItem {
   name: string;
   price: number;
   qty: number;
+  // Unidades dentro do item (combo de 5 mini cucas = units 5, qty 1).
+  // Usado no controle de estoque e na mensagem do WhatsApp.
+  units?: number;
   lettuce?: "Alface Tradicional" | "Alface Americana";
   ketchup?: number;
   mayo?: number;
@@ -67,6 +87,7 @@ export interface CartItem {
     optionId: string;
     optionName: string;
     price: number;
+    qty: number;
   }[];
 }
 
