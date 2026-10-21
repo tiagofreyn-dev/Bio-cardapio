@@ -94,6 +94,36 @@ export function InfoTooltip({ title, text }: { title?: string; text: string }) {
     </div>
   );
 }
+// Fallback nativo (canvas): resolve HEIC/AVIF de iPhone e navegadores onde a
+// lib de compressão com worker falha. É o plano B pra foto nunca travar.
+async function canvasCompress(
+  file: File,
+  maxSide: number,
+  quality: number,
+): Promise<{ blob: Blob; ext: string } | null> {
+  const bmp = await createImageBitmap(file);
+  const scale = Math.min(1, maxSide / Math.max(bmp.width, bmp.height));
+  const w = Math.max(1, Math.round(bmp.width * scale));
+  const h = Math.max(1, Math.round(bmp.height * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas indisponível neste navegador.");
+  ctx.drawImage(bmp, 0, 0, w, h);
+  const webp = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/webp", quality));
+  let out = webp;
+  let ext = "webp";
+  if (!out) {
+    out = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
+    ext = "jpg";
+  }
+  try {
+    (bmp as any).close?.();
+  } catch {}
+  return out ? { blob: out, ext } : null;
+}
+
 async function compressImage(
   file: File,
   maxWidth = 800,
@@ -101,25 +131,40 @@ async function compressImage(
   quality = 0.7,
   maxSizeMB = 0.5,
 ): Promise<File> {
-  if (!file.type.startsWith("image/")) throw new Error("Arquivo não é imagem.");
-  // ULTRA-LEVE: rejeita >5MB antes de comprimir (evita upload gigante
-  // que estoura egress/storage com 50 lojas).
-  if (file.size > 5 * 1024 * 1024) throw new Error("Imagem maior que 5MB.");
-  const options = {
-    maxSizeMB,
-    maxWidthOrHeight: Math.max(maxWidth, maxHeight),
-    useWebWorker: true,
-    fileType: "image/webp",
-    initialQuality: quality,
-  };
-  try {
-    const compressedBlob = await imageCompression(file, options);
-    const newFileName = file.name.replace(/\.[^/.]+$/, "") + ".webp";
-    return new File([compressedBlob], newFileName, { type: "image/webp" });
-  } catch (error) {
-    console.error("Compression error:", error);
-    return file;
+  const isImage =
+    file.type.startsWith("image/") || /\.(jpe?g|png|webp|gif|bmp|heic|heif|avif)$/i.test(file.name);
+  if (!isImage) throw new Error("Selecione um arquivo de imagem (JPG, PNG ou WEBP).");
+  // Limite generoso: foto de celular tem 3–10MB. A compressão roda no próprio
+  // aparelho, então o arquivo grande NUNCA vai pro Supabase.
+  if (file.size > 20 * 1024 * 1024) {
+    throw new Error(`Imagem muito grande (${(file.size / 1024 / 1024).toFixed(1)}MB). Máximo 20MB.`);
   }
+  const maxSide = Math.max(maxWidth, maxHeight);
+  const baseName = file.name.replace(/\.[^/.]+$/, "") || "foto";
+  try {
+    const compressedBlob = await imageCompression(file, {
+      maxSizeMB,
+      maxWidthOrHeight: maxSide,
+      useWebWorker: true,
+      fileType: "image/webp",
+      initialQuality: quality,
+    });
+    return new File([compressedBlob], `${baseName}.webp`, { type: "image/webp" });
+  } catch (error) {
+    console.error("Compression error (lib):", error);
+  }
+  // Plano B: canvas nativo
+  try {
+    const res = await canvasCompress(file, maxSide, quality);
+    if (res) return new File([res.blob], `${baseName}.${res.ext}`, { type: res.blob.type || "image/webp" });
+  } catch (error) {
+    console.error("Compression error (canvas):", error);
+  }
+  // Plano C: manda o original só se for pequeno e de formato universal.
+  if (/^image\/(jpe?g|png|webp|gif)$/i.test(file.type) && file.size <= 2 * 1024 * 1024) return file;
+  throw new Error(
+    "Não foi possível otimizar essa imagem. Salve como JPG ou PNG e tente de novo (fotos HEIC do iPhone: Ajustes > Câmera > Formatos > Mais compatível).",
+  );
 }
 
 export const Route = createFileRoute("/admin")({
@@ -2156,11 +2201,16 @@ function ProductModal({
         data: { publicUrl },
       } = supabase.storage.from("products-images").getPublicUrl(data.path);
       setP({ ...p, image: publicUrl });
-    } catch (err) {
+    } catch (err: any) {
+      const msg = String(err?.message || err || "erro desconhecido");
+      console.error("upload produto:", err);
       alert(
-        "Erro ao enviar imagem. Verifique se o bucket 'products-images' existe no Supabase e as credenciais do .env.",
+        /bucket/i.test(msg)
+          ? "Bucket 'products-images' não encontrado no Supabase. Avise o suporte."
+          : /row-level|policy|permission|denied|unauthorized|401|403/i.test(msg)
+            ? `Sem permissão no Storage: ${msg}`
+            : `Erro ao enviar imagem: ${msg}`,
       );
-      console.error(err);
     } finally {
       setUploading(false);
     }
