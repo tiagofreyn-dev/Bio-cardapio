@@ -5,6 +5,12 @@ import { storage, getActiveLojaId } from "@/lib/storage";
 import { useStorageSync } from "@/hooks/use-storage";
 import { X, Minus, Plus, Trash2, Copy, Check, MapPin } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import {
+  dataCurta,
+  dataLonga,
+  janelasDe,
+  proximaDataEncomenda,
+} from "@/lib/encomenda";
 
 type Delivery = "retirada" | "entrega";
 type Payment = "Pix" | "Cartão" | "Dinheiro";
@@ -72,6 +78,22 @@ export function CartDrawer({
   const [rawMessage, setRawMessage] = useState("");
   const [copiedOrder, setCopiedOrder] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Encomenda: "" = hoje. Data ISO = pedido agendado (exige janela de horário).
+  const [agendarPara, setAgendarPara] = useState("");
+  const [janela, setJanela] = useState("");
+
+  const encomendaAtiva = !!settings?.encomendaAtiva;
+  const janelas = janelasDe(settings);
+  const dataSugerida = proximaDataEncomenda(settings);
+  const temEncomenda = items.some((i) => i.encomenda);
+
+  // Item de encomenda no carrinho obriga agendar: se o lote de hoje acabou,
+  // "hoje" nem aparece como opção.
+  useEffect(() => {
+    if ((temEncomenda || settings?.isOpen === false) && encomendaAtiva && !agendarPara) {
+      setAgendarPara(dataSugerida);
+    }
+  }, [temEncomenda, encomendaAtiva, settings?.isOpen, dataSugerida, agendarPara]);
 
   function handleCopyOrderText() {
     navigator.clipboard.writeText(rawMessage);
@@ -367,6 +389,12 @@ export function CartDrawer({
       lines.push(`*Endereço:* ${street}, ${number} - ${district}`);
       if (ref) lines.push(`*Ref:* ${ref}`);
     }
+    if (agendarPara) {
+      lines.push("");
+      lines.push("🗓️ *ENCOMENDA AGENDADA*");
+      lines.push(`*Data:* ${dataLonga(agendarPara)}`);
+      if (janela) lines.push(`*Horário aproximado:* ${janela}`);
+    }
     lines.push("");
     lines.push("💰 *PAGAMENTO:*");
     lines.push(
@@ -416,7 +444,7 @@ export function CartDrawer({
   }
 
   async function handleSend() {
-    if (settings && !settings.isOpen) {
+    if (settings && !settings.isOpen && !(encomendaAtiva && agendarPara)) {
       alert("A loja está fechada no momento.");
       return;
     }
@@ -427,6 +455,12 @@ export function CartDrawer({
       if (!street.trim() || !number.trim() || !district.trim() || !selectedLocation) {
         return alert("Por favor, selecione seu Bairro para entrega.");
       }
+    }
+    if (temEncomenda && !agendarPara) {
+      return alert("O lote de hoje acabou — escolha a data da encomenda.");
+    }
+    if (agendarPara && !janela) {
+      return alert("Escolha o horário aproximado em que quer receber a encomenda.");
     }
     // Falha rápido se o WhatsApp da loja não for válido (evita pedido no vazio).
     const storeWhatsapp = getStoreWhatsapp();
@@ -460,10 +494,12 @@ export function CartDrawer({
     // Revalida estoque com dado fresco local (zero reads Supabase) antes de enviar.
     const freshProducts = storage.getProducts();
     for (const i of items) {
+      // Encomenda não desconta do lote de hoje: a produção é planejada depois.
+      if (i.encomenda) continue;
       const fp = freshProducts.find((p) => p.id === i.productId);
       if (fp && typeof fp.stock === "number") {
         const bought = items
-          .filter((x) => x.productId === i.productId)
+          .filter((x) => x.productId === i.productId && !x.encomenda)
           .reduce((s, x) => s + (x.units ?? x.qty), 0);
         if (bought > fp.stock) {
           alert(`Estoque insuficiente: só restam ${fp.stock} un. de ${fp.name}. Ajuste a sacola.`);
@@ -572,7 +608,38 @@ export function CartDrawer({
         } else {
           itemsSummary += `\n🚶 Retirada no local`;
         }
-        const { error } = await supabase.from("orders_history").insert({
+        if (agendarPara) {
+          itemsSummary += `\n🗓️ Encomenda: ${dataLonga(agendarPara)} ${janela}`.trimEnd();
+        }
+
+        // Itens estruturados (JSON) para o painel de produção somar os sabores
+        // sem precisar interpretar texto. Só o grupo "Sabores" conta como
+        // produção; o resto vira "extras" (ex: ponto da carne).
+        const itensJson = items.map((i) => {
+          const choices = i.selectedChoices || [];
+          return {
+            name: String(i.name || "Item").slice(0, 100),
+            qty: i.qty,
+            units: i.units ?? i.qty,
+            price: i.price,
+            flavors: choices
+              .filter((c) => /sabor/i.test(c.groupName || ""))
+              .map((c) => ({ name: String(c.optionName).slice(0, 60), qty: c.qty })),
+            extras: choices
+              .filter((c) => !/sabor/i.test(c.groupName || ""))
+              .map((c) => ({
+                name: `${c.groupName}: ${c.optionName}`.slice(0, 80),
+                qty: c.qty,
+              })),
+          };
+        });
+
+        const enderecoCompleto =
+          delivery === "entrega"
+            ? `${street.trim()}, ${number.trim()} - ${district.trim()}${ref.trim() ? ` (Ref: ${ref.trim()})` : ""}`
+            : "";
+
+        const novoPedido: Record<string, any> = {
           loja_id: lojaId,
           client_name: name.trim(),
           payment_method: payment,
@@ -582,7 +649,31 @@ export function CartDrawer({
           total_price: finalTotal,
           is_fidelidade_resgate: !!(redeem && canRedeem),
           items_summary: itemsSummary,
-        });
+          // Colunas novas (supabase-encomendas.sql). Se ainda não existirem,
+          // o insert abaixo cai no formato antigo — o pedido NUNCA se perde.
+          agendado_para: agendarPara || null,
+          janela_horario: agendarPara ? janela : null,
+          encomenda: !!agendarPara,
+          itens: itensJson,
+          endereco: enderecoCompleto,
+          telefone: phone.replace(/\D/g, "").slice(0, 15),
+        };
+
+        let { error } = await supabase.from("orders_history").insert(novoPedido);
+        if (error) {
+          // Fallback: banco sem as colunas de encomenda (SQL pendente).
+          const {
+            agendado_para,
+            janela_horario,
+            encomenda,
+            itens,
+            endereco,
+            telefone,
+            ...legado
+          } = novoPedido;
+          const retry = await supabase.from("orders_history").insert(legado);
+          error = retry.error;
+        }
         if (error) throw error;
       } catch (err) {
         console.error("Erro ao salvar histórico de pedidos no Supabase:", err);
@@ -1017,6 +1108,84 @@ export function CartDrawer({
                   </>
                 )}
               </section>
+
+              {encomendaAtiva && (
+                <section className="space-y-2 p-3 rounded-2xl bg-amber-500/5 ring-1 ring-amber-500/25">
+                  <h4 className="font-bold text-sm">🗓️ Quando quer receber?</h4>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      disabled={temEncomenda || settings?.isOpen === false}
+                      onClick={() => {
+                        setAgendarPara("");
+                        setJanela("");
+                      }}
+                      className={`h-11 rounded-xl text-xs font-bold ring-1 transition ${
+                        !agendarPara
+                          ? "bg-primary text-primary-foreground ring-primary"
+                          : "bg-surface ring-border text-muted-foreground"
+                      } disabled:opacity-40 disabled:cursor-not-allowed`}
+                    >
+                      Hoje (assim que sair)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAgendarPara(dataSugerida)}
+                      className={`h-11 rounded-xl text-xs font-bold ring-1 transition ${
+                        agendarPara
+                          ? "bg-primary text-primary-foreground ring-primary"
+                          : "bg-surface ring-border text-muted-foreground"
+                      }`}
+                    >
+                      🍬 {dataCurta(dataSugerida)}
+                    </button>
+                  </div>
+
+                  {temEncomenda && (
+                    <p className="text-[11px] font-bold text-amber-400 leading-snug">
+                      O lote de hoje esgotou — seu pedido entra na produção de{" "}
+                      {dataCurta(dataSugerida)}.
+                    </p>
+                  )}
+
+                  {agendarPara && (
+                    <div className="space-y-1.5">
+                      <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wide block">
+                        Horário aproximado *
+                      </span>
+                      <div className="grid grid-cols-2 gap-2">
+                        {janelas.map((j) => (
+                          <button
+                            key={j}
+                            type="button"
+                            onClick={() => setJanela(j)}
+                            className={`h-10 rounded-xl text-[11px] font-bold ring-1 transition ${
+                              janela === j
+                                ? "bg-amber-500 text-black ring-amber-400"
+                                : "bg-surface ring-border text-muted-foreground"
+                            }`}
+                          >
+                            {j}
+                          </button>
+                        ))}
+                      </div>
+                      {!janela && (
+                        <p className="text-[10px] text-amber-500 font-bold">
+                          Escolha o horário para liberar o pedido.
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  <p className="text-[10px] text-zinc-500 leading-relaxed">
+                    A dona assa por encomenda: pedidos até{" "}
+                    <span className="font-bold text-zinc-300">
+                      {settings?.encomendaCorte || "23:00"}
+                    </span>{" "}
+                    para o dia seguinte. Você recebe no endereço acima.
+                  </p>
+                </section>
+              )}
 
               <section className="space-y-2">
                 <h4 className="font-bold text-sm">Observações do Pedido</h4>

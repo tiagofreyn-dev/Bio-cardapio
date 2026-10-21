@@ -55,6 +55,10 @@ function DynamicCardapio() {
   const [customizing, setCustomizing] = useState<Product | null>(null);
   const [cartOpen, setCartOpen] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
+  // O produto aberto no modal foi adicionado como ENCOMENDA (lote esgotado
+  // ou loja fechada)? O CartDrawer exige data + janela nesse caso.
+  const encomendaAtiva = !!settings.encomendaAtiva;
+  const [customizingEncomenda, setCustomizingEncomenda] = useState(false);
 
   // 1. Carregar Dados do Tenant a partir do Supabase
   // ULTRA-LEVE: projeção de colunas (sem select *), cache local 5min por
@@ -372,28 +376,43 @@ function DynamicCardapio() {
   }
 
   function handleAdd(p: Product) {
-    if (!settings.isOpen) {
+    if (!settings.isOpen && !encomendaAtiva) {
       alert("Loja fechada no momento.");
+      return;
+    }
+    if (p.available === false) {
+      alert(`${p.name} está indisponível hoje.`);
       return;
     }
     const hasFlavorCombo = (p.combos?.length ?? 0) > 0 && (p.sabores?.length ?? 0) > 0;
     const st = stockOf(p);
-    if (st !== null && st <= 0) {
+    // Lote do dia esgotado (ou loja fechada) + encomenda ligada = pedido
+    // agendado para a próxima produção, sem checar estoque.
+    const semLote = !settings.isOpen || (st !== null && st <= 0);
+    if (semLote && !encomendaAtiva) {
       alert(`${p.name} está esgotado no momento.`);
       return;
     }
     // Em combo (5 un) o tamanho real só é escolhido no modal: bloqueia quando
     // já não cabe nem 1 unidade, em vez de contar sempre +1.
-    if (st !== null && cartQtyFor(p.id) + (hasFlavorCombo ? 0 : 1) >= st) {
+    if (!semLote && st !== null && cartQtyFor(p.id) + (hasFlavorCombo ? 0 : 1) >= st) {
       alert(`Só restam ${st} un. de ${p.name}.`);
       return;
     }
+    setCustomizingEncomenda(semLote);
     if (hasFlavorCombo || p.customizable) {
       setCustomizing(p);
     } else {
       setCart((c) => [
         ...c,
-        { id: safeUUID(), productId: p.id, name: p.name, price: p.price, qty: 1 },
+        {
+          id: safeUUID(),
+          productId: p.id,
+          name: p.name,
+          price: p.price,
+          qty: 1,
+          encomenda: semLote,
+        },
       ]);
     }
   }
@@ -561,11 +580,11 @@ function DynamicCardapio() {
                     <div className="mt-auto pt-2 flex items-center justify-between">
                       <span className="text-primary font-extrabold text-sm">{brl(p.price)}</span>
                       <button
-                        disabled={out || !settings.isOpen}
+                        disabled={(out && !encomendaAtiva) || (!settings.isOpen && !encomendaAtiva)}
                         onClick={() => handleAdd(p)}
                         className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground disabled:bg-muted disabled:text-muted-foreground shadow-md active:scale-95 transition"
                       >
-                        {out ? "✕" : "+"}
+                        {out ? (encomendaAtiva ? "🗓️" : "✕") : "+"}
                       </button>
                     </div>
                   </div>
@@ -610,11 +629,11 @@ function DynamicCardapio() {
                     <div className="mt-auto pt-2 flex items-center justify-between">
                       <span className="text-primary font-extrabold text-sm">{brl(p.price)}</span>
                       <button
-                        disabled={out || !settings.isOpen}
+                        disabled={(out && !encomendaAtiva) || (!settings.isOpen && !encomendaAtiva)}
                         onClick={() => handleAdd(p)}
                         className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground disabled:bg-muted disabled:text-muted-foreground shadow-md active:scale-95 transition"
                       >
-                        {out ? "✕" : "+"}
+                        {out ? (encomendaAtiva ? "🗓️" : "✕") : "+"}
                       </button>
                     </div>
                   </div>
@@ -641,7 +660,8 @@ function DynamicCardapio() {
             key={p.id}
             product={p}
             onAdd={() => handleAdd(p)}
-            disabled={!settings.isOpen}
+            disabled={!settings.isOpen && !encomendaAtiva}
+            encomenda={encomendaAtiva}
           />
         ))}
       </main>
@@ -686,6 +706,7 @@ function DynamicCardapio() {
                     qty: 1,
                     units: meta?.units,
                     selectedChoices: selectedChoices,
+                    encomenda: customizingEncomenda,
                   },
                 ]);
                 setCustomizing(null);
@@ -713,6 +734,7 @@ function DynamicCardapio() {
                     price: finalPrice,
                     qty: 1,
                     selectedChoices: selectedChoices,
+                    encomenda: customizingEncomenda,
                   },
                 ]);
                 setCustomizing(null);

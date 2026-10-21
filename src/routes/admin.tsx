@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { storage, setActiveLojaId, initCleanStore, flushSync } from "@/lib/storage";
 import { useStorageSync } from "@/hooks/use-storage";
@@ -15,6 +15,7 @@ import type {
   ProductChoiceGroup,
 } from "@/lib/types";
 import { brl } from "@/lib/format";
+import { dataCurta, dataLonga, proximaDataEncomenda } from "@/lib/encomenda";
 import {
   MoreVertical,
   Edit2,
@@ -181,6 +182,7 @@ type Tab =
   | "grupos"
   | "promo"
   | "estoque"
+  | "producao"
   | "clientes"
   | "sorteios"
   | "faturamento"
@@ -617,6 +619,7 @@ function AdminPage() {
               ["fidelidade", "🎁 Fidelidade"],
               ["produtos", "🍔 Produtos"],
               ["estoque", "📦 Estoque"],
+              ["producao", "🗓️ Produção"],
               ["adicionais", "➕ Adicionais"],
               ["grupos", "📦 Sabores"],
               ["clientes", "📱 Clientes"],
@@ -665,6 +668,7 @@ function AdminPage() {
           )}
           {tab === "adicionais" && <GlobalAddonsTab />}
           {tab === "estoque" && <EstoqueTab products={products} />}
+          {tab === "producao" && <ProducaoTab lojaId={lojaId} />}
           {tab === "grupos" && <GroupsTab lojaId={lojaId} />}
           {tab === "clientes" && <ClientesTab lojaId={lojaId} />}
           {tab === "sorteios" && <CampaignsTab lojaId={lojaId} />}
@@ -757,6 +761,11 @@ function GeneralTab({
   const [logoUploading, setLogoUploading] = useState(false);
   const [bannerUploading, setBannerUploading] = useState(false);
   const [showManualUrl, setShowManualUrl] = useState(false);
+  // Texto livre das janelas de entrega: só vira array no blur (se filtrasse a
+  // cada tecla, a vírgula digitada sumia na hora).
+  const [janelasTexto, setJanelasTexto] = useState(
+    (settings.encomendaJanelas || []).join(", "),
+  );
 
   async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -1150,6 +1159,60 @@ function GeneralTab({
             placeholder="Ex: 30-60, 40-50, 45..."
           />
         </Field>
+        <Field label="Encomendas para o dia seguinte">
+          <button
+            type="button"
+            onClick={() => update({ encomendaAtiva: !settings.encomendaAtiva })}
+            className={`w-full h-12 rounded-xl font-black text-sm transition-all duration-300 active:scale-[0.98] flex items-center justify-center gap-2 shadow-md ${
+              settings.encomendaAtiva
+                ? "bg-amber-600/15 text-amber-400 ring-2 ring-amber-500/30 hover:bg-amber-600/20"
+                : "bg-zinc-800/60 text-zinc-400 ring-2 ring-zinc-700/40 hover:bg-zinc-800"
+            }`}
+          >
+            {settings.encomendaAtiva
+              ? "🍬 Ativada — cliente agenda dia e horário"
+              : "Desativada — só vende o lote do dia"}
+          </button>
+          <p className="text-[10px] text-zinc-500 leading-relaxed mt-1">
+            Quando o lote do dia esgota, o cardápio libera a encomenda para a próxima
+            produção e o painel <span className="font-bold text-zinc-300">🗓️ Produção</span>{" "}
+            soma os sabores e os endereços.
+          </p>
+        </Field>
+        {settings.encomendaAtiva && (
+          <>
+            <Field label="Horário de corte (pedidos até... valem para amanhã)">
+              <input
+                type="time"
+                value={settings.encomendaCorte || "23:00"}
+                onChange={(e) => update({ encomendaCorte: e.target.value })}
+                className={inputCls}
+              />
+            </Field>
+            <Field label="Janelas de entrega (separe por vírgula)">
+              <input
+                value={janelasTexto}
+                onChange={(e) => setJanelasTexto(e.target.value)}
+                onBlur={() => {
+                  const list = janelasTexto
+                    .split(",")
+                    .map((s) => s.trim())
+                    .filter(Boolean);
+                  update({
+                    encomendaJanelas:
+                      list.length > 0 ? list : ["08:00 às 12:00", "13:00 às 17:00"],
+                  });
+                }}
+                className={inputCls}
+                placeholder="08:00 às 12:00, 13:00 às 17:00"
+              />
+              <p className="text-[10px] text-zinc-500 mt-1">
+                Aparecem como botões no carrinho. Ex:{" "}
+                <span className="text-zinc-300">08:00 às 12:00, 13:00 às 17:00</span>
+              </p>
+            </Field>
+          </>
+        )}
         <Field label="Telefone WhatsApp (com DDI/DDD)">
           <input
             value={settings.whatsapp}
@@ -2831,6 +2894,390 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     </label>
   );
 }
+// ─────────────────────────────────────────────────────────────────────────────
+// 🗓️ Produção / Encomendas
+// A dona acorda e vê: quantas unidades de CADA sabor fazer e onde entregar.
+// Lê orders_history (colunas agendado_para / itens / endereco / telefone).
+// Sem as colunas (SQL pendente) mostra aviso; o pedido continua salvando.
+// ─────────────────────────────────────────────────────────────────────────────
+
+type PedidoProducao = {
+  id: string;
+  client_name: string;
+  payment_method: string;
+  delivery_type: string;
+  total_price: number;
+  created_at: string;
+  agendado_para?: string | null;
+  janela_horario?: string | null;
+  endereco?: string | null;
+  telefone?: string | null;
+  itens?: any;
+  items_summary?: string | null;
+};
+
+type ItemProducao = {
+  name: string;
+  qty: number;
+  units: number;
+  flavors: { name: string; qty: number }[];
+};
+
+function itensDoPedido(o: PedidoProducao): ItemProducao[] {
+  if (Array.isArray(o.itens)) {
+    return o.itens.map((i: any) => ({
+      name: String(i?.name || "Item"),
+      qty: Number(i?.qty ?? 1) || 1,
+      units: Number(i?.units ?? i?.qty ?? 1) || 1,
+      flavors: Array.isArray(i?.flavors)
+        ? i.flavors
+            .map((f: any) => ({ name: String(f?.name || ""), qty: Number(f?.qty) || 0 }))
+            .filter((f: any) => f.name && f.qty > 0)
+        : [],
+    }));
+  }
+  // Pedido antigo (sem a coluna itens): lê o texto do resumo.
+  const out: ItemProducao[] = [];
+  for (const parte of String(o.items_summary || "").split(" | ")) {
+    const m = parte.match(/^(\d+)x\s+(.+?)(?:\s+\((.+)\))?$/);
+    if (m) {
+      const q = Number(m[1]) || 1;
+      out.push({ name: m[2], qty: q, units: q, flavors: [] });
+    }
+  }
+  return out;
+}
+
+function itensCurto(o: PedidoProducao): string {
+  return itensDoPedido(o)
+    .map((it) => {
+      if (it.flavors.length > 0) {
+        return `${it.qty}x ${it.name} (${it.flavors
+          .map((f) => `${f.qty}x ${f.name}`)
+          .join(", ")})`;
+      }
+      return `${it.qty}x ${it.name}`;
+    })
+    .join(" • ");
+}
+
+function ProducaoTab({ lojaId }: { lojaId: string | null }) {
+  const settings = useStorageSync(() => storage.getSettings());
+  const products = useStorageSync(() => storage.getProducts());
+  const [data, setData] = useState(() => proximaDataEncomenda(storage.getSettings()));
+  const [pedidos, setPedidos] = useState<PedidoProducao[]>([]);
+  const [carregando, setCarregando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+  const [copiado, setCopiado] = useState("");
+  const [lote, setLote] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    let alive = true;
+    async function carregar() {
+      if (!lojaId) {
+        setPedidos([]);
+        return;
+      }
+      setCarregando(true);
+      setErro(null);
+      try {
+        if (!supabase) throw new Error("Supabase não configurado.");
+        const { error, data: rows } = await supabase
+          .from("orders_history")
+          .select(
+            "id,client_name,payment_method,delivery_type,total_price,created_at,agendado_para,janela_horario,endereco,telefone,itens,items_summary",
+          )
+          .eq("loja_id", lojaId)
+          .eq("agendado_para", data)
+          .order("created_at", { ascending: true })
+          .limit(300);
+        if (error) throw error;
+        if (alive) setPedidos((rows || []) as PedidoProducao[]);
+      } catch (e: any) {
+        if (!alive) return;
+        const msg = String(e?.message || e);
+        setPedidos([]);
+        setErro(
+          /column|coluna|schema|does not exist/i.test(msg)
+            ? "Falta rodar o arquivo supabase-encomendas.sql no SQL Editor do Supabase. Enquanto isso, as encomendas chegam no WhatsApp normalmente."
+            : msg,
+        );
+      } finally {
+        if (alive) setCarregando(false);
+      }
+    }
+    carregar();
+    return () => {
+      alive = false;
+    };
+  }, [lojaId, data]);
+
+  const resumo = useMemo(() => {
+    const sabores: Record<string, number> = {};
+    const outros: Record<string, number> = {};
+    let totalUn = 0;
+    for (const p of pedidos) {
+      for (const it of itensDoPedido(p)) {
+        totalUn += it.units;
+        if (it.flavors.length > 0) {
+          for (const f of it.flavors) sabores[f.name] = (sabores[f.name] || 0) + f.qty;
+        } else {
+          outros[it.name] = (outros[it.name] || 0) + it.units;
+        }
+      }
+    }
+    return { sabores, outros, totalUn };
+  }, [pedidos]);
+
+  const totalDinheiro = pedidos.reduce((s, p) => s + (Number(p.total_price) || 0), 0);
+
+  const produtosLote = (products || []).filter(
+    (p) => (p.combos?.length ?? 0) > 0 || typeof p.stock === "number",
+  );
+
+  function copiar(txt: string, chave: string) {
+    navigator.clipboard.writeText(txt);
+    setCopiado(chave);
+    setTimeout(() => setCopiado(""), 1800);
+  }
+
+  function copiarProducao() {
+    const linhas = [`🍬 PRODUÇÃO — ${dataCurta(data)}`, ""];
+    const sab = Object.entries(resumo.sabores).sort((a, b) => b[1] - a[1]);
+    if (sab.length === 0 && Object.keys(resumo.outros).length === 0) {
+      linhas.push("(nenhuma encomenda)");
+    }
+    for (const [nome, q] of sab) linhas.push(`${nome}: ${q} un`);
+    if (Object.keys(resumo.outros).length > 0) {
+      linhas.push("");
+      for (const [nome, q] of Object.entries(resumo.outros)) linhas.push(`${nome}: ${q} un`);
+    }
+    linhas.push("", `TOTAL: ${resumo.totalUn} un`);
+    copiar(linhas.join("\n"), "producao");
+  }
+
+  function copiarRota() {
+    const linhas = [`🛵 ENTREGAS — ${dataCurta(data)}`, ""];
+    if (pedidos.length === 0) linhas.push("(nenhuma entrega)");
+    for (const p of pedidos) {
+      const end = p.delivery_type === "Entrega" ? p.endereco || "endereço no resumo" : "RETIRADA";
+      linhas.push(`${p.janela_horario || "s/ horário"} — ${p.client_name} — ${end}`);
+    }
+    copiar(linhas.join("\n"), "rota");
+  }
+
+  function anunciar(id: string) {
+    const raw = lote[id];
+    if (raw === undefined) return;
+    const n = Math.max(0, Math.floor(Number(raw) || 0));
+    const list = storage.getProducts().map((p) => (p.id === id ? { ...p, stock: n } : p));
+    storage.setProducts(list);
+    reloadPreview();
+    setCopiado("lote-" + id);
+    setTimeout(() => setCopiado(""), 1800);
+  }
+
+  return (
+    <section className="space-y-4">
+      <div className="p-4 rounded-2xl bg-surface ring-1 ring-border space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="font-extrabold text-white text-base">🗓️ Produção do dia</h3>
+            <p className="text-[11px] text-zinc-400">
+              Quanto assar de cada sabor e para onde entregar.
+            </p>
+          </div>
+          <input
+            type="date"
+            value={data}
+            onChange={(e) => setData(e.target.value)}
+            className="h-10 px-2 rounded-xl bg-input text-foreground ring-1 ring-border text-xs font-bold shrink-0"
+          />
+        </div>
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <div className="p-2 rounded-xl bg-zinc-950 ring-1 ring-zinc-800">
+            <span className="block text-xl font-black text-white">{pedidos.length}</span>
+            <span className="text-[9px] uppercase font-bold text-zinc-500">encomendas</span>
+          </div>
+          <div className="p-2 rounded-xl bg-zinc-950 ring-1 ring-zinc-800">
+            <span className="block text-xl font-black text-amber-400">{resumo.totalUn}</span>
+            <span className="text-[9px] uppercase font-bold text-zinc-500">unidades</span>
+          </div>
+          <div className="p-2 rounded-xl bg-zinc-950 ring-1 ring-zinc-800">
+            <span className="block text-xl font-black text-emerald-400">
+              {brl(totalDinheiro)}
+            </span>
+            <span className="text-[9px] uppercase font-bold text-zinc-500">a receber</span>
+          </div>
+        </div>
+        <p className="text-[10px] text-zinc-500">
+          Data de hoje: <span className="text-zinc-300 font-bold">{dataLonga(data)}</span> •
+          Encomendas aceitas até <span className="text-zinc-300 font-bold">{settings.encomendaCorte || "23:00"}</span>
+        </p>
+      </div>
+
+      {erro && (
+        <div className="p-3 rounded-xl bg-rose-500/10 ring-1 ring-rose-500/30 text-[11px] text-rose-300 font-semibold leading-relaxed">
+          ⚠️ {erro}
+        </div>
+      )}
+
+      <div className="p-4 rounded-2xl bg-amber-500/5 ring-1 ring-amber-500/25 space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <h4 className="font-extrabold text-sm text-amber-300">🍬 O que fazer</h4>
+          <button
+            type="button"
+            onClick={copiarProducao}
+            className="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30"
+          >
+            {copiado === "producao" ? "✓ Copiado" : "📋 Copiar lista"}
+          </button>
+        </div>
+        {carregando && <p className="text-xs text-zinc-500 animate-pulse">Carregando...</p>}
+        {!carregando &&
+          Object.keys(resumo.sabores).length === 0 &&
+          Object.keys(resumo.outros).length === 0 && (
+            <p className="text-xs text-zinc-500">
+              Nenhuma encomenda para {dataCurta(data)} ainda.
+            </p>
+          )}
+        {Object.entries(resumo.sabores)
+          .sort((a, b) => b[1] - a[1])
+          .map(([nome, q]) => (
+            <div
+              key={nome}
+              className="flex items-center justify-between gap-2 p-2 rounded-xl bg-zinc-950/60 ring-1 ring-zinc-800"
+            >
+              <span className="font-bold text-sm text-white">{nome}</span>
+              <span className="text-lg font-black text-amber-400">{q} un</span>
+            </div>
+          ))}
+        {Object.keys(resumo.outros).length > 0 && (
+          <>
+            <p className="text-[10px] uppercase font-bold text-zinc-500 pt-1">Outros itens</p>
+            {Object.entries(resumo.outros).map(([nome, q]) => (
+              <div
+                key={nome}
+                className="flex items-center justify-between gap-2 p-2 rounded-xl bg-zinc-950/40 ring-1 ring-zinc-800"
+              >
+                <span className="font-bold text-xs text-zinc-300">{nome}</span>
+                <span className="text-sm font-black text-zinc-300">{q} un</span>
+              </div>
+            ))}
+          </>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-2 px-1">
+          <h4 className="font-extrabold text-sm text-white">🛵 Entregas</h4>
+          <button
+            type="button"
+            onClick={copiarRota}
+            className="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-surface ring-1 ring-border text-zinc-300"
+          >
+            {copiado === "rota" ? "✓ Copiado" : "📋 Copiar rota"}
+          </button>
+        </div>
+        {!carregando && pedidos.length === 0 && (
+          <p className="text-xs text-zinc-500 px-1">Nenhuma entrega nesse dia.</p>
+        )}
+        {pedidos.map((p) => {
+          const tel = String(p.telefone || "").replace(/\D/g, "");
+          // 10/11 dígitos = DDD + número; 12+ já vem com o 55.
+          const zap =
+            tel.length >= 12 && tel.startsWith("55")
+              ? tel
+              : tel.length >= 10
+                ? "55" + tel
+                : "";
+          return (
+            <div key={p.id} className="p-3 rounded-xl bg-surface ring-1 ring-border space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-primary/15 text-primary">
+                  {p.janela_horario || "sem horário"}
+                </span>
+                <span className="text-[10px] text-zinc-500">
+                  {p.created_at
+                    ? new Date(p.created_at).toLocaleString("pt-BR", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })
+                    : ""}
+                </span>
+              </div>
+              <p className="font-bold text-sm text-white">{p.client_name}</p>
+              <p className="text-xs text-zinc-400 leading-snug">
+                {p.delivery_type === "Entrega"
+                  ? `📍 ${p.endereco || "endereço no resumo"}`
+                  : "🚶 Retirada no local"}
+              </p>
+              <p className="text-xs text-zinc-300 leading-snug">{itensCurto(p)}</p>
+              <div className="flex items-center gap-2 pt-0.5">
+                <span className="text-sm font-black text-primary">
+                  {brl(Number(p.total_price) || 0)}
+                </span>
+                <span className="text-[10px] text-zinc-500">• {p.payment_method}</span>
+                {zap && (
+                  <a
+                    href={`https://wa.me/${zap}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="ml-auto text-[11px] font-bold px-2 py-1 rounded-lg bg-emerald-600/20 text-emerald-400 ring-1 ring-emerald-600/30"
+                  >
+                    WhatsApp
+                  </a>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="p-4 rounded-2xl bg-surface ring-1 ring-border space-y-2">
+        <h4 className="font-extrabold text-sm text-white">📣 Anunciar lote de hoje</h4>
+        <p className="text-[10px] text-zinc-500 leading-relaxed">
+          Digite quantas unidades você fez. Ao chegar em <span className="font-bold text-zinc-300">0</span>,
+          o cardápio mostra "encomende para {dataCurta(proximaDataEncomenda(settings))}".
+        </p>
+        {produtosLote.length === 0 && (
+          <p className="text-xs text-zinc-500">
+            Nenhum produto com combo ou estoque controlado ainda.
+          </p>
+        )}
+        {produtosLote.map((p) => (
+          <div key={p.id} className="flex items-center gap-2">
+            <span className="flex-1 min-w-0 text-xs font-bold text-white truncate">
+              {p.name}
+              {typeof p.stock === "number" && (
+                <span className="text-zinc-500 font-normal"> • {p.stock} un agora</span>
+              )}
+            </span>
+            <input
+              type="number"
+              min={0}
+              inputMode="numeric"
+              value={lote[p.id] ?? (typeof p.stock === "number" ? String(p.stock) : "")}
+              onChange={(e) => setLote({ ...lote, [p.id]: e.target.value })}
+              className="w-20 h-9 px-2 rounded-lg bg-input text-foreground ring-1 ring-border outline-none text-sm text-center shrink-0"
+              placeholder="0"
+            />
+            <button
+              type="button"
+              onClick={() => anunciar(p.id)}
+              className="h-9 px-3 rounded-lg bg-primary text-primary-foreground text-[11px] font-bold shrink-0"
+            >
+              {copiado === "lote-" + p.id ? "✓" : "Anunciar"}
+            </button>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function EstoqueTab({ products }: { products: Product[] }) {
   // Só produtos com stock numérico entram no controle (vazio = ilimitado).
   // Tudo local + sync com debounce coalescido — zero reads extras no Supabase.

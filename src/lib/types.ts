@@ -89,6 +89,10 @@ export interface CartItem {
     price: number;
     qty: number;
   }[];
+  // Item adicionado com o lote do dia esgotado (ou loja fechada): o pedido
+  // inteiro vira encomenda para a próxima data de produção. Não desconta
+  // estoque na validação do envio.
+  encomenda?: boolean;
 }
 
 export interface Settings {
@@ -132,6 +136,12 @@ export interface Settings {
   promoDiscountPct?: number;
   promoMinOrderFreeShipping?: number;
   promoDays?: number[];
+  // Encomendas para o dia seguinte (mini cucas etc.). Quando ligado, o cliente
+  // escolhe a data e a janela de entrega no carrinho, e o painel "Produção"
+  // soma quantas unidades de cada sabor a dona precisa fazer.
+  encomendaAtiva?: boolean;
+  encomendaCorte?: string; // "23:00" — pedido depois disso cai p/ depois de amanhã
+  encomendaJanelas?: string[]; // ["08:00 às 12:00", "13:00 às 17:00"]
 }
 
 export interface CustomerLoyalty {

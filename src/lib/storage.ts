@@ -75,6 +75,10 @@ const DEFAULT_SETTINGS: Settings = {
   promoDiscountPct: 10,
   promoMinOrderFreeShipping: 100,
   promoDays: [2, 3],
+  // Encomendas desligadas por padrão (só a Doces Sol usa por enquanto).
+  encomendaAtiva: false,
+  encomendaCorte: "23:00",
+  encomendaJanelas: ["08:00 às 12:00", "13:00 às 17:00"],
 };
 
 const DEFAULT_PRODUCTS: Product[] = [];
