@@ -85,7 +85,13 @@ export function CartDrawer({
   const encomendaAtiva = !!settings?.encomendaAtiva;
   const janelas = janelasDe(settings);
   const dataSugerida = proximaDataEncomenda(settings);
-  const temEncomenda = items.some((i) => i.encomenda);
+  // Encomenda quando o item foi marcado OU quando o lote do produto zerou
+  // depois que ele entrou na sacola (a dona pode zerar o estoque na hora).
+  const temEncomenda = items.some((i) => {
+    if (i.encomenda) return true;
+    const p = products.find((x) => x.id === i.productId);
+    return !!p && typeof p.stock === "number" && p.stock <= 0;
+  });
 
   // Item de encomenda no carrinho obriga agendar: se o lote de hoje acabou,
   // "hoje" nem aparece como opção.
@@ -498,6 +504,9 @@ export function CartDrawer({
       if (i.encomenda) continue;
       const fp = freshProducts.find((p) => p.id === i.productId);
       if (fp && typeof fp.stock === "number") {
+        // Lote zerou depois de montar a sacola + encomenda ligada = entra na
+        // produção de amanhã (não bloqueia o envio).
+        if (fp.stock <= 0 && encomendaAtiva) continue;
         const bought = items
           .filter((x) => x.productId === i.productId && !x.encomenda)
           .reduce((s, x) => s + (x.units ?? x.qty), 0);

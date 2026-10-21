@@ -428,9 +428,16 @@ function DynamicCardapio() {
     }
     const hasFlavorCombo = (p.combos?.length ?? 0) > 0 && (p.sabores?.length ?? 0) > 0;
     const st = stockOf(p);
+    // Todos os sabores do lote de hoje zeraram? Também vira encomenda.
+    const rest = restantesDe(p);
+    const chavesSabor = Object.keys(rest);
+    const semSaborHoje =
+      hasFlavorCombo &&
+      chavesSabor.length > 0 &&
+      chavesSabor.reduce((s, k) => s + (rest[k] || 0), 0) <= 0;
     // Lote do dia esgotado (ou loja fechada) + encomenda ligada = pedido
     // agendado para a próxima produção, sem checar estoque.
-    const semLote = !settings.isOpen || (st !== null && st <= 0);
+    const semLote = !settings.isOpen || (st !== null && st <= 0) || semSaborHoje;
     if (semLote && !encomendaAtiva) {
       alert(`${p.name} está esgotado no momento.`);
       return;
