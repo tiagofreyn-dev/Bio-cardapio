@@ -984,6 +984,13 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
   const [imageUrl, setImageUrl] = useState("");
   const [uploading, setUploading] = useState(false);
 
+  // Ao abrir a aba (ou quando as lojas carregam), já carrega a base da loja
+  // salva na sessão — antes só carregava se você trocasse o select.
+  useEffect(() => {
+    if (lojaId && stores.length && count === null && !sending) loadLoja(lojaId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lojaId, stores.length]);
+
   function storagePathFromPublicUrl(url: string): string | null {
     if (!url) return null;
     const m = url.match(/\/products-images\/(.+?)(?:\?.*)?$/);
@@ -1025,50 +1032,89 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
   }
 
   // Base única: cardápio (loja_clientes) + degustação (degustacao_leads), sem repetir número.
-  // Degustação Mini-Cucas Sol pertence à Doces Sol (origem 'degustacao-sol' → slug 'doces-sol').
-  async function fetchTargets(loja: string, slug: string) {
-    if (!supabase) return { targets: [] as { phone: string; nome: string; fonte: string }[], cardapio: 0, degustacao: 0 };
-    const { data: rows } = await supabase.from("loja_clientes").select("phone,nome").eq("loja_id", loja).eq("opt_out", false).limit(1000);
-    const map = new Map<string, { phone: string; nome: string; fonte: string }>();
-    for (const r of rows || []) {
-      const digits = String((r as any).phone).replace(/\D/g, "").replace(/^55/, "");
-      if (digits.length < 10) continue;
-      if (!map.has(digits)) {
-        map.set(digits, { phone: `55${digits}`, nome: String((r as any).nome || "").split(" ")[0].slice(0, 20), fonte: "cardápio" });
-      }
-    }
-    const cardapio = map.size;
+  // A página /degustacao-sol é exclusiva da Doces Sol — por isso NÃO filtramos por
+  // "origem" (se a coluna vier vazia/alterada, o merge morria em silêncio).
+  function isDocesSol(store?: { nome?: string; slug?: string } | null) {
+    const k = `${store?.slug || ""} ${store?.nome || ""}`.toLowerCase();
+    return /doces[\s\-_]*sol/.test(k);
+  }
+
+  // Normaliza qualquer telefone para 10-11 dígitos (sem DDI), tolerante a máscara.
+  function phoneDigits(raw: any) {
+    let d = String(raw ?? "").replace(/\D/g, "");
+    if (d.startsWith("0055")) d = d.slice(4);
+    // Só remove o DDI 55 quando sobra um número brasileiro válido (evita DDD 55).
+    if (d.startsWith("55") && (d.length === 12 || d.length === 13)) d = d.slice(2);
+    if (d.startsWith("0") && d.length >= 11) d = d.replace(/^0+/, "");
+    return d;
+  }
+
+  type Target = { phone: string; nome: string; fonte: string };
+
+  async function fetchTargets(loja: string, incluirDegustacao: boolean) {
+    const empty = { targets: [] as Target[], cardapio: 0, degustacao: 0, leadsLidos: 0 };
+    if (!supabase) return empty;
+    const map = new Map<string, Target>();
+    const add = (nome: any, phone: any, fonte: string) => {
+      const d = phoneDigits(phone);
+      if (d.length < 10 || d.length > 11) return false;
+      if (map.has(d)) return false;
+      map.set(d, { phone: `55${d}`, nome: String(nome || "").split(" ")[0].slice(0, 20), fonte });
+      return true;
+    };
+
+    // 1) Checkout do cardápio (respeita opt-out)
+    const { data: rows, error: rowsError } = await supabase
+      .from("loja_clientes")
+      .select("phone,nome")
+      .eq("loja_id", loja)
+      .eq("opt_out", false)
+      .limit(1000);
+    if (rowsError) setDegErr(`cadastro: ${rowsError.message}`);
+    let cardapio = 0;
+    for (const r of rows || []) if (add((r as any).nome, (r as any).phone, "cardápio")) cardapio++;
+
+    // 2) Mini-site de degustação (só para a Doces Sol)
     let degustacao = 0;
-    if (slug === "doces-sol") {
+    let leadsLidos = 0;
+    if (incluirDegustacao) {
       try {
-        const { data: leads, error: leadsError } = await supabase.from("degustacao_leads").select("nome,phone").eq("origem", "degustacao-sol").limit(1000);
-        if (leadsError) throw leadsError;
-        setDegErr("");
-        for (const l of leads || []) {
-          const digits = String((l as any).phone).replace(/\D/g, "").replace(/^55/, "");
-          if (digits.length < 10) continue;
-          if (!map.has(digits)) {
-            map.set(digits, { phone: `55${digits}`, nome: String((l as any).nome || "").split(" ")[0].slice(0, 20), fonte: "degustação" });
-            degustacao++;
-          }
+        let leads: any[] | null = null;
+        let msg = "";
+        // Tenta nome+phone; se o schema estiver diferente, cai para só phone.
+        const first = await supabase.from("degustacao_leads").select("nome,phone").limit(1000);
+        if (!first.error) {
+          leads = first.data as any[];
+        } else {
+          const second = await supabase.from("degustacao_leads").select("phone").limit(1000);
+          if (second.error) msg = second.error.message;
+          else leads = second.data as any[];
         }
+        for (const l of leads || []) {
+          leadsLidos++;
+          if (add(l?.nome, l?.phone, "degustação")) degustacao++;
+        }
+        setDegErr(msg ? `degustação: ${msg}` : "");
       } catch (e: any) {
         setDegErr(`degustação: ${e?.message || e?.code || e}`);
       }
+    } else {
+      setDegErr("");
     }
-    return { targets: [...map.values()].filter((t) => t.phone.length >= 12), cardapio, degustacao };
+
+    return { targets: [...map.values()], cardapio, degustacao, leadsLidos };
   }
 
-  const [mix, setMix] = useState({ cardapio: 0, degustacao: 0 });
+  const [mix, setMix] = useState({ cardapio: 0, degustacao: 0, leadsLidos: 0 });
   const [degErr, setDegErr] = useState("");
 
   async function loadLoja(loja: string) {
     if (!supabase || !loja) return;
     try {
       const store = stores.find((s) => s.id === loja);
-      const { targets, cardapio, degustacao } = await fetchTargets(loja, store?.slug || "");
+      const { targets, cardapio, degustacao, leadsLidos } = await fetchTargets(loja, isDocesSol(store));
       setCount(targets.length);
-      setMix({ cardapio, degustacao });
+      setMix({ cardapio, degustacao, leadsLidos });
       // Disparos de hoje (limite 10/dia p/ não queimar o número nem o banco)
       const start = new Date();
       start.setHours(0, 0, 0, 0);
@@ -1086,7 +1132,7 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
   async function copyNumbers() {
     if (!supabase || !lojaId) return;
     const store = stores.find((s) => s.id === lojaId);
-    const { targets } = await fetchTargets(lojaId, store?.slug || "");
+    const { targets } = await fetchTargets(lojaId, isDocesSol(store));
     const nums = targets.map((t) => t.phone);
     try {
       await navigator.clipboard.writeText(nums.join(","));
@@ -1150,7 +1196,7 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
       // Envio real via proxy: base única (cardápio + degustação, sem repetidos), em LOTES.
       if (hasEvo) {
         const store2 = stores.find((s) => s.id === lojaId);
-        const { targets: all } = await fetchTargets(lojaId, store2?.slug || "");
+        const { targets: all } = await fetchTargets(lojaId, isDocesSol(store2));
         const key = offsetKey();
         const start = Math.min(getOffset(key), all.length);
         const targets = all.slice(start, start + lote);
@@ -1210,7 +1256,7 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
       <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-4 space-y-3">
         <div>
           <h4 className="font-extrabold text-sm text-white">📲 Disparos por loja (1 número por loja)</h4>
-          <p className="text-[11px] text-zinc-400">Base: telefones do checkout (opt-out respeitado). Limite 10/dia por loja. Instância = slug da loja. Conecte o WhatsApp na aba 🔌 e o envio real liga via proxy seguro.</p>
+          <p className="text-[11px] text-zinc-400">Base única: telefones do checkout + cadastros da degustação (Doces Sol), sem repetir número. Limite 10/dia por loja. Instância = slug da loja. Conecte o WhatsApp na aba 🔌 e o envio real liga via proxy seguro.</p>
         </div>
         <select value={lojaId} onChange={(e) => { setLojaId(e.target.value); try { sessionStorage.setItem("insano.evo.lojaId", e.target.value); } catch {} loadLoja(e.target.value); }} className="w-full h-11 rounded-xl bg-zinc-950 border border-zinc-800 px-3 text-xs font-bold">
           <option value="">Escolha a loja...</option>
@@ -1220,9 +1266,13 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
         </select>
         {lojaId && (
           <div className="flex flex-wrap gap-2 text-[11px] font-bold">
-            <span className="px-3 py-1.5 rounded-full bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/30">{count ?? "—"} únicos {mix.degustacao > 0 ? `(${mix.cardapio} cardápio + ${mix.degustacao} degustação)` : "(cardápio)"}</span>
+            <span className="px-3 py-1.5 rounded-full bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/30">
+              {count ?? "—"} únicos ({mix.cardapio} cardápio + {mix.degustacao} degustação
+              {mix.leadsLidos > 0 && mix.degustacao === 0 ? ` · ${mix.leadsLidos} já estavam na lista` : ""})
+            </span>
             <span className={`px-3 py-1.5 rounded-full ring-1 ${today >= 10 ? "bg-red-500/10 text-red-400 ring-red-500/30" : "bg-zinc-800 text-zinc-300 ring-zinc-700"}`}>{today}/10 disparos hoje</span>
             {degErr && <span className="px-3 py-1.5 rounded-full bg-red-500/10 text-red-400 ring-1 ring-red-500/30">⚠️ {degErr}</span>}
+            <button onClick={() => loadLoja(lojaId)} className="px-3 py-1.5 rounded-full bg-zinc-800 text-zinc-300 ring-1 ring-zinc-700" title="Recarregar a base agora">🔄 Atualizar base</button>
           </div>
         )}
         <div className="flex items-center gap-2">

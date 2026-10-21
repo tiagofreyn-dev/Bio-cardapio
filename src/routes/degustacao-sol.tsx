@@ -52,16 +52,23 @@ function DegustacaoSolPage() {
       leads.push(lead);
       localStorage.setItem(LEADS_KEY, JSON.stringify(leads));
     } catch {}
-    // Banco (melhor esforço — se a tabela ainda não existir, o localStorage já guardou).
+    // Banco: 1ª tentativa com origem; se o schema estiver diferente, grava só nome+phone.
     try {
       if (supabase) {
-        await supabase.from("degustacao_leads").insert({
+        const first = await supabase.from("degustacao_leads").insert({
           nome: lead.nome,
           phone: lead.phone,
           origem: "degustacao-sol",
         });
+        if (first.error) {
+          console.error("degustacao insert (com origem):", first.error);
+          const second = await supabase.from("degustacao_leads").insert({ nome: lead.nome, phone: lead.phone });
+          if (second.error) console.error("degustacao insert (fallback):", second.error);
+        }
       }
-    } catch {}
+    } catch (err) {
+      console.error("degustacao insert:", err);
+    }
     setSaving(false);
     setDone(lead);
     setFollowed(false);
