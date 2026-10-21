@@ -2432,34 +2432,39 @@ function ProductModal({
                 </span>
                 {(p.combos || []).map((c, i) => (
                   <div key={i} className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      min={1}
-                      value={c.qty}
-                      onChange={(e) => {
-                        const list = [...(p.combos || [])];
-                        list[i] = { ...list[i], qty: Math.max(1, Number(e.target.value) || 1) };
-                        setCombos(list);
-                      }}
-                      className={`${inputCls} w-16 text-center`}
-                    />
+                    <div className="w-16 shrink-0">
+                      <input
+                        type="number"
+                        min={1}
+                        value={c.qty}
+                        onChange={(e) => {
+                          const list = [...(p.combos || [])];
+                          list[i] = { ...list[i], qty: Math.max(1, Number(e.target.value) || 1) };
+                          setCombos(list);
+                        }}
+                        className={`${inputRowCls} w-full text-center`}
+                      />
+                    </div>
                     <span className="text-[10px] font-bold text-zinc-500 whitespace-nowrap">un por R$</span>
-                    <input
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      value={c.price}
-                      onChange={(e) => {
-                        const list = [...(p.combos || [])];
-                        list[i] = { ...list[i], price: Math.max(0, Number(e.target.value) || 0) };
-                        setCombos(list);
-                      }}
-                      className={`${inputCls} flex-1`}
-                    />
+                    <div className="flex-1 min-w-0">
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        inputMode="decimal"
+                        value={c.price}
+                        onChange={(e) => {
+                          const list = [...(p.combos || [])];
+                          list[i] = { ...list[i], price: Math.max(0, Number(e.target.value) || 0) };
+                          setCombos(list);
+                        }}
+                        className={`${inputRowCls} w-full`}
+                      />
+                    </div>
                     <button
                       type="button"
                       onClick={() => setCombos((p.combos || []).filter((_, idx) => idx !== i))}
-                      className="text-rose-400 hover:text-rose-300 text-sm font-bold px-1"
+                      className="text-rose-400 hover:text-rose-300 text-sm font-bold px-1 shrink-0"
                       title="Remover faixa"
                     >
                       ✕
@@ -2495,35 +2500,40 @@ function ProductModal({
                 )}
                 {saboresLista.map((s, idx) => (
                   <div key={idx} className="flex items-center gap-2">
-                    <input
-                      value={s.nome}
-                      onChange={(e) => {
-                        const list = saboresLista.map((x, j) =>
-                          j === idx ? { ...x, nome: e.target.value } : x,
-                        );
-                        setP({ ...p, sabores: list });
-                      }}
-                      className={`${inputCls} flex-1`}
-                    />
-                    <input
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      value={s.extra || ""}
-                      placeholder="+R$"
-                      onChange={(e) => {
-                        const list = saboresLista.map((x, j) =>
-                          j === idx ? { ...x, extra: Math.max(0, Number(e.target.value) || 0) } : x,
-                        );
-                        setP({ ...p, sabores: list });
-                      }}
-                      className={`${inputCls} w-20 text-center`}
-                      title="Acréscimo por unidade (opcional)"
-                    />
+                    <div className="flex-1 min-w-0">
+                      <input
+                        value={s.nome}
+                        onChange={(e) => {
+                          const list = saboresLista.map((x, j) =>
+                            j === idx ? { ...x, nome: e.target.value } : x,
+                          );
+                          setP({ ...p, sabores: list });
+                        }}
+                        className={`${inputRowCls} w-full`}
+                      />
+                    </div>
+                    <div className="w-20 shrink-0">
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        inputMode="decimal"
+                        value={s.extra || ""}
+                        placeholder="+R$"
+                        onChange={(e) => {
+                          const list = saboresLista.map((x, j) =>
+                            j === idx ? { ...x, extra: Math.max(0, Number(e.target.value) || 0) } : x,
+                          );
+                          setP({ ...p, sabores: list });
+                        }}
+                        className={`${inputRowCls} w-full text-center`}
+                        title="Acréscimo por unidade (opcional)"
+                      />
+                    </div>
                     <button
                       type="button"
                       onClick={() => setP({ ...p, sabores: saboresLista.filter((_, j) => j !== idx) })}
-                      className="text-rose-400 hover:text-rose-300 text-sm font-bold px-1"
+                      className="text-rose-400 hover:text-rose-300 text-sm font-bold px-1 shrink-0"
                       title="Remover sabor"
                     >
                       ✕
@@ -2531,22 +2541,24 @@ function ProductModal({
                   </div>
                 ))}
                 <div className="flex gap-2">
-                  <input
-                    value={novoSabor}
-                    onChange={(e) => setNovoSabor(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        addSabor();
-                      }
-                    }}
-                    placeholder="Ex: Chocolate"
-                    className={`${inputCls} flex-1`}
-                  />
+                  <div className="flex-1 min-w-0">
+                    <input
+                      value={novoSabor}
+                      onChange={(e) => setNovoSabor(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          addSabor();
+                        }
+                      }}
+                      placeholder="Ex: Chocolate"
+                      className={`${inputRowCls} w-full`}
+                    />
+                  </div>
                   <button
                     type="button"
                     onClick={addSabor}
-                    className="text-[11px] font-bold px-3 rounded-lg bg-primary text-primary-foreground"
+                    className="text-[11px] font-bold px-3 rounded-lg bg-primary text-primary-foreground shrink-0 whitespace-nowrap"
                   >
                     Adicionar
                   </button>
@@ -3982,6 +3994,10 @@ function CampaignsTab({ lojaId }: { lojaId: string | null }) {
 
 const inputCls =
   "w-full h-11 px-3 rounded-xl bg-input text-foreground placeholder:text-muted-foreground ring-1 ring-border focus:ring-primary outline-none text-sm";
+// Igual ao inputCls, mas SEM w-full — pra linhas com vários campos lado a lado
+// (senão o w-full espreme os outros inputs da linha).
+const inputRowCls =
+  "h-11 px-3 rounded-xl bg-input text-foreground placeholder:text-muted-foreground ring-1 ring-border focus:ring-primary outline-none text-sm";
 const btnPrimary = "h-11 px-4 rounded-xl bg-primary text-primary-foreground font-bold text-sm";
 const btnSecondary =
   "h-11 px-4 rounded-xl bg-surface-elevated ring-1 ring-border text-foreground font-bold text-sm";
