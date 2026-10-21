@@ -70,7 +70,11 @@ async function evoProxy(action: string, instance: string, payload?: any) {
   } catch {
     json = { raw: text.slice(0, 500) };
   }
-  if (!res.ok) throw new Error(json?.error || json?.message || `HTTP ${res.status}`);
+  if (!res.ok) {
+    const detail = json?.error || json?.message || json?.response?.message || json?.response?.error;
+    const msg = Array.isArray(detail) ? detail.join(" ") : detail;
+    throw new Error(String(msg || `HTTP ${res.status}`));
+  }
   return json;
 }
 
@@ -1358,24 +1362,53 @@ function EvolutionTab({ stores }: { stores: Loja[] }) {
   const store = stores.find((s) => s.id === lojaId);
   const instance = store ? slugToInstance(store.slug) : "";
 
+  // Ao abrir a aba com a loja já salva, mostra o status na hora
+  // (sem precisar clicar em "3. Status").
+  useEffect(() => {
+    if (instance && !status && !busy) call("status");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [instance]);
+
   async function call(action: string) {
     if (!instance) return setStatus("⚠️ Escolha a loja primeiro.");
     setBusy(true);
     setStatus("Aguarde...");
     try {
       if (action === "create") {
-        await evoProxy("create", instance);
-        setStatus(`✅ Instância ${instance} criada. Clique em "Gerar QR" e escaneie no WhatsApp.`);
+        try {
+          await evoProxy("create", instance);
+          setStatus(`✅ Instância ${instance} criada. Clique em "Gerar QR" e escaneie no WhatsApp.`);
+        } catch (e: any) {
+          const m = String(e?.message || e);
+          if (/already in use|já existe|already exists/i.test(m)) {
+            setStatus(`ℹ️ O WhatsApp de ${instance} já está criado — conferindo conexão...`);
+            await call("status");
+            return;
+          }
+          throw e;
+        }
       } else if (action === "qrcode") {
+        // Já conectado? Não gera QR (não gasta chamada nem derruba a sessão).
+        try {
+          const st: any = await evoProxy("status", instance);
+          const now = String(st?.instance?.state || st?.state || "").toLowerCase();
+          if (now === "open") {
+            setStatus(`✅ ${instance} já está conectado — não precisa de QR. Pode disparar.`);
+            setQr("");
+            return;
+          }
+        } catch {}
         const j: any = await evoProxy("qrcode", instance);
         const code = j?.qrcode?.base64 || j?.base64 || j?.qrcode?.code || "";
         setQr(typeof code === "string" ? code : "");
         setStatus(code ? "📷 Escaneie o QR no WhatsApp (Configurações > Aparelhos conectados)." : `Resposta: ${JSON.stringify(j).slice(0, 200)}`);
       } else {
         const j: any = await evoProxy("status", instance);
-        const st = j?.instance?.state || j?.state || JSON.stringify(j).slice(0, 200);
-        setStatus(`Status ${instance}: ${st}`);
-        if (supabase && lojaId && String(st).toLowerCase().includes("open")) {
+        const raw = j?.instance?.state || j?.state || "";
+        const st = String(raw || JSON.stringify(j).slice(0, 200));
+        const open = String(st).toLowerCase().includes("open");
+        setStatus(open ? `✅ ${instance} conectado — pronto para disparos.` : `Status ${instance}: ${st}`);
+        if (supabase && lojaId && open) {
           try {
             await supabase.from("evo_instances").upsert({ loja_id: lojaId, instance_name: instance, status: "conectado", last_connected_at: new Date().toISOString() }, { onConflict: "loja_id" });
           } catch {}
