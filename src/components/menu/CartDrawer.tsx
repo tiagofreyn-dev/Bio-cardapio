@@ -26,6 +26,16 @@ function safeUUID() {
   return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 }
 
+/**
+ * Espera no máximo `ms` por uma promessa. Usado para o envio nunca ficar
+ * "preso" no celular com internet ruim: o pedido abre no WhatsApp mesmo que
+ * alguma gravação no banco demore. A promessa original continua rodando.
+ */
+function comTimeout<T>(p: Promise<T>, ms: number): Promise<void> {
+  const limite = new Promise<void>((resolve) => setTimeout(resolve, ms));
+  return Promise.race([p.then(() => undefined).catch(() => undefined), limite]);
+}
+
 export function CartDrawer({
   items,
   onClose,
@@ -309,22 +319,23 @@ export function CartDrawer({
     return raw;
   }
 
-  // window.open primeiro: evita o site "cair" em browsers in-app que
-  // sequestram location.href sem abrir o WhatsApp.
+  // Abre o WhatsApp. No CELULAR vai direto na mesma aba: depois de um `await`
+  // o navegador bloqueia popup e, em navegador dentro do Instagram/WhatsApp,
+  // window.open costuma voltar null mesmo quando "abre" — o pedido ficava sem
+  // encaminhar. No desktop tenta janela nova e só cai na mesma aba se bloquear.
   function openWhatsapp(url: string) {
-    const isIframe = typeof window !== "undefined" && window.self !== window.top;
-    if (isIframe) {
-      window.open(url, "_blank", "noopener");
-      return;
-    }
-    try {
-      const w = window.open(url, "_blank", "noopener");
-      if (!w) window.location.href = url;
-    } catch {
+    const celular =
+      typeof navigator !== "undefined" &&
+      /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent);
+    if (!celular) {
       try {
-        window.location.href = url;
+        const w = window.open(url, "_blank");
+        if (w) return;
       } catch {}
     }
+    try {
+      window.location.href = url;
+    } catch {}
   }
 
   // Cooldown de Fidelidade (1h) por TELEFONE + loja: um cliente não bloqueia
@@ -449,7 +460,7 @@ export function CartDrawer({
     return lines.join("\n");
   }
 
-  async function handleSend() {
+  async function handleSendInner() {
     if (settings && !settings.isOpen && !(encomendaAtiva && agendarPara)) {
       alert("A loja está fechada no momento.");
       return;
@@ -668,29 +679,36 @@ export function CartDrawer({
           telefone: phone.replace(/\D/g, "").slice(0, 15),
         };
 
-        let { error } = await supabase.from("orders_history").insert(novoPedido);
-        if (error) {
-          // 1 retry rápido: falha momentânea de rede/RLS não deve jogar o
-          // pedido no formato legado (perdia sabores e endereço no painel).
-          await new Promise((r) => setTimeout(r, 700));
-          const segunda = await supabase.from("orders_history").insert(novoPedido);
-          if (!segunda.error) error = null;
-        }
-        if (error) {
-          // Fallback: banco sem as colunas de encomenda (SQL pendente).
-          const {
-            agendado_para,
-            janela_horario,
-            encomenda,
-            itens,
-            endereco,
-            telefone,
-            ...legado
-          } = novoPedido;
-          const retry = await supabase.from("orders_history").insert(legado);
-          error = retry.error;
-        }
-        if (error) throw error;
+        // Salva o pedido, mas NUNCA deixa o WhatsApp esperando mais que 6s
+        // (internet ruim no celular = botão parecia "morto").
+        await comTimeout(
+          (async () => {
+            let { error } = await supabase.from("orders_history").insert(novoPedido);
+            if (error) {
+              // 1 retry rápido: falha momentânea de rede/RLS não deve jogar o
+              // pedido no formato legado (perdia sabores e endereço no painel).
+              await new Promise((r) => setTimeout(r, 700));
+              const segunda = await supabase.from("orders_history").insert(novoPedido);
+              if (!segunda.error) error = null;
+            }
+            if (error) {
+              // Fallback: banco sem as colunas de encomenda (SQL pendente).
+              const {
+                agendado_para,
+                janela_horario,
+                encomenda,
+                itens,
+                endereco,
+                telefone,
+                ...legado
+              } = novoPedido;
+              const retry = await supabase.from("orders_history").insert(legado);
+              error = retry.error;
+            }
+            if (error) throw error;
+          })(),
+          6000,
+        );
       } catch (err) {
         console.error("Erro ao salvar histórico de pedidos no Supabase:", err);
       }
@@ -753,21 +771,27 @@ export function CartDrawer({
               } catch {}
             } catch {}
           })();
-          await Promise.allSettled([upsertCliente, travaCupom]);
+          // Não segura o WhatsApp: no máximo 2,5s para registrar o cliente.
+          await comTimeout(Promise.allSettled([upsertCliente, travaCupom]), 2500);
         }
       } catch {}
     }
 
     if (isCampaignEligible && supabase) {
       try {
-        const { error } = await supabase.from("participants").insert({
-          loja_id: lojaId,
-          campaign_id: activeCampaign.id,
-          client_name: name.trim(),
-          client_phone: phone.trim(),
-          order_total: finalTotal,
-        });
-        if (error) throw error;
+        await comTimeout(
+          (async () => {
+            const { error } = await supabase.from("participants").insert({
+              loja_id: lojaId,
+              campaign_id: activeCampaign.id,
+              client_name: name.trim(),
+              client_phone: phone.trim(),
+              order_total: finalTotal,
+            });
+            if (error) throw error;
+          })(),
+          2500,
+        );
       } catch (err) {
         console.error("Erro ao registrar participante no Supabase:", err);
       }
@@ -812,7 +836,7 @@ export function CartDrawer({
       setTimeout(() => {
         const message = buildMessage(msgOv);
         const text = encodeURIComponent(message);
-        const url = `https://api.whatsapp.com/send?phone=${storeWhatsapp}&text=${text}`;
+        const url = `https://wa.me/${storeWhatsapp}?text=${text}`;
         setRawMessage(message);
         setRedirectUrl(url);
         setIsRescuing(false);
@@ -829,11 +853,22 @@ export function CartDrawer({
 
     const message = buildMessage(msgOv);
     const text = encodeURIComponent(message);
-    const url = `https://api.whatsapp.com/send?phone=${storeWhatsapp}&text=${text}`;
+    const url = `https://wa.me/${storeWhatsapp}?text=${text}`;
     setRawMessage(message);
     setRedirectUrl(url);
     setIsRedirecting(true);
     openWhatsapp(url);
+  }
+
+  // Nunca deixa o botão "morto": se algo estourar no meio do envio, libera de
+  // novo para tentar (antes o isSubmitting ficava travado em true e o botão
+  // simplesmente não fazia mais nada).
+  async function handleSend() {
+    try {
+      await handleSendInner();
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -1370,9 +1405,10 @@ export function CartDrawer({
 
               <button
                 onClick={handleSend}
-                className="w-full h-14 rounded-2xl bg-success text-success-foreground font-extrabold text-base shadow-[0_6px_25px_oklch(0.68_0.18_145/0.4)] active:scale-[0.99]"
+                disabled={isSubmitting}
+                className="w-full h-14 rounded-2xl bg-success text-success-foreground font-extrabold text-base shadow-[0_6px_25px_oklch(0.68_0.18_145/0.4)] active:scale-[0.99] disabled:opacity-60"
               >
-                Enviar Pedido via WhatsApp
+                {isSubmitting ? "Enviando..." : "Enviar Pedido via WhatsApp"}
               </button>
             </>
           )}
