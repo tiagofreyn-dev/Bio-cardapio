@@ -1160,14 +1160,18 @@ function GeneralTab({
             </p>
           </div>
         </Field>
-        <Field label="Tempo Estimado de Entrega (Minutos)">
+        <Field label="Aviso de entrega (tempo ou texto)">
           <input
             value={settings.deliveryTime || ""}
             onChange={(e) => update({ deliveryTime: e.target.value })}
             onBlur={() => autoSave(storage.getSettings())}
             className={inputCls}
-            placeholder="Ex: 30-60, 40-50, 45..."
+            placeholder="Ex: 30-60, 40 a 50, Amanhã"
           />
+          <p className="text-[10px] text-zinc-500 mt-1">
+            Com número aparece "30-60 min" no cardápio; texto livre aparece como você escreveu
+            ("Amanhã", "Sob encomenda").
+          </p>
         </Field>
         <Field label="Encomendas para o dia seguinte">
           <button

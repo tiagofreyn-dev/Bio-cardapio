@@ -21,6 +21,10 @@ export function MenuHeader({
       : !activeId || activeId === "d3b07384-d113-4ec5-a55d-e0c157855d01";
 
   const displayName = propStoreName || settings.storeName;
+  // "30 a 45" / "30-60" ganham " min"; texto livre ("Amanhã", "Sob encomenda")
+  // aparece como a dona escreveu, sem virar "Amanhã min".
+  const tempoEntrega = String(settings.deliveryTime || "30-60").trim();
+  const tempoEntregaLabel = /\d/.test(tempoEntrega) ? `${tempoEntrega} min` : tempoEntrega;
 
   return (
     <header className="sticky top-0 z-30 bg-background/95 backdrop-blur border-b border-border">
@@ -63,7 +67,7 @@ export function MenuHeader({
               {settings.isOpen ? "Aberto agora" : "Fechado"}
             </span>
             <span className="text-[11px] text-muted-foreground">
-              Entrega {settings.deliveryTime || "30-60"} min
+              Entrega {tempoEntregaLabel}
             </span>
             {settings.storeAddress && (
               <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground max-w-full">
