@@ -1,0 +1,26 @@
+{
+  "name": "Doces Sol — Produção e Entregas",
+  "short_name": "Doces Sol",
+  "description": "Quanto assar de cada sabor e a rota das entregas do dia.",
+  "start_url": "/app-sol",
+  "scope": "/app-sol",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FBF3EA",
+  "theme_color": "#E2674F",
+  "lang": "pt-BR",
+  "icons": [
+    {
+      "src": "/app-sol-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/app-sol-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
+import { Route as AppSolRouteImport } from './routes/app-sol'
 import { Route as AutocreateRouteImport } from './routes/autocreate'
 import { Route as CadastroRouteImport } from './routes/cadastro'
 import { Route as DegustacaoSolRouteImport } from './routes/degustacao-sol'
@@ -27,6 +28,11 @@ const IndexRoute = IndexRouteImport.update({
 const AdminRoute = AdminRouteImport.update({
   id: '/admin',
   path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppSolRoute = AppSolRouteImport.update({
+  id: '/app-sol',
+  path: '/app-sol',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AutocreateRoute = AutocreateRouteImport.update({
@@ -68,6 +74,7 @@ const CardapioSlugRoute = CardapioSlugRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/app-sol': typeof AppSolRoute
   '/autocreate': typeof AutocreateRoute
   '/cadastro': typeof CadastroRoute
   '/degustacao-sol': typeof DegustacaoSolRoute
@@ -79,6 +86,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/app-sol': typeof AppSolRoute
   '/autocreate': typeof AutocreateRoute
   '/cadastro': typeof CadastroRoute
   '/degustacao-sol': typeof DegustacaoSolRoute
@@ -91,6 +99,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/app-sol': typeof AppSolRoute
   '/autocreate': typeof AutocreateRoute
   '/cadastro': typeof CadastroRoute
   '/degustacao-sol': typeof DegustacaoSolRoute
@@ -104,6 +113,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/admin'
+    | '/app-sol'
     | '/autocreate'
     | '/cadastro'
     | '/degustacao-sol'
@@ -115,6 +125,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/admin'
+    | '/app-sol'
     | '/autocreate'
     | '/cadastro'
     | '/degustacao-sol'
@@ -126,6 +137,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/admin'
+    | '/app-sol'
     | '/autocreate'
     | '/cadastro'
     | '/degustacao-sol'
@@ -138,6 +150,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
+  AppSolRoute: typeof AppSolRoute
   AutocreateRoute: typeof AutocreateRoute
   CadastroRoute: typeof CadastroRoute
   DegustacaoSolRoute: typeof DegustacaoSolRoute
@@ -161,6 +174,13 @@ declare module '@tanstack/react-router' {
       path: '/admin'
       fullPath: '/admin'
       preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/app-sol': {
+      id: '/app-sol'
+      path: '/app-sol'
+      fullPath: '/app-sol'
+      preLoaderRoute: typeof AppSolRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/autocreate': {
@@ -218,6 +238,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
+  AppSolRoute: AppSolRoute,
   AutocreateRoute: AutocreateRoute,
   CadastroRoute: CadastroRoute,
   DegustacaoSolRoute: DegustacaoSolRoute,
