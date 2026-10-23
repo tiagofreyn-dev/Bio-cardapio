@@ -59,7 +59,7 @@ export function MenuHeader({
           </h1>
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-0.5">
             <span
-              className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-0.5 rounded-full ${settings.isOpen ? "bg-success/15 text-success" : "bg-destructive/15 text-destructive"}`}
+              className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-0.5 rounded-full ${settings.isOpen ? "bg-emerald-500/15 text-emerald-400" : "bg-destructive/15 text-destructive"}`}
             >
               <span
                 className={`w-1.5 h-1.5 rounded-full ${settings.isOpen ? "bg-success animate-pulse" : "bg-destructive"}`}
@@ -85,26 +85,21 @@ export function MenuHeader({
 }
 
 export function ThemeToggle() {
-  const [isLight, setIsLight] = useState(false);
+  // Padrão do cardápio: CLARO. Só fica escuro se a pessoa escolher escuro
+  // (a escolha fica salva no aparelho dela).
+  const [isLight, setIsLight] = useState(true);
 
   useEffect(() => {
-    const saved = localStorage.getItem("insano.theme");
-    if (saved === "light") {
-      setIsLight(true);
-      document.documentElement.classList.add("light");
-    }
+    const dark = localStorage.getItem("insano.theme") === "dark";
+    document.documentElement.classList.toggle("light", !dark);
+    setIsLight(!dark);
   }, []);
 
   const toggleTheme = () => {
-    if (isLight) {
-      document.documentElement.classList.remove("light");
-      localStorage.setItem("insano.theme", "dark");
-      setIsLight(false);
-    } else {
-      document.documentElement.classList.add("light");
-      localStorage.setItem("insano.theme", "light");
-      setIsLight(true);
-    }
+    const nextLight = !isLight;
+    document.documentElement.classList.toggle("light", nextLight);
+    localStorage.setItem("insano.theme", nextLight ? "light" : "dark");
+    setIsLight(nextLight);
   };
 
   return (

@@ -67,6 +67,14 @@ function DynamicCardapio() {
   // e usa cupcake (só nesta loja; as outras continuam com lanches 🍔).
   const ehDocesSol =
     /doces[\s\-_]*sol/i.test(slug || "") || /doces[\s\-_]*sol/i.test(settings.storeName || "");
+
+  // Tema CLARO por padrão no cardápio (o painel/landing seguem escuros).
+  // Só fica escuro se a pessoa escolher escuro — a escolha fica salva.
+  useEffect(() => {
+    const dark = localStorage.getItem("insano.theme") === "dark";
+    document.documentElement.classList.toggle("light", !dark);
+    return () => document.documentElement.classList.remove("light");
+  }, []);
   const [customizingEncomenda, setCustomizingEncomenda] = useState(false);
   // Lote por sabor: quanto já saiu hoje (1 leitura leve, cache de 60s).
   const [vendidosHoje, setVendidosHoje] = useState<Record<string, number>>({});

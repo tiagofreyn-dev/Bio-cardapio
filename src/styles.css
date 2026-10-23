@@ -98,6 +98,18 @@
   --color-zinc-950: #ffffff;
   --color-white: #09090b;
   --color-black: #ffffff;
+
+  /* Cores de destaque (amarelo/verde/rosa) ficam legíveis no fundo claro:
+     no escuro elas são pastel; no claro viram tons mais fechados. */
+  --color-amber-300: #92400e;
+  --color-amber-400: #b45309;
+  --color-amber-500: #b45309;
+  --color-emerald-300: #047857;
+  --color-emerald-400: #047857;
+  --color-green-400: #15803d;
+  --color-rose-400: #be123c;
+  --color-red-300: #b91c1c;
+  --color-red-400: #b91c1c;
 }
 
 @layer base {

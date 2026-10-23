@@ -1033,7 +1033,7 @@ export function CartDrawer({
           {items.length > 0 && (
             <>
               {settings.loyaltyActive !== false && willEarnPoint && (
-                <div className="rounded-xl bg-success/15 text-success px-3 py-2 text-sm font-semibold">
+                <div className="rounded-xl bg-success/15 text-emerald-400 px-3 py-2 text-sm font-semibold">
                   🔥 Esse pedido vai te dar +1 carimbo no Cartão Fidelidade!
                 </div>
               )}
@@ -1459,9 +1459,9 @@ function Row({
 }) {
   return (
     <div className="flex justify-between">
-      <span className={success ? "text-success" : "text-muted-foreground"}>{label}</span>
+      <span className={success ? "text-emerald-400" : "text-muted-foreground"}>{label}</span>
       <span
-        className={`${bold ? "font-extrabold text-primary text-base" : ""} ${success ? "text-success font-semibold" : ""}`}
+        className={`${bold ? "font-extrabold text-primary text-base" : ""} ${success ? "text-emerald-400 font-semibold" : ""}`}
       >
         {value}
       </span>

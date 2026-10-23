@@ -110,6 +110,14 @@ function RootShell({ children }: { children: React.ReactNode }) {
     <html lang="pt-BR">
       <head>
         <HeadContent />
+        {/* Tema claro já no primeiro desenho do cardápio (sem "piscar"
+            escuro). Só fica escuro se a pessoa escolheu escuro antes. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{if(location.pathname.indexOf('/cardapio')===0){document.documentElement.classList.toggle('light',localStorage.getItem('insano.theme')!=='dark')}}catch(e){}",
+          }}
+        />
       </head>
       <body>
         {children}
