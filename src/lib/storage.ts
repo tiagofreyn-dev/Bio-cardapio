@@ -79,6 +79,7 @@ const DEFAULT_SETTINGS: Settings = {
   encomendaAtiva: false,
   encomendaCorte: "23:00",
   encomendaJanelas: ["08:00 às 12:00", "13:00 às 17:00"],
+  vendaNoDia: true,
 };
 
 const DEFAULT_PRODUCTS: Product[] = [];

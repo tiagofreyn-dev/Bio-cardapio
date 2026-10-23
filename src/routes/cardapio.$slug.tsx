@@ -59,6 +59,10 @@ function DynamicCardapio() {
   // O produto aberto no modal foi adicionado como ENCOMENDA (lote esgotado
   // ou loja fechada)? O CartDrawer exige data + janela nesse caso.
   const encomendaAtiva = !!settings.encomendaAtiva;
+  // Só por encomenda: o cardápio nunca vende o lote do dia — todo pedido
+  // escolhe a data e o horário de entrega.
+  const soEncomenda = settings.vendaNoDia === false;
+  const podePedir = encomendaAtiva || soEncomenda;
   const [customizingEncomenda, setCustomizingEncomenda] = useState(false);
   // Lote por sabor: quanto já saiu hoje (1 leitura leve, cache de 60s).
   const [vendidosHoje, setVendidosHoje] = useState<Record<string, number>>({});
@@ -418,7 +422,7 @@ function DynamicCardapio() {
   }
 
   function handleAdd(p: Product) {
-    if (!settings.isOpen && !encomendaAtiva) {
+    if (!settings.isOpen && !podePedir) {
       alert("Loja fechada no momento.");
       return;
     }
@@ -435,10 +439,10 @@ function DynamicCardapio() {
       hasFlavorCombo &&
       chavesSabor.length > 0 &&
       chavesSabor.reduce((s, k) => s + (rest[k] || 0), 0) <= 0;
-    // Lote do dia esgotado (ou loja fechada) + encomenda ligada = pedido
-    // agendado para a próxima produção, sem checar estoque.
-    const semLote = !settings.isOpen || (st !== null && st <= 0) || semSaborHoje;
-    if (semLote && !encomendaAtiva) {
+    // Lote do dia esgotado (ou loja fechada, ou modo "só por encomenda") +
+    // encomenda ligada = pedido agendado para a próxima produção.
+    const semLote = soEncomenda || !settings.isOpen || (st !== null && st <= 0) || semSaborHoje;
+    if (semLote && !podePedir) {
       alert(`${p.name} está esgotado no momento.`);
       return;
     }
@@ -629,11 +633,11 @@ function DynamicCardapio() {
                     <div className="mt-auto pt-2 flex items-center justify-between">
                       <span className="text-primary font-extrabold text-sm">{brl(p.price)}</span>
                       <button
-                        disabled={(out && !encomendaAtiva) || (!settings.isOpen && !encomendaAtiva)}
+                        disabled={(out && !podePedir) || (!settings.isOpen && !podePedir)}
                         onClick={() => handleAdd(p)}
                         className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground disabled:bg-muted disabled:text-muted-foreground shadow-md active:scale-95 transition"
                       >
-                        {out ? (encomendaAtiva ? "🗓️" : "✕") : "+"}
+                        {out ? (podePedir ? "🗓️" : "✕") : "+"}
                       </button>
                     </div>
                   </div>
@@ -678,11 +682,11 @@ function DynamicCardapio() {
                     <div className="mt-auto pt-2 flex items-center justify-between">
                       <span className="text-primary font-extrabold text-sm">{brl(p.price)}</span>
                       <button
-                        disabled={(out && !encomendaAtiva) || (!settings.isOpen && !encomendaAtiva)}
+                        disabled={(out && !podePedir) || (!settings.isOpen && !podePedir)}
                         onClick={() => handleAdd(p)}
                         className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground disabled:bg-muted disabled:text-muted-foreground shadow-md active:scale-95 transition"
                       >
-                        {out ? (encomendaAtiva ? "🗓️" : "✕") : "+"}
+                        {out ? (podePedir ? "🗓️" : "✕") : "+"}
                       </button>
                     </div>
                   </div>
@@ -709,8 +713,9 @@ function DynamicCardapio() {
             key={p.id}
             product={p}
             onAdd={() => handleAdd(p)}
-            disabled={!settings.isOpen && !encomendaAtiva}
-            encomenda={encomendaAtiva}
+            disabled={!settings.isOpen && !podePedir}
+            encomenda={podePedir}
+            somenteEncomenda={soEncomenda}
           />
         ))}
       </main>

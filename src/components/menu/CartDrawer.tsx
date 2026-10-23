@@ -670,6 +670,13 @@ export function CartDrawer({
 
         let { error } = await supabase.from("orders_history").insert(novoPedido);
         if (error) {
+          // 1 retry rápido: falha momentânea de rede/RLS não deve jogar o
+          // pedido no formato legado (perdia sabores e endereço no painel).
+          await new Promise((r) => setTimeout(r, 700));
+          const segunda = await supabase.from("orders_history").insert(novoPedido);
+          if (!segunda.error) error = null;
+        }
+        if (error) {
           // Fallback: banco sem as colunas de encomenda (SQL pendente).
           const {
             agendado_para,

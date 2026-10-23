@@ -7,19 +7,24 @@ export function ProductCard({
   onAdd,
   disabled,
   encomenda,
+  somenteEncomenda,
 }: {
   product: Product;
   onAdd: () => void;
   disabled?: boolean;
   /** Loja aceita encomenda p/ o dia seguinte quando o lote do dia esgotar. */
   encomenda?: boolean;
+  /** Loja vende SÓ por encomenda: todo item pede data/horário de entrega. */
+  somenteEncomenda?: boolean;
 }) {
   // Estoque: null/undefined = ilimitado. Controlado só quando stock é número.
   const tracked = typeof product.stock === "number";
   const semLote = !product.available || (tracked && (product.stock as number) <= 0);
+  // Modo "só por encomenda": o lote do dia não existe, tudo é sob encomenda.
+  const soEncomenda = !!somenteEncomenda && !!product.available;
   // Esgotou o lote de HOJE mas a loja aceita encomenda: continua clicável.
-  const podeEncomendar = !product.available ? false : semLote && !!encomenda;
-  const out = semLote && !podeEncomendar;
+  const podeEncomendar = !product.available ? false : soEncomenda || (semLote && !!encomenda);
+  const out = !product.available ? true : semLote && !podeEncomendar;
   const lowThreshold = product.lowStockThreshold ?? 5;
   const low = tracked && !semLote && (product.stock as number) <= lowThreshold;
   // Combo com sabores: mostra o menor preço como "a partir de".
@@ -68,10 +73,12 @@ export function ProductCard({
         {out && <p className="text-[10px] text-destructive font-semibold mt-1">Esgotado</p>}
         {podeEncomendar && (
           <p className="text-[10px] text-amber-400 font-bold mt-1">
-            Esgotado hoje • encomende p/ amanhã
+            {soEncomenda
+              ? "🗓️ Só por encomenda — escolha o dia"
+              : "Esgotado hoje • encomende p/ amanhã"}
           </p>
         )}
-        {!semLote && low && (
+        {!soEncomenda && !semLote && low && (
           <p className="text-[10px] font-bold mt-1 text-amber-500 animate-pulse">
             Só {product.stock} un!
           </p>

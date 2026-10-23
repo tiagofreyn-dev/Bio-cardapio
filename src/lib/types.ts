@@ -145,6 +145,10 @@ export interface Settings {
   encomendaAtiva?: boolean;
   encomendaCorte?: string; // "23:00" — pedido depois disso cai p/ depois de amanhã
   encomendaJanelas?: string[]; // ["08:00 às 12:00", "13:00 às 17:00"]
+  // Como a loja vende:
+  //   true  = vende o lote do dia E aceita encomenda quando esgotar (padrão)
+  //   false = SÓ por encomenda (o cliente sempre escolhe a data de entrega)
+  vendaNoDia?: boolean;
 }
 
 export interface CustomerLoyalty {

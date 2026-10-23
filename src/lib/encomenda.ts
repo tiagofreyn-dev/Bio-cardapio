@@ -105,7 +105,7 @@ export async function vendasDeHojePorSabor(
     // Pedidos para hoje + pedidos de balcão criados hoje.
     const { data, error } = await supabase
       .from("orders_history")
-      .select("itens,agendado_para")
+      .select("itens,agendado_para,items_summary")
       .eq("loja_id", lojaId)
       .or(`agendado_para.eq.${hoje},and(agendado_para.is.null,created_at.gte.${inicio.toISOString()})`)
       .limit(500);
@@ -119,6 +119,23 @@ export async function vendasDeHojePorSabor(
           const nome = String(f?.name || "").trim();
           const q = Number(f?.qty) || 0;
           if (nome && q > 0) vendas[nome] = (vendas[nome] || 0) + q;
+        }
+      }
+      // Pedido que caiu no formato legado (coluna itens vazia): lê os sabores
+      // do resumo "1x Mini-cuca (5 un) (3x Chocolate, Nutela)".
+      if (!Array.isArray(row?.itens)) {
+        for (const parte of String(row?.items_summary || "").split(" | ")) {
+          const linha = parte.split("\n")[0].trim();
+          const m = linha.match(/^(\d+)x\s+(.+?)(?:\s+\((.+)\))?$/);
+          if (!m || !m[3] || !/\(\d+\s*un\)/i.test(m[2])) continue;
+          for (const tok of m[3].split(",")) {
+            const t = tok.trim();
+            if (!t) continue;
+            const mm = t.match(/^(\d+)x\s+(.+)$/);
+            const nome = (mm ? mm[2] : t).trim();
+            const q = mm ? Number(mm[1]) || 1 : 1;
+            if (nome) vendas[nome] = (vendas[nome] || 0) + q;
+          }
         }
       }
     }
