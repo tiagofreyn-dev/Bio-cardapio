@@ -3,7 +3,24 @@ import { createFileRoute } from "@tanstack/react-router";
 import { supabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/degustacao-sol")({
-  head: () => ({ meta: [{ title: "Mini-Cucas Sol ☀️ — Amostra Grátis" }] }),
+  head: () => ({
+    meta: [
+      { title: "Mini-Cucas Sol ☀️ — Amostra Grátis" },
+      {
+        name: "description",
+        content: "Quem te deve essa mini cuca? Cadastre-se e resgate sua amostra grátis das Mini-Cucas Sol.",
+      },
+      { property: "og:title", content: "Quem te deve essa mini cuca? 🧁" },
+      {
+        property: "og:description",
+        content: "Cadastre-se e resgate sua amostra grátis das Mini-Cucas Sol.",
+      },
+      {
+        property: "og:image",
+        content: "https://bio-cardapio.vercel.app/degustacao-quem-te-deve.jpg",
+      },
+    ],
+  }),
   component: DegustacaoSolPage,
 });
 
