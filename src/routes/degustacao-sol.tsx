@@ -104,6 +104,20 @@ function DegustacaoSolPage() {
           </p>
         </header>
 
+        {!done && (
+          <figure className="anim-rise mt-5 overflow-hidden rounded-[26px] shadow-xl ring-1 ring-[#E8C9A8]">
+            <img
+              src="/degustacao-quem-te-deve.jpg"
+              alt="Mini cuca de chocolate partida ao meio, com a frase: quem te deve essa mini cuca?"
+              width={900}
+              height={1125}
+              loading="eager"
+              decoding="async"
+              className="block h-auto w-full"
+            />
+          </figure>
+        )}
+
         {!done ? (
           <main className="anim-rise mt-6 rounded-3xl bg-white/80 p-6 shadow-xl ring-1 ring-[#E8C9A8]">
             <p className="text-center text-sm leading-relaxed font-medium" style={{ color: "#6B3E2E" }}>
