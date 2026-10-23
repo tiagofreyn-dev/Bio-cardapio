@@ -63,6 +63,10 @@ function DynamicCardapio() {
   // escolhe a data e o horário de entrega.
   const soEncomenda = settings.vendaNoDia === false;
   const podePedir = encomendaAtiva || soEncomenda;
+  // A Doces Sol vende DOCES: o aviso de "novidades em breve" fala de doces
+  // e usa cupcake (só nesta loja; as outras continuam com lanches 🍔).
+  const ehDocesSol =
+    /doces[\s\-_]*sol/i.test(slug || "") || /doces[\s\-_]*sol/i.test(settings.storeName || "");
   const [customizingEncomenda, setCustomizingEncomenda] = useState(false);
   // Lote por sabor: quanto já saiu hoje (1 leitura leve, cache de 60s).
   const [vendidosHoje, setVendidosHoje] = useState<Record<string, number>>({});
@@ -725,10 +729,12 @@ function DynamicCardapio() {
           <div className="w-full max-w-sm p-6 rounded-3xl border-2 border-dashed border-primary/20 bg-primary/5 flex flex-col items-center justify-center text-center gap-2 relative overflow-hidden backdrop-blur-sm">
             <div className="absolute -top-10 -right-10 w-24 h-24 bg-primary/20 rounded-full blur-2xl"></div>
             <div className="absolute -bottom-10 -left-10 w-24 h-24 bg-primary/20 rounded-full blur-2xl"></div>
-            <span className="text-3xl mb-1 animate-bounce">🍔</span>
+            <span className="text-3xl mb-1 animate-bounce">{ehDocesSol ? "🧁" : "🍔"}</span>
             <h3 className="font-extrabold text-primary text-lg">Novidades em Breve!</h3>
             <p className="text-xs text-muted-foreground font-medium px-4">
-              Estamos preparando novos lanches deliciosos para o nosso cardápio. Aguarde!
+              {ehDocesSol
+                ? "Estamos preparando novos doces deliciosos para o nosso cardápio. Aguarde!"
+                : "Estamos preparando novos lanches deliciosos para o nosso cardápio. Aguarde!"}
             </p>
           </div>
         </div>
