@@ -1159,8 +1159,9 @@ export function CartDrawer({
 
                   {temEncomenda && (
                     <p className="text-[11px] font-bold text-amber-400 leading-snug">
-                      O lote de hoje esgotou — seu pedido entra na produção de{" "}
-                      {dataCurta(dataSugerida)}.
+                      {settings?.vendaNoDia === false
+                        ? `Esta loja vende só por encomenda — seu pedido entra na produção de ${dataCurta(dataSugerida)}.`
+                        : `O lote de hoje esgotou — seu pedido entra na produção de ${dataCurta(dataSugerida)}.`}
                     </p>
                   )}
 
