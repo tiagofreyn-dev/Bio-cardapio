@@ -4886,7 +4886,7 @@ function FaturamentoTab({ lojaId }: { lojaId: string | null }) {
       // 50 lojas x 5k pedidos cada nunca mais baixam a tabela inteira.
       let query = supabase
         .from("orders_history")
-        .select("id,client_name,payment_method,delivery_type,subtotal,delivery_fee,total_price,is_fidelidade_resgate,created_at")
+        .select("id,client_name,payment_method,delivery_type,subtotal,delivery_fee,total_price,is_fidelidade_resgate,created_at,items_summary")
         .eq("loja_id", lojaId);
 
       if (selectedPeriod !== "tudo") {
