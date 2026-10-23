@@ -420,6 +420,8 @@ export function CartDrawer({
     if (payment === "Pix" && settings?.pixKey) {
       lines.push(`*Chave PIX:* ${settings.pixKey}`);
       lines.push(`*Titular:* ${settings.pixName}`);
+      lines.push("");
+      lines.push("📎 *Envie o comprovante do Pix aqui nesta conversa.*");
     }
     if (redeem && canRedeem) {
       if (rewardProd) {
@@ -1304,6 +1306,13 @@ export function CartDrawer({
                       <span className="text-zinc-400">Titular da Conta</span>
                       <span className="font-bold text-zinc-200">
                         {settings.pixName || settings.storeName}
+                      </span>
+                    </div>
+
+                    <div className="flex items-start gap-2 rounded-xl bg-amber-500/10 border border-amber-500/25 px-3 py-2 text-[11px] text-amber-300 leading-snug">
+                      <span aria-hidden>📎</span>
+                      <span>
+                        Depois de pagar, envie o <b>comprovante do Pix</b> aqui no WhatsApp.
                       </span>
                     </div>
 
