@@ -73,7 +73,7 @@ const C = {
 const BORDA = `1px solid ${C.ring}`;
 
 type Cfg = { inicio: string; cidade: string };
-const CFG_PADRAO: Cfg = { inicio: "", cidade: "Marechal Cândido Rondon - PR" };
+const CFG_PADRAO: Cfg = { inicio: "", cidade: "Capitão Leônidas Marques - PR" };
 
 function lerCfg(): Cfg {
   try {
