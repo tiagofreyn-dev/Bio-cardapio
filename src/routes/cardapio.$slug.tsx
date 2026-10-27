@@ -122,32 +122,49 @@ function DynamicCardapio() {
         const cacheKey = `insano.cardapio.cache.${slug}`;
         try {
           if (useCache) {
-          const raw = sessionStorage.getItem(cacheKey);
-          if (raw) {
-            const cached = JSON.parse(raw);
-            if (cached && Date.now() - cached.at < 5 * 60 * 1000 && cached.store) {
-              setStore(cached.store);
-              setCardapioLojaId(cached.store.id);
-              const lid: string = cached.store.id;
-              localStorage.setItem(`insano.settings.${lid}`, JSON.stringify(cached.mappedSettings || {}));
-              localStorage.setItem(`insano.products.${lid}`, JSON.stringify(cached.products || []));
-              localStorage.setItem(`insano.delivery_locations.${lid}`, JSON.stringify(cached.locations || []));
-              localStorage.setItem(`insano.global_addons.${lid}`, JSON.stringify(cached.addons || []));
-              localStorage.setItem(`insano.campaigns.${lid}`, JSON.stringify(cached.campaigns || []));
-              localStorage.setItem("insano.tenant.activeId", lid);
-              document.title = `${cached.store.nome} — Cardápio Digital`;
-              window.dispatchEvent(new CustomEvent("insano-storage"));
-              setLoading(false);
-              return;
+            const raw = sessionStorage.getItem(cacheKey);
+            if (raw) {
+              const cached = JSON.parse(raw);
+              if (cached && Date.now() - cached.at < 5 * 60 * 1000 && cached.store) {
+                setStore(cached.store);
+                setCardapioLojaId(cached.store.id);
+                const lid: string = cached.store.id;
+                localStorage.setItem(
+                  `insano.settings.${lid}`,
+                  JSON.stringify(cached.mappedSettings || {}),
+                );
+                localStorage.setItem(
+                  `insano.products.${lid}`,
+                  JSON.stringify(cached.products || []),
+                );
+                localStorage.setItem(
+                  `insano.delivery_locations.${lid}`,
+                  JSON.stringify(cached.locations || []),
+                );
+                localStorage.setItem(
+                  `insano.global_addons.${lid}`,
+                  JSON.stringify(cached.addons || []),
+                );
+                localStorage.setItem(
+                  `insano.campaigns.${lid}`,
+                  JSON.stringify(cached.campaigns || []),
+                );
+                localStorage.setItem("insano.tenant.activeId", lid);
+                document.title = `${cached.store.nome} — Cardápio Digital`;
+                window.dispatchEvent(new CustomEvent("insano-storage"));
+                setLoading(false);
+                return;
+              }
             }
-          }
           } // end if (useCache)
         } catch {}
 
         // Buscar loja por slug — só colunas usadas na página pública
         const { data: storeData, error: storeError } = await supabase
           .from("lojas")
-          .select("id,nome,slug,tipo,cor_tema,status_assinatura,whatsapp,endereco,taxa_entrega,chave_pix,titular_pix,criado_em")
+          .select(
+            "id,nome,slug,tipo,cor_tema,status_assinatura,whatsapp,endereco,taxa_entrega,chave_pix,titular_pix,criado_em",
+          )
           .eq("slug", slug)
           .maybeSingle();
 
@@ -239,28 +256,37 @@ function DynamicCardapio() {
           // Pulado no preview/demo para o admin ver a edição na hora.
           try {
             if (useCache) {
-            const sdCache = unifiedData?.data as any;
-            sessionStorage.setItem(
-              cacheKey,
-              JSON.stringify({
-                at: Date.now(),
-                store: storeData,
-                mappedSettings: sdCache ? {
-                  ...(sdCache.settings || {}),
-                  storeName: storeData.nome,
-                  whatsapp: isDemo ? "5546999999999" : storeData.whatsapp || sdCache.settings?.whatsapp || "5546999999999",
-                  isOpen: (storeData as any).esta_aberta !== false,
-                  pixKey: isDemo ? "demo-pix-key@saas.com" : storeData.chave_pix || sdCache.settings?.pixKey || "",
-                  pixName: isDemo ? "Demonstração Cardápio Digital" : storeData.titular_pix || sdCache.settings?.pixName || "",
-                  storeAddress: storeData.endereco || sdCache.settings?.storeAddress || "",
-                  deliveryFee: Number(storeData.taxa_entrega) || sdCache.settings?.deliveryFee || 0,
-                } : undefined,
-                products: sdCache?.products || [],
-                locations: sdCache?.delivery_locations || [],
-                addons: sdCache?.global_addons || [],
-                campaigns: sdCache?.campaigns || [],
-              }),
-            );
+              const sdCache = unifiedData?.data as any;
+              sessionStorage.setItem(
+                cacheKey,
+                JSON.stringify({
+                  at: Date.now(),
+                  store: storeData,
+                  mappedSettings: sdCache
+                    ? {
+                        ...(sdCache.settings || {}),
+                        storeName: storeData.nome,
+                        whatsapp: isDemo
+                          ? "5546999999999"
+                          : storeData.whatsapp || sdCache.settings?.whatsapp || "5546999999999",
+                        isOpen: (storeData as any).esta_aberta !== false,
+                        pixKey: isDemo
+                          ? "demo-pix-key@saas.com"
+                          : storeData.chave_pix || sdCache.settings?.pixKey || "",
+                        pixName: isDemo
+                          ? "Demonstração Cardápio Digital"
+                          : storeData.titular_pix || sdCache.settings?.pixName || "",
+                        storeAddress: storeData.endereco || sdCache.settings?.storeAddress || "",
+                        deliveryFee:
+                          Number(storeData.taxa_entrega) || sdCache.settings?.deliveryFee || 0,
+                      }
+                    : undefined,
+                  products: sdCache?.products || [],
+                  locations: sdCache?.delivery_locations || [],
+                  addons: sdCache?.global_addons || [],
+                  campaigns: sdCache?.campaigns || [],
+                }),
+              );
             } // end if (useCache)
           } catch {}
         }
@@ -396,8 +422,7 @@ function DynamicCardapio() {
   // Motor de promoções por loja (100% local: settings já veio no JSON — zero reads).
   // promoDays: 0=Dom..6=Sab. Desconto % só na 1ª compra em dia promo.
   const promoDays = settings?.promoDays?.length ? settings.promoDays : [2, 3];
-  const isPromoDay =
-    (settings?.promoActive ?? false) && promoDays.includes(new Date().getDay());
+  const isPromoDay = (settings?.promoActive ?? false) && promoDays.includes(new Date().getDay());
   const promoPct = settings?.promoDiscountPct ?? 10;
   const promoFreeMin = settings?.promoMinOrderFreeShipping ?? 100;
 
@@ -425,16 +450,13 @@ function DynamicCardapio() {
     }
     for (const s of p.sabores || []) {
       if (typeof s.stock !== "number") continue;
-      out[s.nome] = Math.max(
-        0,
-        s.stock - (vendidosHoje[s.nome] || 0) - (noCarrinho[s.nome] || 0),
-      );
+      out[s.nome] = Math.max(0, s.stock - (vendidosHoje[s.nome] || 0) - (noCarrinho[s.nome] || 0));
     }
     return out;
   }
 
   function handleAdd(p: Product) {
-    if (!settings.isOpen && !podePedir) {
+    if (!settings.isOpen) {
       alert("Loja fechada no momento.");
       return;
     }
@@ -645,7 +667,7 @@ function DynamicCardapio() {
                     <div className="mt-auto pt-2 flex items-center justify-between">
                       <span className="text-primary font-extrabold text-sm">{brl(p.price)}</span>
                       <button
-                        disabled={(out && !podePedir) || (!settings.isOpen && !podePedir)}
+                        disabled={(out && !podePedir) || !settings.isOpen}
                         onClick={() => handleAdd(p)}
                         className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground disabled:bg-muted disabled:text-muted-foreground shadow-md active:scale-95 transition"
                       >
@@ -694,7 +716,7 @@ function DynamicCardapio() {
                     <div className="mt-auto pt-2 flex items-center justify-between">
                       <span className="text-primary font-extrabold text-sm">{brl(p.price)}</span>
                       <button
-                        disabled={(out && !podePedir) || (!settings.isOpen && !podePedir)}
+                        disabled={(out && !podePedir) || !settings.isOpen}
                         onClick={() => handleAdd(p)}
                         className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground disabled:bg-muted disabled:text-muted-foreground shadow-md active:scale-95 transition"
                       >
@@ -725,7 +747,7 @@ function DynamicCardapio() {
             key={p.id}
             product={p}
             onAdd={() => handleAdd(p)}
-            disabled={!settings.isOpen && !podePedir}
+            disabled={!settings.isOpen}
             encomenda={podePedir}
             somenteEncomenda={soEncomenda}
           />

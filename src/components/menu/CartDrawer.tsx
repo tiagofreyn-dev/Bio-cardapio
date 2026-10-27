@@ -5,12 +5,7 @@ import { storage, getActiveLojaId } from "@/lib/storage";
 import { useStorageSync } from "@/hooks/use-storage";
 import { X, Minus, Plus, Trash2, Copy, Check, MapPin } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import {
-  dataCurta,
-  dataLonga,
-  janelasDe,
-  proximaDataEncomenda,
-} from "@/lib/encomenda";
+import { dataCurta, dataLonga, janelasDe, proximaDataEncomenda } from "@/lib/encomenda";
 
 type Delivery = "retirada" | "entrega";
 type Payment = "Pix" | "Cartão" | "Dinheiro";
@@ -52,7 +47,9 @@ export function CartDrawer({
   const settings = useStorageSync(() => storage.getSettings());
   // Cartão fidelidade segue o TELEFONE (não o aparelho): mostra os pontos
   // do número vinculado; sem vínculo, mostra o saldo anônimo antigo.
-  const points = useStorageSync(() => storage.getLoyaltyPoints(storage.getLoyaltyPhone() || undefined));
+  const points = useStorageSync(() =>
+    storage.getLoyaltyPoints(storage.getLoyaltyPhone() || undefined),
+  );
   const products = useStorageSync(() => storage.getProducts());
 
   const [name, setName] = useState("");
@@ -68,8 +65,7 @@ export function CartDrawer({
   const [redeem, setRedeem] = useState(false);
   // Telefone dono do cartão nesta compra: o digitado (válido) ou o último vinculado.
   const orderPhoneDigits = phone.replace(/\D/g, "");
-  const loyaltyPhone =
-    orderPhoneDigits.length >= 10 ? orderPhoneDigits : storage.getLoyaltyPhone();
+  const loyaltyPhone = orderPhoneDigits.length >= 10 ? orderPhoneDigits : storage.getLoyaltyPhone();
   function handlePhoneInput(v: string) {
     setPhone(v);
     const d = v.replace(/\D/g, "");
@@ -106,7 +102,7 @@ export function CartDrawer({
   // Item de encomenda no carrinho obriga agendar: se o lote de hoje acabou,
   // "hoje" nem aparece como opção.
   useEffect(() => {
-    if ((temEncomenda || settings?.isOpen === false) && encomendaAtiva && !agendarPara) {
+    if (temEncomenda && encomendaAtiva && !agendarPara) {
       setAgendarPara(dataSugerida);
     }
   }, [temEncomenda, encomendaAtiva, settings?.isOpen, dataSugerida, agendarPara]);
@@ -184,8 +180,7 @@ export function CartDrawer({
   // promoDays: 0=Dom..6=Sab. Desconto % só na 1ª compra em dia promo;
   // frete grátis p/ recorrentes acima do mínimo em dia promo.
   const promoDays = settings?.promoDays?.length ? settings.promoDays : [2, 3];
-  const isPromoDay =
-    (settings?.promoActive ?? false) && promoDays.includes(new Date().getDay());
+  const isPromoDay = (settings?.promoActive ?? false) && promoDays.includes(new Date().getDay());
   const promoPct = settings?.promoDiscountPct ?? 10;
   const promoFreeMin = settings?.promoMinOrderFreeShipping ?? 100;
   const lastOrderKey =
@@ -196,9 +191,7 @@ export function CartDrawer({
     typeof window === "undefined" ? true : !localStorage.getItem(lastOrderKey);
   const [fraudBlocked, setFraudBlocked] = useState(false);
   const promoDiscount =
-    isPromoDay && isFirstPurchase && !fraudBlocked && !redeem
-      ? subtotal * (promoPct / 100)
-      : 0;
+    isPromoDay && isFirstPurchase && !fraudBlocked && !redeem ? subtotal * (promoPct / 100) : 0;
   const isFreeDeliveryPromo =
     isPromoDay &&
     !isFirstPurchase &&
@@ -206,8 +199,7 @@ export function CartDrawer({
     !redeem &&
     delivery === "entrega" &&
     subtotal >= promoFreeMin;
-  const deliveryFee =
-    delivery === "entrega" ? (isFreeDeliveryPromo ? 0 : activeDeliveryFee) : 0;
+  const deliveryFee = delivery === "entrega" ? (isFreeDeliveryPromo ? 0 : activeDeliveryFee) : 0;
 
   const canRedeem = points >= settings.loyaltyGoal;
   const cheapest = useMemo(
@@ -236,16 +228,17 @@ export function CartDrawer({
   // Cupom de desconto da loja (definição vem no settings JSON — zero reads).
   // Validação de 1 uso por telefone + estoque faz 1-2 selects minúsculos
   // SÓ quando o cliente digita o código (não pesa o plano gratuito).
-  const coupons: any[] = Array.isArray((settings as any)?.coupons)
-    ? (settings as any).coupons
-    : [];
+  const coupons: any[] = Array.isArray((settings as any)?.coupons) ? (settings as any).coupons : [];
   const [couponCode, setCouponCode] = useState("");
   const [couponApplied, setCouponApplied] = useState<{ code: string; pct: number } | null>(null);
   const [couponMsg, setCouponMsg] = useState("");
   const [couponLoading, setCouponLoading] = useState(false);
 
   async function handleApplyCoupon() {
-    const c = couponCode.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const c = couponCode
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, "");
     if (!c) return;
     const def = coupons.find((x) => x.code === c && x.active !== false);
     if (!def) {
@@ -442,7 +435,8 @@ export function CartDrawer({
     if (settings.loyaltyActive !== false && loyaltyPhone)
       lines.push(`*Fidelidade ${loyaltyPhone}:* ${points}/${settings.loyaltyGoal} pts`);
     if (pd > 0) lines.push(`*Desconto 1ª compra (${promoPct}%):* -${brl(pd)}`);
-    if (couponApplied) lines.push(`*Cupom ${couponApplied.code} (${couponApplied.pct}%):* -${brl(couponDiscount)}`);
+    if (couponApplied)
+      lines.push(`*Cupom ${couponApplied.code} (${couponApplied.pct}%):* -${brl(couponDiscount)}`);
     lines.push("");
     lines.push(`*TOTAL GERAL: ${brl(tt)}*`);
 
@@ -463,7 +457,7 @@ export function CartDrawer({
   }
 
   async function handleSendInner() {
-    if (settings && !settings.isOpen && !(encomendaAtiva && agendarPara)) {
+    if (settings && !settings.isOpen) {
       alert("A loja está fechada no momento.");
       return;
     }
@@ -583,11 +577,9 @@ export function CartDrawer({
     // Totais finais deste envio (respeitam o anti-fraude executado acima).
     const finalPromoDiscount = fraudNow ? 0 : promoDiscount;
     const finalFreePromo = !fraudNow && isFreeDeliveryPromo;
-    const finalDeliveryFee =
-      delivery === "entrega" ? (finalFreePromo ? 0 : activeDeliveryFee) : 0;
+    const finalDeliveryFee = delivery === "entrega" ? (finalFreePromo ? 0 : activeDeliveryFee) : 0;
     const finalTotal =
-      Math.max(0, subtotal - discount - finalPromoDiscount - couponDiscount) +
-      finalDeliveryFee;
+      Math.max(0, subtotal - discount - finalPromoDiscount - couponDiscount) + finalDeliveryFee;
     const msgOv = {
       promoDiscount: finalPromoDiscount,
       deliveryFee: finalDeliveryFee,
@@ -605,13 +597,19 @@ export function CartDrawer({
             const parts: string[] = [];
             if (i.selectedChoices && i.selectedChoices.length > 0) {
               parts.push(
-                ...i.selectedChoices.slice(0, 10).map((c: any) =>
-                  (c as any).qty > 1 ? `${(c as any).qty}x ${String(c.optionName).slice(0, 40)}` : String(c.optionName).slice(0, 40),
-                ),
+                ...i.selectedChoices
+                  .slice(0, 10)
+                  .map((c: any) =>
+                    (c as any).qty > 1
+                      ? `${(c as any).qty}x ${String(c.optionName).slice(0, 40)}`
+                      : String(c.optionName).slice(0, 40),
+                  ),
               );
             }
             if (i.adicionaisSelecionados && i.adicionaisSelecionados.length > 0) {
-              parts.push(...i.adicionaisSelecionados.slice(0, 10).map((a) => String(a.nome).slice(0, 40)));
+              parts.push(
+                ...i.adicionaisSelecionados.slice(0, 10).map((a) => String(a.nome).slice(0, 40)),
+              );
             }
             if (parts.length > 0) line += ` (${parts.join(", ")})`;
             return line;
@@ -1162,7 +1160,7 @@ export function CartDrawer({
                 )}
               </section>
 
-              {encomendaAtiva && (
+              {encomendaAtiva && settings?.isOpen !== false && (
                 <section className="space-y-2 p-3 rounded-2xl bg-amber-500/5 ring-1 ring-amber-500/25">
                   <h4 className="font-bold text-sm">🗓️ Quando quer receber?</h4>
                   <div className="grid grid-cols-2 gap-2">

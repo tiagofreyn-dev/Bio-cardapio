@@ -15,7 +15,14 @@ import type {
   ProductChoiceGroup,
 } from "@/lib/types";
 import { brl } from "@/lib/format";
-import { dataCurta, dataLonga, hojeIso, isoDate, proximaDataEncomenda, vendasDeHojePorSabor } from "@/lib/encomenda";
+import {
+  dataCurta,
+  dataLonga,
+  hojeIso,
+  isoDate,
+  proximaDataEncomenda,
+  vendasDeHojePorSabor,
+} from "@/lib/encomenda";
 import {
   MoreVertical,
   Edit2,
@@ -113,11 +120,15 @@ async function canvasCompress(
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas indisponível neste navegador.");
   ctx.drawImage(bmp, 0, 0, w, h);
-  const webp = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/webp", quality));
+  const webp = await new Promise<Blob | null>((resolve) =>
+    canvas.toBlob(resolve, "image/webp", quality),
+  );
   let out = webp;
   let ext = "webp";
   if (!out) {
-    out = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
+    out = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/jpeg", quality),
+    );
     ext = "jpg";
   }
   try {
@@ -139,7 +150,9 @@ async function compressImage(
   // Limite generoso: foto de celular tem 3–10MB. A compressão roda no próprio
   // aparelho, então o arquivo grande NUNCA vai pro Supabase.
   if (file.size > 20 * 1024 * 1024) {
-    throw new Error(`Imagem muito grande (${(file.size / 1024 / 1024).toFixed(1)}MB). Máximo 20MB.`);
+    throw new Error(
+      `Imagem muito grande (${(file.size / 1024 / 1024).toFixed(1)}MB). Máximo 20MB.`,
+    );
   }
   const maxSide = Math.max(maxWidth, maxHeight);
   const baseName = file.name.replace(/\.[^/.]+$/, "") || "foto";
@@ -158,7 +171,10 @@ async function compressImage(
   // Plano B: canvas nativo
   try {
     const res = await canvasCompress(file, maxSide, quality);
-    if (res) return new File([res.blob], `${baseName}.${res.ext}`, { type: res.blob.type || "image/webp" });
+    if (res)
+      return new File([res.blob], `${baseName}.${res.ext}`, {
+        type: res.blob.type || "image/webp",
+      });
   } catch (error) {
     console.error("Compression error (canvas):", error);
   }
@@ -322,7 +338,9 @@ function AdminPage() {
         // 1. Fetch store info — ULTRA-LEVE: só colunas do admin
         const { data: storeData, error: storeError } = await supabase
           .from("lojas")
-          .select("id,nome,slug,tipo,cor_tema,status_assinatura,whatsapp,endereco,taxa_entrega,chave_pix,titular_pix,criado_em")
+          .select(
+            "id,nome,slug,tipo,cor_tema,status_assinatura,whatsapp,endereco,taxa_entrega,chave_pix,titular_pix,criado_em",
+          )
           .eq("id", currentLojaId)
           .maybeSingle();
 
@@ -440,7 +458,7 @@ function AdminPage() {
       }
 
       setLojaId((finalStore as any).id);
-      setStore((finalStore as any));
+      setStore(finalStore as any);
       setAuthType("email");
       setUserEmail(data.user.email || null);
       // Loja auto-criada agora: começa zerada (sem herdar nada de outra loja).
@@ -657,9 +675,7 @@ function AdminPage() {
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
         {/* Painel Esquerdo: Tabs de Gerenciamento */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {tab === "geral" && (
-            <GeneralTab lojaId={lojaId} slug={store?.slug} store={store} />
-          )}
+          {tab === "geral" && <GeneralTab lojaId={lojaId} slug={store?.slug} store={store} />}
           {tab === "fidelidade" && <LoyaltyTab />}
           {tab === "produtos" && (
             <ProductsTab
@@ -744,15 +760,7 @@ function AdminPage() {
   );
 }
 
-function GeneralTab({
-  lojaId,
-  slug,
-  store,
-}: {
-  lojaId: string | null;
-  slug?: string;
-  store: any;
-}) {
+function GeneralTab({ lojaId, slug, store }: { lojaId: string | null; slug?: string; store: any }) {
   const settings = useStorageSync(() => storage.getSettings());
   const products = useStorageSync(() => storage.getProducts());
   // Merge SEMPRE sobre o fresco do storage (não o `settings` do closure):
@@ -773,9 +781,7 @@ function GeneralTab({
   const [showManualUrl, setShowManualUrl] = useState(false);
   // Texto livre das janelas de entrega: só vira array no blur (se filtrasse a
   // cada tecla, a vírgula digitada sumia na hora).
-  const [janelasTexto, setJanelasTexto] = useState(
-    (settings.encomendaJanelas || []).join(", "),
-  );
+  const [janelasTexto, setJanelasTexto] = useState((settings.encomendaJanelas || []).join(", "));
 
   async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -790,7 +796,9 @@ function GeneralTab({
       const prev = storage.getSettings().logoUrl || "";
       const prevPath = prev.match(/\/products-images\/(.+?)(?:\?.*)?$/)?.[1] ?? null;
       if (prevPath) {
-        try { await supabase.storage.from("products-images").remove([prevPath]); } catch {}
+        try {
+          await supabase.storage.from("products-images").remove([prevPath]);
+        } catch {}
       }
       const compressed = await compressImage(file);
       const ext = compressed.name.split(".").pop();
@@ -1155,8 +1163,8 @@ function GeneralTab({
               </p>
             )}
             <p className="text-[10px] text-zinc-500 leading-relaxed">
-              As fotos são comprimidas (máx. 1280px, ~0.5MB) e passam sozinhas no
-              topo do cardápio a cada ~3 segundos. Use fotos bonitas dos pratos e doces.
+              As fotos são comprimidas (máx. 1280px, ~0.5MB) e passam sozinhas no topo do cardápio a
+              cada ~3 segundos. Use fotos bonitas dos pratos e doces.
             </p>
           </div>
         </Field>
@@ -1194,9 +1202,9 @@ function GeneralTab({
               : "Desativada — só vende o lote do dia"}
           </button>
           <p className="text-[10px] text-zinc-500 leading-relaxed mt-1">
-            Quando o lote do dia esgota, o cardápio libera a encomenda para a próxima
-            produção e o painel <span className="font-bold text-zinc-300">🗓️ Produção</span>{" "}
-            soma os sabores e os endereços.
+            Quando o lote do dia esgota, o cardápio libera a encomenda para a próxima produção e o
+            painel <span className="font-bold text-zinc-300">🗓️ Produção</span> soma os sabores e os
+            endereços.
           </p>
         </Field>
         {settings.encomendaAtiva && (
@@ -1252,8 +1260,7 @@ function GeneralTab({
                     .map((s) => s.trim())
                     .filter(Boolean);
                   update({
-                    encomendaJanelas:
-                      list.length > 0 ? list : ["08:00 às 12:00", "13:00 às 17:00"],
+                    encomendaJanelas: list.length > 0 ? list : ["08:00 às 12:00", "13:00 às 17:00"],
                   });
                 }}
                 className={inputCls}
@@ -1301,7 +1308,7 @@ function GeneralTab({
             ></span>
             {settings.isOpen
               ? "Loja Aberta — Aceitando pedidos"
-              : "Loja Fechada — Bloquear novos pedidos"}
+              : "Loja Fechada — Sem pedidos (nem encomenda)"}
           </button>
         </Field>
       </Card>
@@ -1605,9 +1612,7 @@ function GeneralTab({
               />
             </Field>
             <div className="space-y-1.5">
-              <span className="text-xs font-semibold text-muted-foreground">
-                Dias da promoção
-              </span>
+              <span className="text-xs font-semibold text-muted-foreground">Dias da promoção</span>
               <div className="flex flex-wrap gap-1.5">
                 {["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"].map((d, idx) => {
                   const days = settings.promoDays?.length ? settings.promoDays : [2, 3];
@@ -2052,8 +2057,7 @@ function ProductsTab({
 
       {(() => {
         const low = (products || []).filter(
-          (p) =>
-            typeof p.stock === "number" && (p.stock as number) <= (p.lowStockThreshold ?? 5),
+          (p) => typeof p.stock === "number" && (p.stock as number) <= (p.lowStockThreshold ?? 5),
         );
         if (low.length === 0 || isPromoMode) return null;
         return (
@@ -2113,9 +2117,14 @@ function ProductsTab({
                           try {
                             // We skip direct DB deletion because storage syncs automatically
                             // Apaga a foto do produto no storage (evita lixo no plano free).
-                            const oldPath = typeof p.image === "string" ? (p.image.match(/\/products-images\/(.+?)(?:\?.*)?$/)?.[1] ?? null) : null;
+                            const oldPath =
+                              typeof p.image === "string"
+                                ? (p.image.match(/\/products-images\/(.+?)(?:\?.*)?$/)?.[1] ?? null)
+                                : null;
                             if (oldPath) {
-                              try { await supabase.storage.from("products-images").remove([oldPath]); } catch {}
+                              try {
+                                await supabase.storage.from("products-images").remove([oldPath]);
+                              } catch {}
                             }
                             storage.setProducts(products.filter((x) => x.id !== p.id));
                             setDeletingId(null);
@@ -2294,7 +2303,9 @@ function ProductModal({
   // ── Combos com sabores (mini cucas, cupcakes...) ────────────────────────
   const temCombos = (p.combos || []).length > 0;
   const saboresLista = (p.sabores || []).map((s: any) =>
-    typeof s === "string" ? { nome: s, extra: 0 } : { nome: String(s?.nome || ""), extra: Number(s?.extra) || 0 },
+    typeof s === "string"
+      ? { nome: s, extra: 0 }
+      : { nome: String(s?.nome || ""), extra: Number(s?.extra) || 0 },
   );
   const baseUnit = Number(p.price) || 5;
 
@@ -2528,8 +2539,8 @@ function ProductModal({
                 🍬 Combos com sabores
               </span>
               <span className="text-[10px] text-zinc-500 leading-snug block mt-0.5">
-                Pra vender por quantidade com sabor em cada unidade (mini cucas, cupcakes, doces).
-                O cliente escolhe a faixa e o sabor de cada uma.
+                Pra vender por quantidade com sabor em cada unidade (mini cucas, cupcakes, doces). O
+                cliente escolhe a faixa e o sabor de cada uma.
               </span>
             </div>
             <input
@@ -2561,7 +2572,9 @@ function ProductModal({
                         className={`${inputRowCls} w-full text-center`}
                       />
                     </div>
-                    <span className="text-[10px] font-bold text-zinc-500 whitespace-nowrap">un por R$</span>
+                    <span className="text-[10px] font-bold text-zinc-500 whitespace-nowrap">
+                      un por R$
+                    </span>
                     <div className="flex-1 min-w-0">
                       <input
                         type="number"
@@ -2638,7 +2651,9 @@ function ProductModal({
                         placeholder="+R$"
                         onChange={(e) => {
                           const list = saboresLista.map((x, j) =>
-                            j === idx ? { ...x, extra: Math.max(0, Number(e.target.value) || 0) } : x,
+                            j === idx
+                              ? { ...x, extra: Math.max(0, Number(e.target.value) || 0) }
+                              : x,
                           );
                           setP({ ...p, sabores: list });
                         }}
@@ -2648,7 +2663,9 @@ function ProductModal({
                     </div>
                     <button
                       type="button"
-                      onClick={() => setP({ ...p, sabores: saboresLista.filter((_, j) => j !== idx) })}
+                      onClick={() =>
+                        setP({ ...p, sabores: saboresLista.filter((_, j) => j !== idx) })
+                      }
                       className="text-rose-400 hover:text-rose-300 text-sm font-bold px-1 shrink-0"
                       title="Remover sabor"
                     >
@@ -2911,7 +2928,10 @@ function ProductModal({
               onSave({
                 ...p,
                 // Cardápio mostra o menor combo como "a partir de".
-                price: combos.length > 0 ? Math.min(...combos.map((c) => Number(c.price) || 0)) : p.price,
+                price:
+                  combos.length > 0
+                    ? Math.min(...combos.map((c) => Number(c.price) || 0))
+                    : p.price,
                 combos: combos.sort((a, b) => a.qty - b.qty),
                 sabores: saboresValidos,
                 customizable:
@@ -3041,17 +3061,14 @@ function enderecoDoPedido(o: PedidoProducao): string {
 
 /** Telefone do pedido (coluna nova ou o "📞 Fone:" do resumo). */
 function telefoneDoPedido(o: PedidoProducao): string {
-  const raw =
-    o.telefone || String(o.items_summary || "").match(/Fone:\s*([\d\s()+-]+)/)?.[1] || "";
+  const raw = o.telefone || String(o.items_summary || "").match(/Fone:\s*([\d\s()+-]+)/)?.[1] || "";
   return String(raw).replace(/\D/g, "");
 }
 
 /** Janela de entrega (coluna nova ou o horário escrito no resumo). */
 function janelaDoPedido(o: PedidoProducao): string {
   if (o.janela_horario) return o.janela_horario;
-  const m = String(o.items_summary || "").match(
-    /Encomenda:.*?(\d{2}:\d{2}\s*às\s*\d{2}:\d{2})/,
-  );
+  const m = String(o.items_summary || "").match(/Encomenda:.*?(\d{2}:\d{2}\s*às\s*\d{2}:\d{2})/);
   return m ? m[1] : "";
 }
 
@@ -3059,9 +3076,7 @@ function itensCurto(o: PedidoProducao): string {
   return itensDoPedido(o)
     .map((it) => {
       if (it.flavors.length > 0) {
-        return `${it.qty}x ${it.name} (${it.flavors
-          .map((f) => `${f.qty}x ${f.name}`)
-          .join(", ")})`;
+        return `${it.qty}x ${it.name} (${it.flavors.map((f) => `${f.qty}x ${f.name}`).join(", ")})`;
       }
       return `${it.qty}x ${it.name}`;
     })
@@ -3128,9 +3143,7 @@ function ProducaoTab({ lojaId }: { lojaId: string | null }) {
           .order("created_at", { ascending: true })
           .limit(500);
         if (error) throw error;
-        const doDia = ((rows || []) as PedidoProducao[]).filter(
-          (o) => dataDoPedido(o) === data,
-        );
+        const doDia = ((rows || []) as PedidoProducao[]).filter((o) => dataDoPedido(o) === data);
         if (alive) setPedidos(doDia);
       } catch (e: any) {
         if (!alive) return;
@@ -3232,9 +3245,9 @@ function ProducaoTab({ lojaId }: { lojaId: string | null }) {
         return { ...s, stock: n };
       });
     const total = sabores.reduce((a, s) => a + (s.stock || 0), 0);
-    const list = storage.getProducts().map((x) =>
-      x.id === p.id ? { ...x, sabores, stock: total } : x,
-    );
+    const list = storage
+      .getProducts()
+      .map((x) => (x.id === p.id ? { ...x, sabores, stock: total } : x));
     storage.setProducts(list);
     reloadPreview();
     const novoLote: Record<string, string> = { ...lote };
@@ -3285,9 +3298,7 @@ function ProducaoTab({ lojaId }: { lojaId: string | null }) {
             <span className="text-[9px] uppercase font-bold text-zinc-500">unidades</span>
           </div>
           <div className="p-2 rounded-xl bg-zinc-950 ring-1 ring-zinc-800">
-            <span className="block text-xl font-black text-emerald-400">
-              {brl(totalDinheiro)}
-            </span>
+            <span className="block text-xl font-black text-emerald-400">{brl(totalDinheiro)}</span>
             <span className="text-[9px] uppercase font-bold text-zinc-500">a receber</span>
           </div>
         </div>
@@ -3317,7 +3328,8 @@ function ProducaoTab({ lojaId }: { lojaId: string | null }) {
         </div>
         <p className="text-[10px] text-zinc-500">
           Dia selecionado: <span className="text-zinc-300 font-bold">{dataLonga(data)}</span> •
-          Encomendas aceitas até <span className="text-zinc-300 font-bold">{settings.encomendaCorte || "23:00"}</span>
+          Encomendas aceitas até{" "}
+          <span className="text-zinc-300 font-bold">{settings.encomendaCorte || "23:00"}</span>
         </p>
       </div>
 
@@ -3433,11 +3445,7 @@ function ProducaoTab({ lojaId }: { lojaId: string | null }) {
           const tel = telefoneDoPedido(p);
           // 10/11 dígitos = DDD + número; 12+ já vem com o 55.
           const zap =
-            tel.length >= 12 && tel.startsWith("55")
-              ? tel
-              : tel.length >= 10
-                ? "55" + tel
-                : "";
+            tel.length >= 12 && tel.startsWith("55") ? tel : tel.length >= 10 ? "55" + tel : "";
           return (
             <div key={p.id} className="p-3 rounded-xl bg-surface ring-1 ring-border space-y-1.5">
               <div className="flex items-center justify-between gap-2">
@@ -3495,102 +3503,109 @@ function ProducaoTab({ lojaId }: { lojaId: string | null }) {
         </summary>
         <div className="px-4 pb-4 space-y-3">
           <p className="text-[10px] text-zinc-500 leading-relaxed">
-            O cardápio trava a escolha conforme vão acabando e libera a encomenda
-            para {dataCurta(proximaDataEncomenda(settings))} quando zerar.
+            O cardápio trava a escolha conforme vão acabando e libera a encomenda para{" "}
+            {dataCurta(proximaDataEncomenda(settings))} quando zerar.
           </p>
-        {produtosLote.length === 0 && (
-          <p className="text-xs text-zinc-500">
-            Nenhum produto com combo ou estoque controlado ainda.
-          </p>
-        )}
-        {produtosLote.map((p) => {
-          const sabores = (p.sabores || []).filter((s) => String(s?.nome || "").trim());
-          const temSabores = sabores.length > 0 && (p.combos?.length ?? 0) > 0;
+          {produtosLote.length === 0 && (
+            <p className="text-xs text-zinc-500">
+              Nenhum produto com combo ou estoque controlado ainda.
+            </p>
+          )}
+          {produtosLote.map((p) => {
+            const sabores = (p.sabores || []).filter((s) => String(s?.nome || "").trim());
+            const temSabores = sabores.length > 0 && (p.combos?.length ?? 0) > 0;
 
-          // Produto comum (sem sabores): continua com 1 campo só.
-          if (!temSabores) {
+            // Produto comum (sem sabores): continua com 1 campo só.
+            if (!temSabores) {
+              return (
+                <div key={p.id} className="flex items-center gap-2">
+                  <span className="flex-1 min-w-0 text-xs font-bold text-white truncate">
+                    {p.name}
+                    {typeof p.stock === "number" && (
+                      <span className="text-zinc-500 font-normal"> • {p.stock} un agora</span>
+                    )}
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    inputMode="numeric"
+                    value={lote[p.id] ?? (typeof p.stock === "number" ? String(p.stock) : "")}
+                    onChange={(e) => setLote({ ...lote, [p.id]: e.target.value })}
+                    className="w-20 h-9 px-2 rounded-lg bg-input text-foreground ring-1 ring-border outline-none text-sm text-center shrink-0"
+                    placeholder="0"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => anunciar(p.id)}
+                    className="h-9 px-3 rounded-lg bg-primary text-primary-foreground text-[11px] font-bold shrink-0"
+                  >
+                    {copiado === "lote-" + p.id ? "✓" : "Anunciar"}
+                  </button>
+                </div>
+              );
+            }
+
+            const feitas = sabores.reduce(
+              (s, f) => s + (typeof f.stock === "number" ? f.stock : 0),
+              0,
+            );
+            const vendidas = sabores.reduce((s, f) => s + (vendidos[f.nome] || 0), 0);
+
             return (
-              <div key={p.id} className="flex items-center gap-2">
-                <span className="flex-1 min-w-0 text-xs font-bold text-white truncate">
-                  {p.name}
-                  {typeof p.stock === "number" && (
-                    <span className="text-zinc-500 font-normal"> • {p.stock} un agora</span>
-                  )}
-                </span>
-                <input
-                  type="number"
-                  min={0}
-                  inputMode="numeric"
-                  value={lote[p.id] ?? (typeof p.stock === "number" ? String(p.stock) : "")}
-                  onChange={(e) => setLote({ ...lote, [p.id]: e.target.value })}
-                  className="w-20 h-9 px-2 rounded-lg bg-input text-foreground ring-1 ring-border outline-none text-sm text-center shrink-0"
-                  placeholder="0"
-                />
+              <div
+                key={p.id}
+                className="p-2.5 rounded-xl bg-zinc-950/60 ring-1 ring-zinc-800 space-y-2"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-bold text-white truncate">{p.name}</span>
+                  <span className="text-[10px] text-zinc-500 shrink-0">
+                    {feitas} feitas • {vendidas} vendidas hoje
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {sabores.map((f) => {
+                    const feito = typeof f.stock === "number" ? f.stock : 0;
+                    const resta = Math.max(0, feito - (vendidos[f.nome] || 0));
+                    const chave = `${p.id}:${f.nome}`;
+                    return (
+                      <label key={f.nome} className="flex items-center gap-1.5 min-w-0">
+                        <span className="flex-1 min-w-0 text-[11px] text-zinc-300 truncate">
+                          {f.nome}
+                          <span
+                            className={`block text-[9px] font-bold ${
+                              resta === 0
+                                ? "text-rose-400"
+                                : resta <= 3
+                                  ? "text-amber-400"
+                                  : "text-zinc-500"
+                            }`}
+                          >
+                            {resta} restam
+                          </span>
+                        </span>
+                        <input
+                          type="number"
+                          min={0}
+                          inputMode="numeric"
+                          value={lote[chave] ?? String(feito)}
+                          onChange={(e) => setLote({ ...lote, [chave]: e.target.value })}
+                          className="w-14 h-9 px-1 rounded-lg bg-input text-foreground ring-1 ring-border outline-none text-sm text-center shrink-0"
+                          placeholder="0"
+                        />
+                      </label>
+                    );
+                  })}
+                </div>
                 <button
                   type="button"
-                  onClick={() => anunciar(p.id)}
-                  className="h-9 px-3 rounded-lg bg-primary text-primary-foreground text-[11px] font-bold shrink-0"
+                  onClick={() => anunciarSabores(p)}
+                  className="w-full h-9 rounded-lg bg-primary text-primary-foreground text-[11px] font-bold"
                 >
-                  {copiado === "lote-" + p.id ? "✓" : "Anunciar"}
+                  {copiado === "lote-" + p.id ? "✓ Anunciado" : "Anunciar sabores"}
                 </button>
               </div>
             );
-          }
-
-          const feitas = sabores.reduce(
-            (s, f) => s + (typeof f.stock === "number" ? f.stock : 0),
-            0,
-          );
-          const vendidas = sabores.reduce((s, f) => s + (vendidos[f.nome] || 0), 0);
-
-          return (
-            <div key={p.id} className="p-2.5 rounded-xl bg-zinc-950/60 ring-1 ring-zinc-800 space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-bold text-white truncate">{p.name}</span>
-                <span className="text-[10px] text-zinc-500 shrink-0">
-                  {feitas} feitas • {vendidas} vendidas hoje
-                </span>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                {sabores.map((f) => {
-                  const feito = typeof f.stock === "number" ? f.stock : 0;
-                  const resta = Math.max(0, feito - (vendidos[f.nome] || 0));
-                  const chave = `${p.id}:${f.nome}`;
-                  return (
-                    <label key={f.nome} className="flex items-center gap-1.5 min-w-0">
-                      <span className="flex-1 min-w-0 text-[11px] text-zinc-300 truncate">
-                        {f.nome}
-                        <span
-                          className={`block text-[9px] font-bold ${
-                            resta === 0 ? "text-rose-400" : resta <= 3 ? "text-amber-400" : "text-zinc-500"
-                          }`}
-                        >
-                          {resta} restam
-                        </span>
-                      </span>
-                      <input
-                        type="number"
-                        min={0}
-                        inputMode="numeric"
-                        value={lote[chave] ?? String(feito)}
-                        onChange={(e) => setLote({ ...lote, [chave]: e.target.value })}
-                        className="w-14 h-9 px-1 rounded-lg bg-input text-foreground ring-1 ring-border outline-none text-sm text-center shrink-0"
-                        placeholder="0"
-                      />
-                    </label>
-                  );
-                })}
-              </div>
-              <button
-                type="button"
-                onClick={() => anunciarSabores(p)}
-                className="w-full h-9 rounded-lg bg-primary text-primary-foreground text-[11px] font-bold"
-              >
-                {copiado === "lote-" + p.id ? "✓ Anunciado" : "Anunciar sabores"}
-              </button>
-            </div>
-          );
-        })}
+          })}
         </div>
       </details>
     </section>
@@ -3601,16 +3616,16 @@ function EstoqueTab({ products }: { products: Product[] }) {
   // Só produtos com stock numérico entram no controle (vazio = ilimitado).
   // Tudo local + sync com debounce coalescido — zero reads extras no Supabase.
   const tracked = (products || []).filter((p) => typeof p.stock === "number");
-  const lowCount = tracked.filter(
-    (p) => (p.stock as number) <= (p.lowStockThreshold ?? 5),
-  ).length;
+  const lowCount = tracked.filter((p) => (p.stock as number) <= (p.lowStockThreshold ?? 5)).length;
 
   function adjust(id: string, delta: number) {
-    const list = storage.getProducts().map((p) =>
-      p.id === id && typeof p.stock === "number"
-        ? { ...p, stock: Math.max(0, (p.stock as number) + delta) }
-        : p,
-    );
+    const list = storage
+      .getProducts()
+      .map((p) =>
+        p.id === id && typeof p.stock === "number"
+          ? { ...p, stock: Math.max(0, (p.stock as number) + delta) }
+          : p,
+      );
     storage.setProducts(list);
     reloadPreview();
   }
@@ -3622,8 +3637,7 @@ function EstoqueTab({ products }: { products: Product[] }) {
         <h3 className="font-extrabold text-white">Nenhum produto com estoque controlado</h3>
         <p className="text-xs text-muted-foreground max-w-sm">
           Edite um produto nas abas Produtos/Promoções e preencha o campo{" "}
-          <span className="font-bold text-white">Estoque</span>. Vazio = ilimitado (sem
-          controle).
+          <span className="font-bold text-white">Estoque</span>. Vazio = ilimitado (sem controle).
         </p>
       </section>
     );
@@ -4776,9 +4790,7 @@ function FaturamentoTab({ lojaId }: { lojaId: string | null }) {
   const [refreshing, setRefreshing] = useState(false);
   // Alerta sonoro de pedido novo (sem realtime: detecção via polling leve).
   const [soundOn, setSoundOn] = useState(
-    () =>
-      typeof window === "undefined" ||
-      localStorage.getItem("insano.admin.sound") !== "off",
+    () => typeof window === "undefined" || localStorage.getItem("insano.admin.sound") !== "off",
   );
   const [newOrder, setNewOrder] = useState<OrderHistory | null>(null);
   const lastSeenId = useRef<string | null>(null);
@@ -4890,7 +4902,9 @@ function FaturamentoTab({ lojaId }: { lojaId: string | null }) {
       // 50 lojas x 5k pedidos cada nunca mais baixam a tabela inteira.
       let query = supabase
         .from("orders_history")
-        .select("id,client_name,payment_method,delivery_type,subtotal,delivery_fee,total_price,is_fidelidade_resgate,created_at,items_summary")
+        .select(
+          "id,client_name,payment_method,delivery_type,subtotal,delivery_fee,total_price,is_fidelidade_resgate,created_at,items_summary",
+        )
         .eq("loja_id", lojaId);
 
       if (selectedPeriod !== "tudo") {
@@ -4904,9 +4918,7 @@ function FaturamentoTab({ lojaId }: { lojaId: string | null }) {
         query = query.gte("created_at", dateLimit.toISOString());
       }
 
-      const { data, error } = await query
-        .order("created_at", { ascending: false })
-        .limit(200);
+      const { data, error } = await query.order("created_at", { ascending: false }).limit(200);
 
       if (error) throw error;
 
@@ -5422,7 +5434,14 @@ function FaturamentoTab({ lojaId }: { lojaId: string | null }) {
 // limite 200 + count head p/ o total. Só carrega ao abrir a aba.
 function ClientesTab({ lojaId }: { lojaId: string | null }) {
   const [clients, setClients] = useState<
-    { id: string; nome: string; phone: string; orders: number; last_seen: string; opt_out: boolean }[]
+    {
+      id: string;
+      nome: string;
+      phone: string;
+      orders: number;
+      last_seen: string;
+      opt_out: boolean;
+    }[]
   >([]);
   const [total, setTotal] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
@@ -5477,9 +5496,16 @@ function ClientesTab({ lojaId }: { lojaId: string | null }) {
     const rows = [["nome", "telefone", "pedidos", "ultimo_pedido"]];
     for (const c of filtered) {
       if (c.opt_out) continue;
-      rows.push([c.nome, c.phone, String(c.orders), c.last_seen ? new Date(c.last_seen).toLocaleDateString("pt-BR") : ""]);
+      rows.push([
+        c.nome,
+        c.phone,
+        String(c.orders),
+        c.last_seen ? new Date(c.last_seen).toLocaleDateString("pt-BR") : "",
+      ]);
     }
-    const csv = rows.map((r) => r.map((x) => `"${String(x).replace(/"/g, '""')}"`).join(";")).join("\n");
+    const csv = rows
+      .map((r) => r.map((x) => `"${String(x).replace(/"/g, '""')}"`).join(";"))
+      .join("\n");
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -5489,7 +5515,9 @@ function ClientesTab({ lojaId }: { lojaId: string | null }) {
   }
 
   function copyPhones() {
-    const nums = filtered.filter((c) => !c.opt_out).map((c) => `55${c.phone.replace(/\D/g, "").replace(/^55/, "")}`);
+    const nums = filtered
+      .filter((c) => !c.opt_out)
+      .map((c) => `55${c.phone.replace(/\D/g, "").replace(/^55/, "")}`);
     navigator.clipboard?.writeText(nums.join(",")).catch(() => {});
     alert(`${nums.length} números copiados! Cole no disparo da Evolution.`);
   }
@@ -5498,10 +5526,13 @@ function ClientesTab({ lojaId }: { lojaId: string | null }) {
     return (
       <section className="space-y-4">
         <div className="rounded-2xl bg-amber-500/10 border border-amber-500/30 p-5 space-y-2">
-          <h4 className="font-extrabold text-sm text-amber-400">📱 Ative a base de clientes (1 clique)</h4>
+          <h4 className="font-extrabold text-sm text-amber-400">
+            📱 Ative a base de clientes (1 clique)
+          </h4>
           <p className="text-xs text-zinc-300 leading-relaxed">
-            Execute o arquivo <code className="font-mono bg-black/40 px-1 rounded">supabase-clientes-cupons.sql</code> no{" "}
-            <b>SQL Editor</b> do Supabase (1 vez). Depois disso cada pedido salva o telefone aqui
+            Execute o arquivo{" "}
+            <code className="font-mono bg-black/40 px-1 rounded">supabase-clientes-cupons.sql</code>{" "}
+            no <b>SQL Editor</b> do Supabase (1 vez). Depois disso cada pedido salva o telefone aqui
             automaticamente — sem custo extra por pageview.
           </p>
           <button
@@ -5579,7 +5610,9 @@ function ClientesTab({ lojaId }: { lojaId: string | null }) {
             <tbody className="divide-y divide-zinc-800/60">
               {filtered.map((c) => (
                 <tr key={c.id} className={c.opt_out ? "opacity-45" : ""}>
-                  <td className="px-4 py-3 font-bold text-white max-w-[140px] truncate">{c.nome || "—"}</td>
+                  <td className="px-4 py-3 font-bold text-white max-w-[140px] truncate">
+                    {c.nome || "—"}
+                  </td>
                   <td className="px-4 py-3 font-mono text-zinc-300">{c.phone}</td>
                   <td className="px-4 py-3 text-center font-black text-white">{c.orders}</td>
                   <td className="px-4 py-3 text-zinc-400 whitespace-nowrap">
@@ -5588,17 +5621,26 @@ function ClientesTab({ lojaId }: { lojaId: string | null }) {
                   <td className="px-4 py-3 text-center">
                     <button
                       type="button"
-                      title={c.opt_out ? "Voltar a incluir nos disparos" : "Não incluir nos disparos"}
+                      title={
+                        c.opt_out ? "Voltar a incluir nos disparos" : "Não incluir nos disparos"
+                      }
                       onClick={async () => {
                         if (!supabase) return;
                         const next = !c.opt_out;
-                        setClients((prev) => prev.map((x) => (x.id === c.id ? { ...x, opt_out: next } : x)));
+                        setClients((prev) =>
+                          prev.map((x) => (x.id === c.id ? { ...x, opt_out: next } : x)),
+                        );
                         try {
-                          const { error } = await supabase.from("loja_clientes").update({ opt_out: next }).eq("id", c.id);
+                          const { error } = await supabase
+                            .from("loja_clientes")
+                            .update({ opt_out: next })
+                            .eq("id", c.id);
                           if (error) throw error;
                         } catch (err: any) {
                           alert("Erro: " + err.message);
-                          setClients((prev) => prev.map((x) => (x.id === c.id ? { ...x, opt_out: !next } : x)));
+                          setClients((prev) =>
+                            prev.map((x) => (x.id === c.id ? { ...x, opt_out: !next } : x)),
+                          );
                         }
                       }}
                       className={`text-[10px] font-extrabold px-2.5 py-1.5 rounded-lg transition ${
@@ -5622,7 +5664,8 @@ function ClientesTab({ lojaId }: { lojaId: string | null }) {
         </div>
         {total !== null && total > 200 && (
           <p className="px-4 py-3 text-[10px] text-zinc-500 border-t border-zinc-800">
-            Mostrando os 200 mais recentes de {total} (limite proposital p/ não pesar o plano gratuito).
+            Mostrando os 200 mais recentes de {total} (limite proposital p/ não pesar o plano
+            gratuito).
           </p>
         )}
       </div>
