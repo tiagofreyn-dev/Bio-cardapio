@@ -359,7 +359,14 @@ function AdminPage() {
 
           if (sdRecord && sdRecord.data) {
             const sd = sdRecord.data;
-            if (sd.settings) storage.setSettings(sd.settings);
+            if (sd.settings) {
+              // esta_aberta (lojas) é a fonte de verdade do status aberto/fechado.
+              // store_data.settings.isOpen pode estar defasado, então derivamos da loja.
+              storage.setSettings({
+                ...sd.settings,
+                isOpen: (storeData as any).esta_aberta !== false,
+              });
+            }
             if (sd.products) storage.setProducts(sd.products);
             if (sd.delivery_locations) storage.setDeliveryLocations(sd.delivery_locations);
             if (sd.global_addons) storage.setGlobalAddons(sd.global_addons);
