@@ -18,6 +18,7 @@ import { Route as DegustacaoSolRouteImport } from './routes/degustacao-sol'
 import { Route as MasterAdminRouteImport } from './routes/master-admin'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as ApiEvoProxyRouteImport } from './routes/api.evo-proxy'
+import { Route as ApiKeepaliveRouteImport } from './routes/api.keepalive'
 import { Route as CardapioSlugRouteImport } from './routes/cardapio.$slug'
 
 const IndexRoute = IndexRouteImport.update({
@@ -65,6 +66,11 @@ const ApiEvoProxyRoute = ApiEvoProxyRouteImport.update({
   path: '/api/evo-proxy',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiKeepaliveRoute = ApiKeepaliveRouteImport.update({
+  id: '/api/keepalive',
+  path: '/api/keepalive',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CardapioSlugRoute = CardapioSlugRouteImport.update({
   id: '/cardapio/$slug',
   path: '/cardapio/$slug',
@@ -81,6 +87,7 @@ export interface FileRoutesByFullPath {
   '/master-admin': typeof MasterAdminRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/api/evo-proxy': typeof ApiEvoProxyRoute
+  '/api/keepalive': typeof ApiKeepaliveRoute
   '/cardapio/$slug': typeof CardapioSlugRoute
 }
 export interface FileRoutesByTo {
@@ -93,6 +100,7 @@ export interface FileRoutesByTo {
   '/master-admin': typeof MasterAdminRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/api/evo-proxy': typeof ApiEvoProxyRoute
+  '/api/keepalive': typeof ApiKeepaliveRoute
   '/cardapio/$slug': typeof CardapioSlugRoute
 }
 export interface FileRoutesById {
@@ -106,6 +114,7 @@ export interface FileRoutesById {
   '/master-admin': typeof MasterAdminRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/api/evo-proxy': typeof ApiEvoProxyRoute
+  '/api/keepalive': typeof ApiKeepaliveRoute
   '/cardapio/$slug': typeof CardapioSlugRoute
 }
 export interface FileRouteTypes {
@@ -120,6 +129,7 @@ export interface FileRouteTypes {
     | '/master-admin'
     | '/sitemap.xml'
     | '/api/evo-proxy'
+    | '/api/keepalive'
     | '/cardapio/$slug'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -132,6 +142,7 @@ export interface FileRouteTypes {
     | '/master-admin'
     | '/sitemap.xml'
     | '/api/evo-proxy'
+    | '/api/keepalive'
     | '/cardapio/$slug'
   id:
     | '__root__'
@@ -144,6 +155,7 @@ export interface FileRouteTypes {
     | '/master-admin'
     | '/sitemap.xml'
     | '/api/evo-proxy'
+    | '/api/keepalive'
     | '/cardapio/$slug'
   fileRoutesById: FileRoutesById
 }
@@ -157,6 +169,7 @@ export interface RootRouteChildren {
   MasterAdminRoute: typeof MasterAdminRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   ApiEvoProxyRoute: typeof ApiEvoProxyRoute
+  ApiKeepaliveRoute: typeof ApiKeepaliveRoute
   CardapioSlugRoute: typeof CardapioSlugRoute
 }
 
@@ -225,6 +238,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiEvoProxyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/keepalive': {
+      id: '/api/keepalive'
+      path: '/api/keepalive'
+      fullPath: '/api/keepalive'
+      preLoaderRoute: typeof ApiKeepaliveRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/cardapio/$slug': {
       id: '/cardapio/$slug'
       path: '/cardapio/$slug'
@@ -245,6 +265,7 @@ const rootRouteChildren: RootRouteChildren = {
   MasterAdminRoute: MasterAdminRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   ApiEvoProxyRoute: ApiEvoProxyRoute,
+  ApiKeepaliveRoute: ApiKeepaliveRoute,
   CardapioSlugRoute: CardapioSlugRoute,
 }
 export const routeTree = rootRouteImport
