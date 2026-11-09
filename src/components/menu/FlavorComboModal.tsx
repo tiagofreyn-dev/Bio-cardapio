@@ -57,6 +57,8 @@ export function FlavorComboModal({
 
   const [comboIdx, setComboIdx] = useState(0);
   const [sel, setSel] = useState<Record<string, number>>({});
+  // Unidades a MAIS que a faixa escolhida, mantendo o preço por unidade do combo.
+  const [extrasQtd, setExtrasQtd] = useState(0);
 
   // Estoque por sabor do lote de HOJE. Sabor sem `stock` numérico = sem limite.
   const limiteDe = (nome: string): number => {
@@ -73,20 +75,51 @@ export function FlavorComboModal({
     qty: 1,
     price: Number(product.price) || 0,
   };
+  // Preço por unidade da faixa escolhida — é ele que continua valendo nas
+  // unidades extras (combo de 4 un R$24 = R$6 cada; pedir 6 un = 6 × R$6).
+  const unitCombo = combo.qty > 0 ? Math.round((combo.price / combo.qty) * 100) / 100 : 0;
+  const totalUnidades = combo.qty + extrasQtd;
+  // Limite de extras: hoje respeita o lote por sabor; encomenda vai até 99.
+  const maxExtras = limitar ? Math.max(0, Math.min(totalRestante, 9999) - combo.qty) : 99;
   const chosen = Object.values(sel).reduce((a, b) => a + b, 0);
-  const faltam = Math.max(0, combo.qty - chosen);
+  const faltam = Math.max(0, totalUnidades - chosen);
 
   // Economia mostrada ao lado do combo (comparando com a faixa de 1 unidade).
   const baseUnit = (combos.find((c) => c.qty === 1)?.price ?? Number(product.price)) || 0;
   const economia = Math.max(0, baseUnit * combo.qty - combo.price);
 
   const extras = flavors.reduce((sum, f) => sum + (sel[f.nome] || 0) * (f.extra || 0), 0);
-  const total = combo.price + extras;
+  const extrasValue = extrasQtd * unitCombo;
+  const total = combo.price + extrasValue + extras;
 
   function pickCombo(i: number) {
     if (i === comboIdx) return;
     setComboIdx(i);
     setSel({});
+    setExtrasQtd(0);
+  }
+
+  // Muda as unidades extras e, se precisar, devolve os sabores que sobrarem.
+  function setExtras(next: number) {
+    const clamped = Math.max(0, Math.min(maxExtras, Math.round(next) || 0));
+    setExtrasQtd(clamped);
+    const cap = combo.qty + clamped;
+    setSel((prev) => {
+      let excess = Object.values(prev).reduce((a, b) => a + b, 0) - cap;
+      if (excess <= 0) return prev;
+      const copy = { ...prev };
+      for (const f of [...flavors].reverse()) {
+        if (excess <= 0) break;
+        const cur = copy[f.nome] || 0;
+        if (!cur) continue;
+        const take = Math.min(cur, excess);
+        const left = cur - take;
+        if (left === 0) delete copy[f.nome];
+        else copy[f.nome] = left;
+        excess -= take;
+      }
+      return copy;
+    });
   }
 
   function adjust(nome: string, delta: number) {
@@ -101,9 +134,9 @@ export function FlavorComboModal({
         );
         return;
       }
-      if (chosen >= combo.qty) {
+      if (chosen >= totalUnidades) {
         alert(
-          `Você já escolheu ${combo.qty} de ${combo.qty} mini cucas. Tire 1 de um sabor para trocar.`,
+          `Você já escolheu ${totalUnidades} de ${totalUnidades} mini cucas. Tire 1 de um sabor para trocar.`,
         );
         return;
       }
@@ -118,9 +151,9 @@ export function FlavorComboModal({
   }
 
   function handleConfirm() {
-    if (chosen !== combo.qty) {
+    if (chosen !== totalUnidades) {
       alert(
-        `Escolha o sabor de ${combo.qty} mini cuca${combo.qty > 1 ? "s" : ""}. Você escolheu ${chosen}.`,
+        `Escolha o sabor de ${totalUnidades} mini cuca${totalUnidades > 1 ? "s" : ""}. Você escolheu ${chosen}.`,
       );
       return;
     }
@@ -134,7 +167,7 @@ export function FlavorComboModal({
         price: f.extra || 0,
         qty: sel[f.nome],
       }));
-    onConfirm(total, ` (${combo.qty} un)`, selectedChoices, { units: combo.qty });
+    onConfirm(total, ` (${totalUnidades} un)`, selectedChoices, { units: totalUnidades });
   }
 
   return (
@@ -153,7 +186,10 @@ export function FlavorComboModal({
             </p>
             <h3 className="font-extrabold text-white text-base mt-0.5">{product.name}</h3>
           </div>
-          <button onClick={onClose} className="p-2 text-muted-foreground hover:text-white transition">
+          <button
+            onClick={onClose}
+            className="p-2 text-muted-foreground hover:text-white transition"
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -201,10 +237,59 @@ export function FlavorComboModal({
                         </p>
                       </div>
                     </div>
-                    <span className="text-primary font-extrabold whitespace-nowrap">{brl(c.price)}</span>
+                    <span className="text-primary font-extrabold whitespace-nowrap">
+                      {brl(c.price)}
+                    </span>
                   </button>
                 );
               })}
+            </div>
+
+            {/* Unidades extras mantendo o preço por unidade do combo. */}
+            <div className="rounded-2xl border border-dashed border-primary/40 bg-primary/5 p-3.5 space-y-2">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-black text-white">Quer mais unidades?</p>
+                  <p className="text-[11px] text-muted-foreground leading-snug">
+                    {maxExtras > 0
+                      ? `Adicione mantendo ${brl(unitCombo)} cada.`
+                      : limitar
+                        ? "O lote de hoje não tem mais unidades disponíveis."
+                        : "Sem limite de unidades extras."}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3 bg-zinc-950/60 p-1.5 rounded-xl border border-zinc-800/80 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setExtras(extrasQtd - 1)}
+                    disabled={extrasQtd === 0}
+                    aria-label="Tirar uma unidade extra"
+                    className="w-7 h-7 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 disabled:opacity-40 flex items-center justify-center transition active:scale-90"
+                  >
+                    <Minus className="w-3.5 h-3.5" />
+                  </button>
+                  <span className="text-xs font-black text-white w-4 text-center select-none">
+                    {extrasQtd}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setExtras(extrasQtd + 1)}
+                    disabled={extrasQtd >= maxExtras}
+                    aria-label="Adicionar uma unidade extra"
+                    className="w-7 h-7 rounded-lg bg-primary text-primary-foreground disabled:opacity-40 flex items-center justify-center transition active:scale-90"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+              {extrasQtd > 0 && (
+                <div className="flex items-center justify-between gap-2 pt-2 border-t border-primary/20 text-[11px] font-bold">
+                  <span className="text-emerald-400">
+                    {totalUnidades} unidades • {brl(unitCombo)} cada
+                  </span>
+                  <span className="text-primary whitespace-nowrap">+ {brl(extrasValue)}</span>
+                </div>
+              )}
             </div>
           </section>
 
@@ -216,17 +301,16 @@ export function FlavorComboModal({
                   2. Escolha os sabores
                 </h4>
                 <span className="text-[10px] text-zinc-400 font-bold">
-                  Distribua {combo.qty} {combo.qty > 1 ? "sabores" : "sabor"} entre as unidades
+                  Distribua {totalUnidades} {totalUnidades > 1 ? "sabores" : "sabor"} entre as
+                  unidades
                 </span>
               </div>
               <span
                 className={`text-[10px] font-black px-2 py-0.5 rounded shrink-0 ${
-                  faltam === 0
-                    ? "bg-emerald-500/15 text-emerald-400"
-                    : "bg-primary/10 text-primary"
+                  faltam === 0 ? "bg-emerald-500/15 text-emerald-400" : "bg-primary/10 text-primary"
                 }`}
               >
-                {chosen} / {combo.qty}
+                {chosen} / {totalUnidades}
               </span>
             </div>
 
@@ -254,8 +338,8 @@ export function FlavorComboModal({
                       type="button"
                       disabled={semEstoque}
                       onClick={() => {
-                        // Combo de 1 unidade: tocar no sabor já seleciona.
-                        if (combo.qty === 1) {
+                        // Total de 1 unidade: tocar no sabor já seleciona.
+                        if (totalUnidades === 1) {
                           if (semEstoque) return;
                           setSel({ [f.nome]: 1 });
                         } else adjust(f.nome, 1);
@@ -283,13 +367,15 @@ export function FlavorComboModal({
                       )}
                     </button>
 
-                    {combo.qty === 1 ? (
+                    {totalUnidades === 1 ? (
                       <span
                         className={`h-6 w-6 rounded-full border-2 flex items-center justify-center shrink-0 ${
                           isSelected ? "border-primary bg-primary" : "border-zinc-600 bg-zinc-900"
                         }`}
                       >
-                        {isSelected && <div className="w-2.5 h-2.5 bg-primary-foreground rounded-full" />}
+                        {isSelected && (
+                          <div className="w-2.5 h-2.5 bg-primary-foreground rounded-full" />
+                        )}
                       </span>
                     ) : (
                       <div className="flex items-center gap-3 bg-zinc-950/60 p-1.5 rounded-xl border border-zinc-800/80 shrink-0">
