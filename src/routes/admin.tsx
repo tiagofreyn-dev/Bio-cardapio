@@ -368,7 +368,7 @@ function AdminPage() {
               });
             }
             if (sd.products) storage.setProducts(sd.products);
-            if (sd.delivery_locations) storage.setDeliveryLocations(sd.delivery_locations);
+            if (sd.delivery_locations) storage.hydrateDeliveryLocations(sd.delivery_locations);
             if (sd.global_addons) storage.setGlobalAddons(sd.global_addons);
             if (sd.campaigns) storage.setCampaigns(sd.campaigns);
           } else {
@@ -951,6 +951,7 @@ function GeneralTab({ lojaId, slug, store }: { lojaId: string | null; slug?: str
       setName("");
       setFee("");
       setEditingId(null);
+      await flushSync();
     } catch (err: any) {
       alert("Erro ao salvar localização: " + err.message);
     }
@@ -961,6 +962,7 @@ function GeneralTab({ lojaId, slug, store }: { lojaId: string | null; slug?: str
     try {
       const currentList = storage.getDeliveryLocations();
       storage.setDeliveryLocations(currentList.filter((loc) => loc.id !== id));
+      await flushSync();
     } catch (err: any) {
       alert("Erro ao excluir localização: " + err.message);
     }
@@ -2717,7 +2719,7 @@ function ProductModal({
                   .join(" · ") || "—"}
                 <br />
                 <span className="text-zinc-500">
-                  O preço do campo “Preço (R$)” vira a base do cardápio (“a partir de”) ao salvar.
+                  O cardápio mostra o menor preço por unidade dos combos (“a partir de R$ X cada”).
                 </span>
               </div>
             </>
@@ -2934,7 +2936,8 @@ function ProductModal({
               );
               onSave({
                 ...p,
-                // Cardápio mostra o menor combo como "a partir de".
+                // Preço base do produto: menor total dos combos (fallback). O
+                // cardápio usa o menor preço POR UNIDADE como "a partir de".
                 price:
                   combos.length > 0
                     ? Math.min(...combos.map((c) => Number(c.price) || 0))

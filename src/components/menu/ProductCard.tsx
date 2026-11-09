@@ -27,19 +27,29 @@ export function ProductCard({
   const out = !product.available ? true : semLote && !podeEncomendar;
   const lowThreshold = product.lowStockThreshold ?? 5;
   const low = tracked && !semLote && (product.stock as number) <= lowThreshold;
-  // Combo com sabores: mostra o menor preço como "a partir de".
+  // Combo com sabores: mostra o MENOR preço por unidade ("a partir de"),
+  // que é o que chama atenção. Ex.: combo 4 un R$24 => R$6,00 cada.
   const combos = product.combos || [];
   const sabores = product.sabores || [];
   const temCombo = combos.length > 0 && sabores.length > 0;
-  const fromPrice = combos.length > 0 ? Math.min(...combos.map((c) => Number(c.price) || 0)) : product.price;
+  const fromPrice =
+    combos.length > 0
+      ? Math.min(
+          ...combos.map((c) => {
+            const qty = Math.max(1, Number(c.qty) || 1);
+            const price = Math.max(0, Number(c.price) || 0);
+            return price / qty;
+          }),
+        )
+      : Number(product.price) || 0;
   return (
-    <button 
+    <button
       onClick={onAdd}
       disabled={out || disabled}
       className={`flex text-left w-full gap-3 p-3 rounded-2xl bg-surface ring-1 ring-border active:scale-[0.98] transition-all focus:outline-none focus:ring-primary ${out ? "opacity-60 cursor-not-allowed" : "cursor-pointer hover:border-primary/50"} ${podeEncomendar ? "ring-amber-500/30" : ""}`}
     >
       <div className="w-20 h-20 rounded-xl bg-gradient-to-br from-primary/20 to-surface-elevated flex items-center justify-center overflow-hidden text-4xl shrink-0">
-        {product.image && (product.image.startsWith('http') || product.image.startsWith('/')) ? (
+        {product.image && (product.image.startsWith("http") || product.image.startsWith("/")) ? (
           <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
         ) : (
           product.image
@@ -47,7 +57,9 @@ export function ProductCard({
       </div>
       <div className="flex-1 min-w-0 flex flex-col justify-center">
         <h4 className="font-bold text-sm leading-tight text-white">{product.name}</h4>
-        <p className="text-[11px] text-muted-foreground mt-1 whitespace-pre-wrap break-words">{product.description}</p>
+        <p className="text-[11px] text-muted-foreground mt-1 whitespace-pre-wrap break-words">
+          {product.description}
+        </p>
         {temCombo && (
           <p className="text-[10px] font-bold text-amber-400 mt-1">
             🍬 Monte seu combo • {sabores.length} sabor{sabores.length > 1 ? "es" : ""}
@@ -59,7 +71,10 @@ export function ProductCard({
               <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wide">
                 a partir de
               </span>
-              <span className="text-primary font-extrabold">{brl(fromPrice)}</span>
+              <span className="text-primary font-extrabold">
+                {brl(fromPrice)}
+                <span className="text-[9px] font-bold text-muted-foreground ml-1">cada</span>
+              </span>
             </span>
           ) : (
             <span className="text-primary font-extrabold">{brl(fromPrice)}</span>

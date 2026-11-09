@@ -200,19 +200,38 @@ export async function flushSync() {
   if (target) await syncToCloud(target);
 }
 
+// Lojas cujas taxas de entrega foram editadas NESTA aba. Fora delas, o sync
+// preserva a lista da nuvem: uma aba antiga do admin (com taxas velhas no
+// localStorage) não pode apagar as regiões novas ao salvar outro campo.
+const _locationsDirty = new Set<string>();
+
 /** O upsert real (lê o localStorage na hora, sempre fresco). */
 async function doSync(lojaId: string) {
   if (!supabase) return;
+  let locations = read<DeliveryLocation[]>(KEYS.deliveryLocations, [], lojaId);
+  if (!_locationsDirty.has(lojaId)) {
+    try {
+      const { data } = await supabase
+        .from("store_data")
+        .select("data->delivery_locations")
+        .eq("loja_id", lojaId)
+        .maybeSingle();
+      const cloud = (data as any)?.delivery_locations;
+      if (Array.isArray(cloud)) locations = cloud;
+    } catch {
+      // sem leitura: mantém o que está local
+    }
+  }
   const storeData: StoreDataJSON = {
     settings: read<Settings>(KEYS.settings, DEFAULT_SETTINGS, lojaId),
     products: read<Product[]>(KEYS.products, DEFAULT_PRODUCTS, lojaId),
-    delivery_locations: read<DeliveryLocation[]>(KEYS.deliveryLocations, [], lojaId),
+    delivery_locations: locations,
     global_addons: read<GlobalAddon[]>(KEYS.globalAddons, [], lojaId),
     campaigns: read<Campaign[]>(KEYS.campaigns, [], lojaId),
   };
 
   try {
-    await supabase.from("store_data").upsert(
+    const { error } = await supabase.from("store_data").upsert(
       {
         loja_id: lojaId,
         data: storeData,
@@ -220,6 +239,8 @@ async function doSync(lojaId: string) {
       },
       { onConflict: "loja_id" },
     );
+    if (error) throw error;
+    _locationsDirty.delete(lojaId);
   } catch (err) {
     console.warn("Erro ao sincronizar com o Supabase:", err);
   }
@@ -271,7 +292,11 @@ export const storage = {
   },
   setLoyaltyPhone: (digits: string) => {
     const lojaId = getActiveLojaId();
-    write(`insano.loyalty.phone.${lojaId || "global"}`, (digits || "").replace(/\D/g, "").slice(0, 15), true);
+    write(
+      `insano.loyalty.phone.${lojaId || "global"}`,
+      (digits || "").replace(/\D/g, "").slice(0, 15),
+      true,
+    );
   },
   getLoyaltyPoints: (phone?: string) => {
     const lojaId = getActiveLojaId();
@@ -358,7 +383,13 @@ export const storage = {
 
   getDeliveryLocations: (): DeliveryLocation[] =>
     read<DeliveryLocation[]>(KEYS.deliveryLocations, []),
-  setDeliveryLocations: (dl: DeliveryLocation[]) => write(KEYS.deliveryLocations, dl),
+  setDeliveryLocations: (dl: DeliveryLocation[]) => {
+    const lojaId = getActiveLojaId();
+    if (lojaId) _locationsDirty.add(lojaId);
+    write(KEYS.deliveryLocations, dl);
+  },
+  /** Carrega as taxas vindas da nuvem sem marcar como edição local. */
+  hydrateDeliveryLocations: (dl: DeliveryLocation[]) => write(KEYS.deliveryLocations, dl, true),
 
   getGlobalAddons: (): GlobalAddon[] => read<GlobalAddon[]>(KEYS.globalAddons, []),
   setGlobalAddons: (ga: GlobalAddon[]) => write(KEYS.globalAddons, ga),
