@@ -5437,8 +5437,9 @@ function FaturamentoTab({ lojaId }: { lojaId: string | null }) {
 }
 
 // Base de telefones da loja — coleta automática no checkout (1 upsert por
-// pedido). ULTRA-LEVE: lista paginada com projeção mínima (sem select *),
-// limite 200 + count head p/ o total. Só carrega ao abrir a aba.
+// pedido) + importação manual de listas. ULTRA-LEVE: lista com projeção
+// mínima (sem select *), limite 500 + count head p/ o total. Só carrega ao
+// abrir a aba.
 function ClientesTab({ lojaId }: { lojaId: string | null }) {
   const [clients, setClients] = useState<
     {
@@ -5554,7 +5555,7 @@ function ClientesTab({ lojaId }: { lojaId: string | null }) {
           .select("id,nome,phone,orders,last_seen,opt_out")
           .eq("loja_id", lojaId)
           .order("last_seen", { ascending: false })
-          .limit(200),
+          .limit(500),
         supabase
           .from("loja_clientes")
           .select("id", { count: "exact", head: true })
@@ -5609,10 +5610,28 @@ function ClientesTab({ lojaId }: { lojaId: string | null }) {
     URL.revokeObjectURL(a.href);
   }
 
-  function copyPhones() {
-    const nums = filtered
+  async function copyPhones() {
+    if (!supabase || !lojaId) return;
+    // Com busca ativa copia só o resultado filtrado; sem busca copia a base
+    // inteira direto do banco (a lista na tela é limitada por performance).
+    let nums = filtered
       .filter((c) => !c.opt_out)
       .map((c) => `55${c.phone.replace(/\D/g, "").replace(/^55/, "")}`);
+    if (!search.trim()) {
+      try {
+        const { data } = await supabase
+          .from("loja_clientes")
+          .select("phone,opt_out")
+          .eq("loja_id", lojaId)
+          .limit(5000);
+        const todos = (data || [])
+          .filter((c: any) => !c.opt_out)
+          .map((c: any) => `55${String(c.phone).replace(/\D/g, "").replace(/^55/, "")}`);
+        if (todos.length > nums.length) nums = todos;
+      } catch {
+        // mantém o que já tem na tela
+      }
+    }
     navigator.clipboard?.writeText(nums.join(",")).catch(() => {});
     alert(`${nums.length} números copiados! Cole no disparo da Evolution.`);
   }
@@ -5795,9 +5814,9 @@ function ClientesTab({ lojaId }: { lojaId: string | null }) {
             </p>
           )}
         </div>
-        {total !== null && total > 200 && (
+        {total !== null && total > 500 && (
           <p className="px-4 py-3 text-[10px] text-zinc-500 border-t border-zinc-800">
-            Mostrando os 200 mais recentes de {total} (limite proposital p/ não pesar o plano
+            Mostrando os 500 mais recentes de {total} (limite proposital p/ não pesar o plano
             gratuito).
           </p>
         )}
