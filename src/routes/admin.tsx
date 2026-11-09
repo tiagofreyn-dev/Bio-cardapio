@@ -5454,6 +5454,94 @@ function ClientesTab({ lojaId }: { lojaId: string | null }) {
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [missingTable, setMissingTable] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const [importText, setImportText] = useState("");
+  const [importing, setImporting] = useState(false);
+
+  // Normaliza telefone brasileiro: aceita (45) 99999-8888, +55 45 9..., 045...
+  function normalizePhone(raw: string): string | null {
+    let d = String(raw || "").replace(/\D/g, "");
+    if (!d) return null;
+    if (d.startsWith("0055")) d = d.slice(4);
+    // Só tira o DDI 55 quando sobra um número brasileiro válido (evita DDD 55).
+    if (d.startsWith("55") && (d.length === 12 || d.length === 13)) d = d.slice(2);
+    if (d.startsWith("0") && d.length >= 11) d = d.replace(/^0+/, "");
+    if (d.length !== 10 && d.length !== 11) return null;
+    const ddd = Number(d.slice(0, 2));
+    if (ddd < 11 || ddd > 99) return null;
+    return d;
+  }
+
+  // Lê texto livre: 1 número por linha (ou separado por vírgula/;).
+  // Também entende "Maria 45 99999-8888" — o nome vai junto do número.
+  function parsePhones(raw: string) {
+    const phoneRe = /(?:\+?55[\s.-]*)?\(?0?\d{2}\)?[\s.-]*\d{4,5}[\s.-]*\d{4}/g;
+    const map = new Map<string, string>();
+    let invalidos = 0;
+    for (const linha of raw.split(/\r?\n|,/)) {
+      const s = linha.trim();
+      if (!s) continue;
+      const achados = s.match(phoneRe) || [];
+      let usou = false;
+      for (const achado of achados) {
+        const phone = normalizePhone(achado);
+        if (!phone) continue;
+        const nome = s
+          .replace(phoneRe, " ")
+          .replace(/[|/\\]+/g, " ")
+          .replace(/\s+/g, " ")
+          .replace(/^[\s:.-]+|[\s:.-]+$/g, "")
+          .slice(0, 60);
+        if (!map.has(phone)) map.set(phone, nome);
+        usou = true;
+      }
+      if (!usou && s.replace(/\D/g, "").length >= 8) invalidos++;
+    }
+    return { map, invalidos };
+  }
+
+  async function handleImport() {
+    if (!supabase || !lojaId) return alert("Loja não carregada.");
+    const { map, invalidos } = parsePhones(importText);
+    if (map.size === 0) {
+      return alert("Nenhum número válido encontrado. Use DDD + número (10 ou 11 dígitos).");
+    }
+    const ok = confirm(
+      `Importar ${map.size} número(s)?\n\n` +
+        `• Números que já existem na base são mantidos como estão (pedidos/histórico preservados).\n` +
+        (invalidos ? `• ${invalidos} linha(s) sem número válido foram ignoradas.\n` : "") +
+        `\n⚠️ Envie mensagens só para quem autorizou. Disparo para número frio pode bloquear o WhatsApp.`,
+    );
+    if (!ok) return;
+    setImporting(true);
+    try {
+      const rows = Array.from(map, ([phone, nome]) => ({
+        loja_id: lojaId,
+        phone,
+        nome,
+        // orders 0 = número importado, nunca pediu (diferencia de cliente real).
+        orders: 0,
+      }));
+      for (let i = 0; i < rows.length; i += 200) {
+        const chunk = rows.slice(i, i + 200);
+        const { error } = await supabase
+          .from("loja_clientes")
+          .upsert(chunk, { onConflict: "loja_id,phone", ignoreDuplicates: true });
+        if (error) throw error;
+      }
+      setImportText("");
+      setShowImport(false);
+      await load();
+      alert(
+        `${map.size} número(s) importados. Os que já estavam na base foram ignorados.` +
+          (invalidos ? `\n${invalidos} linha(s) inválida(s).` : ""),
+      );
+    } catch (err: any) {
+      alert("Erro ao importar: " + (err?.message || err));
+    } finally {
+      setImporting(false);
+    }
+  }
 
   async function load() {
     if (!supabase || !lojaId) return;
@@ -5585,6 +5673,13 @@ function ClientesTab({ lojaId }: { lojaId: string | null }) {
             </button>
             <button
               type="button"
+              onClick={() => setShowImport((v) => !v)}
+              className="h-9 px-3 rounded-xl bg-primary text-primary-foreground text-[11px] font-extrabold"
+            >
+              ➕ Números
+            </button>
+            <button
+              type="button"
               onClick={load}
               disabled={loading}
               className="h-9 w-9 rounded-xl bg-zinc-800 text-zinc-200 ring-1 ring-zinc-700 flex items-center justify-center disabled:opacity-40"
@@ -5600,6 +5695,37 @@ function ClientesTab({ lojaId }: { lojaId: string | null }) {
           placeholder="Buscar por nome ou telefone..."
           className="w-full h-10 rounded-xl bg-zinc-950 border border-zinc-800 px-3 text-xs font-semibold outline-none focus:border-primary/50"
         />
+
+        {showImport && (
+          <div className="rounded-xl bg-zinc-950 border border-zinc-800 p-3 space-y-2">
+            <p className="text-[11px] font-extrabold text-white">➕ Adicionar números na base</p>
+            <p className="text-[10px] text-zinc-400 leading-relaxed">
+              Cole a lista — um número por linha. Pode vir com nome na frente:{" "}
+              <span className="font-mono">Maria 45 99999-8888</span>. Repetidos e números que já
+              estão na base são ignorados (o histórico do cliente é preservado).
+            </p>
+            <textarea
+              value={importText}
+              onChange={(e) => setImportText(e.target.value)}
+              rows={6}
+              placeholder={"45999998888\n(45) 98888-7777\nMaria 45 97777-6666"}
+              className="w-full rounded-xl bg-black/40 border border-zinc-800 p-3 text-xs font-mono text-zinc-200 outline-none focus:border-primary/50 resize-y"
+            />
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] text-amber-400/90 font-bold">
+                ⚠️ Só envie para quem autorizou — disparo para número frio pode bloquear o WhatsApp.
+              </span>
+              <button
+                type="button"
+                onClick={handleImport}
+                disabled={importing || !importText.trim()}
+                className="h-9 px-4 rounded-xl bg-emerald-500 text-black text-[11px] font-extrabold disabled:opacity-40 shrink-0"
+              >
+                {importing ? "Importando..." : "Importar"}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="rounded-2xl bg-zinc-900 border border-zinc-800 overflow-hidden">
