@@ -414,7 +414,10 @@ export function CartDrawer({
       lines.push(`*Chave PIX:* ${settings.pixKey}`);
       lines.push(`*Titular:* ${settings.pixName}`);
       lines.push("");
-      lines.push("📎 *Envie o comprovante do Pix aqui nesta conversa.*");
+      lines.push(
+        "💛 *Pagou via Pix?* Quando puder, me envie o comprovante aqui nesta conversa, por favor.",
+      );
+      lines.push("Seu pedido já está anotado com carinho! 🧁");
     }
     if (redeem && canRedeem) {
       if (rewardProd) {
@@ -1307,10 +1310,13 @@ export function CartDrawer({
                       </span>
                     </div>
 
-                    <div className="flex items-start gap-2 rounded-xl bg-amber-500/10 border border-amber-500/25 px-3 py-2 text-[11px] text-amber-300 leading-snug">
-                      <span aria-hidden>📎</span>
+                    <div className="flex items-start gap-2.5 rounded-xl bg-amber-500/15 border border-amber-400/40 px-3 py-2.5 text-[12px] text-amber-100 leading-snug">
+                      <span aria-hidden className="text-base leading-none">
+                        💛
+                      </span>
                       <span>
-                        Depois de pagar, envie o <b>comprovante do Pix</b> aqui no WhatsApp.
+                        <b>Pagou via Pix?</b> Me manda o comprovante aqui no WhatsApp, por favor.
+                        Fica tranquilo(a): seu pedido já está garantido!
                       </span>
                     </div>
 
@@ -1407,6 +1413,16 @@ export function CartDrawer({
               {isFreeDeliveryPromo && (
                 <div className="rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-3 py-2 text-xs font-bold">
                   🚚 Frete GRÁTIS aplicado pela promoção!
+                </div>
+              )}
+
+              {payment === "Pix" && settings?.pixKey && (
+                <div className="rounded-2xl bg-primary/10 ring-2 ring-primary/30 px-4 py-3 text-center space-y-1">
+                  <p className="font-extrabold text-sm">💛 Só falta o comprovante do Pix</p>
+                  <p className="text-[12px] text-muted-foreground leading-snug">
+                    Depois de pagar, me envie o comprovante aqui no WhatsApp. Sem pressa, tá? Seu
+                    pedido já está anotado com carinho! 🧁
+                  </p>
                 </div>
               )}
 
