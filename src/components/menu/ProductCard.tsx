@@ -73,7 +73,7 @@ export function ProductCard({
               </span>
               <span className="text-primary font-extrabold">
                 {brl(fromPrice)}
-                <span className="text-[9px] font-bold text-muted-foreground ml-1">cada</span>
+                <span className="text-[9px] font-bold text-muted-foreground"> cada</span>
               </span>
             </span>
           ) : (
