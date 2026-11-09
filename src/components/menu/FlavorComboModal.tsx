@@ -328,11 +328,22 @@ export function FlavorComboModal({
                 return (
                   <div
                     key={f.nome}
+                    onClick={
+                      totalUnidades === 1
+                        ? () => {
+                            if (!semEstoque) setSel({ [f.nome]: 1 });
+                          }
+                        : undefined
+                    }
+                    role={totalUnidades === 1 ? "button" : undefined}
+                    aria-pressed={totalUnidades === 1 ? isSelected : undefined}
                     className={`w-full flex items-center justify-between p-3.5 rounded-2xl border transition ${
                       isSelected
                         ? "border-primary bg-primary/10 ring-1 ring-primary"
                         : "border-border bg-surface-elevated"
-                    } ${semEstoque ? "opacity-45" : ""}`}
+                    } ${semEstoque ? "opacity-45" : ""} ${
+                      totalUnidades === 1 && !semEstoque ? "cursor-pointer" : ""
+                    }`}
                   >
                     <button
                       type="button"

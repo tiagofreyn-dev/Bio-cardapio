@@ -71,6 +71,16 @@ export function janelasDe(settings?: Settings | null): string[] {
 // Pedido agendado para amanhã NÃO consome o lote de hoje.
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** "Mini-cuca (4 un)" -> "Mini-cuca": nome-base do produto, sem o sufixo do combo. */
+export function produtoDoItem(nome: string): string {
+  return String(nome || "Item").replace(/\s*\(\d+\s*un\)\s*$/i, "").trim() || "Item";
+}
+
+/** Chave única produto + sabor (evita somar chocolate de mini-cuca com o do bolinho). */
+export function chaveSabor(produto: string, sabor: string): string {
+  return `${produtoDoItem(produto)}||${String(sabor || "").trim()}`;
+}
+
 export type VendasPorSabor = Record<string, number>;
 
 const VENDAS_CACHE_MS = 60 * 1000;
@@ -115,10 +125,14 @@ export async function vendasDeHojePorSabor(
     for (const row of data as any[]) {
       const itens = Array.isArray(row?.itens) ? row.itens : [];
       for (const it of itens) {
+        const produto = produtoDoItem(it?.name);
         for (const f of Array.isArray(it?.flavors) ? it.flavors : []) {
           const nome = String(f?.name || "").trim();
           const q = Number(f?.qty) || 0;
-          if (nome && q > 0) vendas[nome] = (vendas[nome] || 0) + q;
+          if (nome && q > 0) {
+            const chave = `${produto}||${nome}`;
+            vendas[chave] = (vendas[chave] || 0) + q;
+          }
         }
       }
       // Pedido que caiu no formato legado (coluna itens vazia): lê os sabores
@@ -128,13 +142,17 @@ export async function vendasDeHojePorSabor(
           const linha = parte.split("\n")[0].trim();
           const m = linha.match(/^(\d+)x\s+(.+?)(?:\s+\((.+)\))?$/);
           if (!m || !m[3] || !/\(\d+\s*un\)/i.test(m[2])) continue;
+          const produto = produtoDoItem(m[2]);
           for (const tok of m[3].split(",")) {
             const t = tok.trim();
             if (!t) continue;
             const mm = t.match(/^(\d+)x\s+(.+)$/);
             const nome = (mm ? mm[2] : t).trim();
             const q = mm ? Number(mm[1]) || 1 : 1;
-            if (nome) vendas[nome] = (vendas[nome] || 0) + q;
+            if (nome) {
+              const chave = `${produto}||${nome}`;
+              vendas[chave] = (vendas[chave] || 0) + q;
+            }
           }
         }
       }

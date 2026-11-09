@@ -7,7 +7,7 @@ import { SponsorCarousel } from "@/components/menu/SponsorCarousel";
 import { LoyaltyCard } from "@/components/menu/LoyaltyCard";
 import { CategoryBar } from "@/components/menu/CategoryBar";
 import { ProductCard } from "@/components/menu/ProductCard";
-import { vendasDeHojePorSabor } from "@/lib/encomenda";
+import { vendasDeHojePorSabor, chaveSabor } from "@/lib/encomenda";
 import { CustomizeModal } from "@/components/menu/CustomizeModal";
 import { FlavorComboModal } from "@/components/menu/FlavorComboModal";
 import { CartFooter } from "@/components/menu/CartFooter";
@@ -450,7 +450,10 @@ function DynamicCardapio() {
     }
     for (const s of p.sabores || []) {
       if (typeof s.stock !== "number") continue;
-      out[s.nome] = Math.max(0, s.stock - (vendidosHoje[s.nome] || 0) - (noCarrinho[s.nome] || 0));
+      out[s.nome] = Math.max(
+        0,
+        s.stock - (vendidosHoje[chaveSabor(p.name, s.nome)] || 0) - (noCarrinho[s.nome] || 0),
+      );
     }
     return out;
   }

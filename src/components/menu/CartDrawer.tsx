@@ -1310,7 +1310,7 @@ export function CartDrawer({
                       </span>
                     </div>
 
-                    <div className="flex items-start gap-2.5 rounded-xl bg-amber-500/15 border border-amber-400/40 px-3 py-2.5 text-[12px] text-amber-100 leading-snug">
+                    <div className="flex items-start gap-2.5 rounded-xl bg-amber-500/15 border border-amber-400/40 px-3 py-2.5 text-[12px] text-amber-300 leading-snug">
                       <span aria-hidden className="text-base leading-none">
                         💛
                       </span>

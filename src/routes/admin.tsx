@@ -22,6 +22,7 @@ import {
   isoDate,
   proximaDataEncomenda,
   vendasDeHojePorSabor,
+  chaveSabor,
 } from "@/lib/encomenda";
 import {
   MoreVertical,
@@ -3175,20 +3176,26 @@ function ProducaoTab({ lojaId }: { lojaId: string | null }) {
   }, [lojaId, data]);
 
   const resumo = useMemo(() => {
-    const sabores: Record<string, number> = {};
+    const sabores = new Map<string, { produto: string; sabor: string; qtd: number }>();
     const outros: Record<string, number> = {};
     let totalUn = 0;
     for (const p of pedidos) {
       for (const it of itensDoPedido(p)) {
         totalUn += it.units;
         if (it.flavors.length > 0) {
-          for (const f of it.flavors) sabores[f.name] = (sabores[f.name] || 0) + f.qty;
+          const produto = it.name.replace(/\s*\(\d+\s*un\)\s*$/i, "").trim() || it.name;
+          for (const f of it.flavors) {
+            const key = `${produto}\u0000${f.name}`;
+            const cur = sabores.get(key);
+            if (cur) cur.qtd += f.qty;
+            else sabores.set(key, { produto, sabor: f.name, qtd: f.qty });
+          }
         } else {
           outros[it.name] = (outros[it.name] || 0) + it.units;
         }
       }
     }
-    return { sabores, outros, totalUn };
+    return { sabores: [...sabores.values()], outros, totalUn };
   }, [pedidos]);
 
   const totalDinheiro = pedidos.reduce((s, p) => s + (Number(p.total_price) || 0), 0);
@@ -3205,11 +3212,11 @@ function ProducaoTab({ lojaId }: { lojaId: string | null }) {
 
   function copiarProducao() {
     const linhas = [`🍬 PRODUÇÃO — ${dataCurta(data)}`, ""];
-    const sab = Object.entries(resumo.sabores).sort((a, b) => b[1] - a[1]);
+    const sab = resumo.sabores;
     if (sab.length === 0 && Object.keys(resumo.outros).length === 0) {
       linhas.push("(nenhuma encomenda)");
     }
-    for (const [nome, q] of sab) linhas.push(`${nome}: ${q} un`);
+    for (const s of sab) linhas.push(`${s.sabor} (${s.produto}): ${s.qtd} un`);
     if (Object.keys(resumo.outros).length > 0) {
       linhas.push("");
       for (const [nome, q] of Object.entries(resumo.outros)) linhas.push(`${nome}: ${q} un`);
@@ -3403,22 +3410,28 @@ function ProducaoTab({ lojaId }: { lojaId: string | null }) {
         </div>
         {carregando && <p className="text-xs text-zinc-500 animate-pulse">Carregando...</p>}
         {!carregando &&
-          Object.keys(resumo.sabores).length === 0 &&
+          resumo.sabores.length === 0 &&
           Object.keys(resumo.outros).length === 0 && (
             <p className="text-xs text-zinc-500 leading-relaxed">
               Nenhum pedido para {dataCurta(data)} ainda. Se você acabou de fazer um pedido de
               teste, confira se a data escolhida no cardápio é esta.
             </p>
           )}
-        {Object.entries(resumo.sabores)
-          .sort((a, b) => b[1] - a[1])
-          .map(([nome, q]) => (
+        {resumo.sabores
+          .slice()
+          .sort((a, b) => b.qtd - a.qtd)
+          .map((s) => (
             <div
-              key={nome}
+              key={`${s.produto}|${s.sabor}`}
               className="flex items-center justify-between gap-2 p-2 rounded-xl bg-zinc-950/60 ring-1 ring-zinc-800"
             >
-              <span className="font-bold text-sm text-white">{nome}</span>
-              <span className="text-lg font-black text-amber-400">{q} un</span>
+              <span className="font-bold text-sm text-white">
+                <span className="block text-[10px] uppercase text-zinc-500 leading-tight">
+                  {s.produto}
+                </span>
+                {s.sabor}
+              </span>
+              <span className="text-lg font-black text-amber-400">{s.qtd} un</span>
             </div>
           ))}
         {Object.keys(resumo.outros).length > 0 && (
@@ -3559,7 +3572,7 @@ function ProducaoTab({ lojaId }: { lojaId: string | null }) {
               (s, f) => s + (typeof f.stock === "number" ? f.stock : 0),
               0,
             );
-            const vendidas = sabores.reduce((s, f) => s + (vendidos[f.nome] || 0), 0);
+            const vendidas = sabores.reduce((s, f) => s + (vendidos[chaveSabor(p.name, f.nome)] || 0), 0);
 
             return (
               <div
@@ -3575,7 +3588,7 @@ function ProducaoTab({ lojaId }: { lojaId: string | null }) {
                 <div className="grid grid-cols-2 gap-2">
                   {sabores.map((f) => {
                     const feito = typeof f.stock === "number" ? f.stock : 0;
-                    const resta = Math.max(0, feito - (vendidos[f.nome] || 0));
+                    const resta = Math.max(0, feito - (vendidos[chaveSabor(p.name, f.nome)] || 0));
                     const chave = `${p.id}:${f.nome}`;
                     return (
                       <label key={f.nome} className="flex items-center gap-1.5 min-w-0">

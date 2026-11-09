@@ -123,28 +123,40 @@ export function nomeJanela(janela: string): string {
 }
 
 export type Producao = {
-  sabores: [string, number][];
+  sabores: { produto: string; sabor: string; qtd: number }[];
   outros: [string, number][];
   total: number;
   pedidos: number;
 };
 
+/** "Mini-cuca (4 un)" -> "Mini-cuca": nome-base do produto. */
+export function produtoDoItem(nome: string): string {
+  return String(nome || "Item").replace(/\s*\(\d+\s*un\)\s*$/i, "").trim() || "Item";
+}
+
 export function agregarProducao(pedidos: PedidoApp[]): Producao {
-  const sabores = new Map<string, number>();
+  const sabores = new Map<string, { produto: string; sabor: string; qtd: number }>();
   const outros = new Map<string, number>();
   let total = 0;
   for (const p of pedidos) {
     for (const it of itensDoPedido(p)) {
       total += it.units;
       if (it.flavors.length) {
-        for (const f of it.flavors) sabores.set(f.name, (sabores.get(f.name) || 0) + f.qty);
+        const produto = produtoDoItem(it.name);
+        for (const f of it.flavors) {
+          const key = `${produto}\u0000${f.name}`;
+          const cur = sabores.get(key);
+          if (cur) cur.qtd += f.qty;
+          else sabores.set(key, { produto, sabor: f.name, qtd: f.qty });
+        }
       } else {
         outros.set(it.name, (outros.get(it.name) || 0) + it.units);
       }
     }
   }
-  const ord = (m: Map<string, number>) => [...m.entries()].sort((a, b) => b[1] - a[1]);
-  return { sabores: ord(sabores), outros: ord(outros), total, pedidos: pedidos.length };
+  const ord = (m: Map<string, { produto: string; sabor: string; qtd: number }>) =>
+    [...m.values()].sort((a, b) => a.produto.localeCompare(b.produto, "pt-BR") || b.qtd - a.qtd);
+  return { sabores: ord(sabores), outros: [...outros.entries()].sort((a, b) => b[1] - a[1]), total, pedidos: pedidos.length };
 }
 
 // ── Telefone ────────────────────────────────────────────────────────────────

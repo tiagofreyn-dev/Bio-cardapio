@@ -605,19 +605,20 @@ function Painel() {
             ) : (
               <>
                 <div className="grid grid-cols-2 gap-2">
-                  {producao.sabores.map(([nome, qtd]) => (
+                  {producao.sabores.map((s) => (
                     <div
-                      key={nome}
+                      key={s.produto + "|" + s.sabor}
                       className="rounded-2xl bg-white p-4"
-                      style={{ border: BORDA, borderTop: `4px solid ${corDoSabor(nome)}` }}
+                      style={{ border: BORDA, borderTop: `4px solid ${corDoSabor(s.sabor)}` }}
                     >
                       <p
-                        className="text-[10.5px] font-black uppercase leading-tight tracking-wide"
-                        style={{ color: C.muted }}
+                        className="text-[9px] font-black uppercase leading-tight tracking-wide"
+                        style={{ color: C.coral }}
                       >
-                        {nome}
+                        {s.produto}
                       </p>
-                      <p className="mt-1 text-[38px] font-black leading-none">{qtd}</p>
+                      <p className="text-[14px] font-black leading-tight">{s.sabor}</p>
+                      <p className="mt-1 text-[38px] font-black leading-none">{s.qtd}</p>
                       <p className="text-[10.5px] font-bold" style={{ color: C.muted }}>
                         unidades
                       </p>

@@ -164,3 +164,14 @@
 }
 .animate-shake-bounce { animation: shake-bounce 0.6s ease-in-out; }
 
+/* iPhone/Safari dá zoom automático ao focar campos com fonte menor que 16px.
+   Isso "cortava" e descentralizava o cardápio no celular. Força 16px nos
+   campos no mobile — o layout continua o mesmo, só o campo fica legível. */
+@media (max-width: 640px) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
