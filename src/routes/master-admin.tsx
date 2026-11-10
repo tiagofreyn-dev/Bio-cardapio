@@ -987,6 +987,9 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
   const [last, setLast] = useState<any[]>([]);
   const [imageUrl, setImageUrl] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [audioUrl, setAudioUrl] = useState("");
+  const [uploadingAudio, setUploadingAudio] = useState(false);
+  const [testPhone, setTestPhone] = useState("");
 
   // Ao abrir a aba (ou quando as lojas carregam), já carrega a base da loja
   // salva na sessão — antes só carregava se você trocasse o select.
@@ -1035,7 +1038,32 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
     }
   }
 
-  // Base única: cardápio (loja_clientes) + degustação (degustacao_leads), sem repetir número.
+  // Áudio do disparo: upload para o mesmo bucket, aceita mp3/ogg/wav/m4a, teto ~2MB.
+  async function handleAudioUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("audio/")) return alert("Arquivo não é áudio.");
+    if (file.size > 8 * 1024 * 1024) return alert("Áudio maior que 8MB.");
+    if (!supabase) return alert("Supabase não configurado.");
+    setUploadingAudio(true);
+    try {
+      const oldPath = storagePathFromPublicUrl(audioUrl);
+      if (oldPath) {
+        try { await supabase.storage.from("products-images").remove([oldPath]); } catch {}
+      }
+      const ext = (file.name.split(".").pop() || "mp3").toLowerCase().replace(/[^a-z0-9]/g, "");
+      const fileName = `disparo-audio-${Date.now()}-${Math.floor(Math.random() * 9999)}.${ext}`;
+      const { data, error } = await supabase.storage.from("products-images").upload(fileName, file, { cacheControl: "31536000", upsert: false });
+      if (error) throw error;
+      const { data: { publicUrl } } = supabase.storage.from("products-images").getPublicUrl(data.path);
+      setAudioUrl(publicUrl);
+    } catch (err: any) {
+      alert("Erro ao enviar áudio: " + (err?.message || err));
+    } finally {
+      setUploadingAudio(false);
+      e.target.value = "";
+    }
+  }
   // A página /degustacao-sol é exclusiva da Doces Sol — por isso NÃO filtramos por
   // "origem" (se a coluna vier vazia/alterada, o merge morria em silêncio).
   function isDocesSol(store?: { nome?: string; slug?: string } | null) {
@@ -1179,7 +1207,7 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
     } catch {
       hasEvo = false;
     }
-    if (!confirm(hasEvo ? `Enviar para ${count ?? "?"} clientes via ${instance}${imageUrl ? " (com foto)" : ""}?` : `Simular disparo para ${count ?? "?"} clientes? (instância ${instance} desconectada — registra só o log)`)) return;
+    if (!confirm(hasEvo ? `Enviar para ${count ?? "?"} clientes via ${instance}${imageUrl ? " (com foto)" : audioUrl ? " (com áudio)" : ""}?` : `Simular disparo para ${count ?? "?"} clientes? (instância ${instance} desconectada — registra só o log)`)) return;
     setSending(true);
     stopRef.current = false;
     setProgress({ done: 0, ok: 0, fail: 0 });
@@ -1219,7 +1247,13 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
           if (stopRef.current) break;
           const text = msg.trim().slice(0, 500).replace(/\{nome\}/gi, t.nome || "cliente");
           try {
-            if (imageUrl) {
+            if (audioUrl) {
+              if (text) {
+                await evoProxy("sendText", instance, { number: t.phone, text });
+                await new Promise((r) => setTimeout(r, 800 + Math.random() * 700));
+              }
+              await evoProxy("sendMedia", instance, { number: t.phone, mediatype: "audio", media: audioUrl });
+            } else if (imageUrl) {
               await evoProxy("sendMedia", instance, { number: t.phone, mediatype: "image", media: imageUrl, caption: text });
             } else {
               await evoProxy("sendText", instance, { number: t.phone, text });
@@ -1248,6 +1282,37 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
       alert("Erro: " + (err?.message || err));
     } finally {
       setSending(false);
+    }
+  }
+
+  async function sendTeste() {
+    if (!supabase || !lojaId) return alert("Escolha a loja.");
+    const num = phoneDigits(testPhone);
+    if (num.length < 10 || num.length > 11) return alert("Digite um numero valido com DDD.");
+    const store = stores.find((s) => s.id === lojaId);
+    const instance = slugToInstance(store?.slug || "");
+    if (!instance) return alert("Slug da loja invalido para instancia.");
+    let hasEvo = false;
+    try {
+      const st: any = await evoProxy("status", instance);
+      hasEvo = String(st?.instance?.state || st?.state || "").toLowerCase() === "open";
+    } catch { hasEvo = false; }
+    if (!hasEvo) return alert("WhatsApp desconectado. Va na aba e reconecte.");
+    if (!confirm("Enviar TESTE para 55" + num + " (1 mensagem)?")) return;
+    const phone = "55" + num;
+    const text = msg.trim().slice(0, 500).replace(/\{nome\}/gi, "cliente");
+    try {
+      if (audioUrl) {
+        if (text) { await evoProxy("sendText", instance, { number: phone, text }); await new Promise((r) => setTimeout(r, 800)); }
+        await evoProxy("sendMedia", instance, { number: phone, mediatype: "audio", media: audioUrl });
+      } else if (imageUrl) {
+        await evoProxy("sendMedia", instance, { number: phone, mediatype: "image", media: imageUrl, caption: text });
+      } else {
+        await evoProxy("sendText", instance, { number: phone, text });
+      }
+      alert("Teste enviado! Confira no WhatsApp se chegou certo.");
+    } catch (err: any) {
+      alert("Erro no teste: " + (err?.message || err));
     }
   }
 
@@ -1322,16 +1387,70 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
             <input type="file" accept="image/*" onChange={handleImageUpload} disabled={uploading || !lojaId} className="hidden" />
           </label>
         )}
+        {audioUrl ? (
+          <div className="flex items-center gap-2 rounded-xl bg-zinc-950 border border-zinc-800 px-3 py-2 w-full max-w-xs">
+            <span className="text-[11px] font-bold text-zinc-300 truncate flex-1">🎵 Áudio anexado</span>
+            <audio src={audioUrl} controls className="h-8 max-w-[140px]" />
+            <button
+              type="button"
+              onClick={async () => {
+                const oldPath = storagePathFromPublicUrl(audioUrl);
+                if (supabase && oldPath) {
+                  try { await supabase.storage.from("products-images").remove([oldPath]); } catch {}
+                }
+                setAudioUrl("");
+              }}
+              className="h-7 px-2.5 rounded-lg bg-black/70 text-white text-[11px] font-bold"
+            >
+              Remover
+            </button>
+          </div>
+        ) : (
+          <label className="cursor-pointer h-10 px-4 rounded-xl bg-zinc-950 border border-zinc-800 text-[11px] font-bold flex items-center justify-center hover:border-zinc-600">
+            {uploadingAudio ? "Enviando áudio..." : "🎵 Anexar áudio (opcional, mp3/ogg, ~8MB)"}
+            <input type="file" accept="audio/*" onChange={handleAudioUpload} disabled={uploadingAudio || !lojaId} className="hidden" />
+          </label>
+        )}
         <div className="flex gap-2">
           <button onClick={copyNumbers} disabled={!lojaId} className="flex-1 h-10 rounded-xl bg-zinc-800 text-zinc-200 text-xs font-bold ring-1 ring-zinc-700 disabled:opacity-40">Copiar números</button>
           {sending ? (
             <button onClick={stopDisparo} className="flex-1 h-10 rounded-xl bg-red-500 text-black text-xs font-extrabold">Parar ({progress.done}/{count})</button>
           ) : (
             <button onClick={sendDisparo} disabled={!lojaId || sending || uploading || today >= 10} className="flex-1 h-10 rounded-xl bg-emerald-500 text-black text-xs font-extrabold disabled:opacity-40">
-              {imageUrl ? "Enviar com foto" : "Enviar / simular"}
+              {audioUrl ? "Enviar com áudio" : imageUrl ? "Enviar com foto" : "Enviar / simular"}
             </button>
           )}
         </div>
+        <div className="flex gap-2">
+          <input
+            value={testPhone}
+            onChange={(e) => setTestPhone(e.target.value)}
+            placeholder="Número de teste (com DDD): 45999..."
+            className="flex-1 h-10 rounded-xl bg-zinc-950 border border-zinc-800 px-3 text-xs font-bold outline-none focus:border-primary/50"
+          />
+          <button
+            onClick={sendTeste}
+            disabled={!lojaId || sending || uploading || uploadingAudio}
+            className="h-10 px-4 rounded-xl bg-amber-500 text-black text-xs font-extrabold disabled:opacity-40 whitespace-nowrap"
+            title="Envia 1 mensagem (texto + mídia) para o número acima, sem contar no limite diário"
+          >
+            🧪 Enviar teste
+          </button>
+        </div>
+        <p className="text-[10px] text-zinc-500 leading-snug">
+          Teste a mensagem em um único número antes de disparar para centenas. O teste não conta no limite de 10/dia.
+        </p>
+        <details className="rounded-xl bg-zinc-950/60 border border-zinc-800 px-3 py-2 text-[10px] text-zinc-400 leading-snug">
+          <summary className="cursor-pointer font-bold text-zinc-300">🛡️ Dicas anti-ban (leia antes de disparar)</summary>
+          <ul className="mt-2 space-y-1 list-disc pl-4">
+            <li>Use <b>200/lote</b> e espere o lote terminar antes do próximo (já tem 2-4s entre mensagens).</li>
+            <li>Max <b>10 disparos/dia</b> = até ~2.000 números/dia. Não ultrapasse.</li>
+            <li>Número novo: comece com 100/lote e aumente aos poucos (aquecimento).</li>
+            <li>Evite links encurtados, CAPS LOCK e spam de emojis — dispara bloqueio.</li>
+            <li>Nunca mande para quem não pediu (opt-out). Respeite quem responder "sair".</li>
+            <li>Se o WhatsApp desconectar ou pedir QR de novo, pare e reconecte — sinal de risco.</li>
+          </ul>
+        </details>
       </div>
 
       {last.length > 0 && (
