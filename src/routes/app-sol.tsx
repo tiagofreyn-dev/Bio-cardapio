@@ -933,42 +933,86 @@ function ParadaCard({
   numero: number;
   cidade: string;
 }) {
+  const [entregue, setEntregue] = useState(false);
   return (
-    <div className="flex gap-2.5 rounded-2xl p-3" style={{ background: C.soft, border: BORDA }}>
-      <div
-        className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[12.5px] font-black"
-        style={{ background: C.coral, color: "#fff" }}
-      >
-        {numero}
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-[14.5px] font-extrabold leading-snug">{parada.endereco}</p>
-        <p className="text-[12px] font-semibold" style={{ color: C.muted }}>
-          {parada.nome}
-          {parada.telefone ? ` • ${formatarTelefone(parada.telefone)}` : ""}
-        </p>
-        <p className="mt-0.5 text-[11.5px] leading-snug">{parada.itens}</p>
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          <a
-            href={linkMapa(parada.endereco, cidade)}
-            target="_blank"
-            rel="noreferrer"
-            className="rounded-lg px-2.5 py-2 text-[11.5px] font-black"
-            style={{ background: C.card, border: BORDA, color: C.ink }}
+    <div
+      className="rounded-2xl p-3 transition"
+      style={{
+        background: entregue ? "#E7F7EE" : C.soft,
+        border: entregue ? "1px solid #BFE8D2" : BORDA,
+        opacity: entregue ? 0.7 : 1,
+      }}
+    >
+      <div className="flex gap-2.5">
+        <div
+          className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[13px] font-black"
+          style={{ background: entregue ? C.verde : C.coral, color: "#fff" }}
+        >
+          {entregue ? "✓" : numero}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[11px] font-black uppercase tracking-wide" style={{ color: C.muted }}>
+              Entrega {numero}
+            </p>
+            <button
+              type="button"
+              onClick={() => setEntregue((v) => !v)}
+              className="rounded-lg px-2 py-1 text-[10.5px] font-black"
+              style={{
+                background: entregue ? C.verdeBg : C.card,
+                color: entregue ? C.verde : C.muted,
+                border: BORDA,
+              }}
+            >
+              {entregue ? "Entregue" : "Marcar entregue"}
+            </button>
+          </div>
+          <p className="text-[15px] font-extrabold leading-snug" style={{ textDecoration: entregue ? "line-through" : "none" }}>
+            {parada.endereco}
+          </p>
+          <p className="text-[12.5px] font-bold" style={{ color: C.muted, textDecoration: entregue ? "line-through" : "none" }}>
+            {parada.nome || "Cliente"}
+            {parada.telefone ? ` • ${formatarTelefone(parada.telefone)}` : ""}
+          </p>
+          <div
+            className="mt-1.5 rounded-xl px-2.5 py-2 text-[12px] font-semibold leading-snug"
+            style={{ background: C.card, border: BORDA }}
           >
-            🗺️ Mapa
-          </a>
-          {parada.telefone && (
+            📦 {parada.itens}
+          </div>
+          <div className="mt-2 flex flex-wrap gap-1.5">
             <a
-              href={`https://wa.me/${telefoneWa(parada.telefone)}`}
+              href={linkMapa(parada.endereco, cidade)}
               target="_blank"
               rel="noreferrer"
-              className="rounded-lg px-2.5 py-2 text-[11.5px] font-black"
-              style={{ background: C.verdeBg, color: C.verde, border: "1px solid #BFE8D2" }}
+              className="rounded-lg px-3 py-2 text-[11.5px] font-black"
+              style={{ background: C.coral, color: "#fff" }}
             >
-              💬 WhatsApp
+              🗺️ Abrir no Maps
             </a>
-          )}
+            {parada.telefone && (
+              <a
+                href={`https://wa.me/${telefoneWa(parada.telefone)}`}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-lg px-3 py-2 text-[11.5px] font-black"
+                style={{ background: C.verdeBg, color: C.verde, border: "1px solid #BFE8D2" }}
+              >
+                💬 WhatsApp
+              </a>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                try { navigator.clipboard.writeText(parada.endereco); } catch {}
+              }}
+              className="rounded-lg px-3 py-2 text-[11.5px] font-black"
+              style={{ background: C.card, color: C.muted, border: BORDA }}
+            >
+              📋 Copiar endereço
+            </button>
+          </div>
         </div>
       </div>
     </div>

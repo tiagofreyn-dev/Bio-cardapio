@@ -97,9 +97,11 @@ export function itensCurto(o: PedidoApp): string {
   return itensDoPedido(o)
     .map((it) => {
       if (it.flavors.length > 0) {
-        return `${it.qty}x ${it.name} (${it.flavors.map((f) => `${f.qty}x ${f.name}`).join(", ")})`;
+        const produto = produtoDoItem(it.name);
+        const sabores = it.flavors.map((f) => `${f.qty} ${f.name}`).join(", ");
+        return `${produto} ${it.units}un (${sabores})`;
       }
-      return `${it.qty}x ${it.name}`;
+      return `${it.name} ${it.units}un`;
     })
     .join(" • ");
 }
