@@ -176,6 +176,7 @@ function AcessoNegado() {
 function Painel() {
   const [aba, setAba] = useState<"assar" | "entregar">("assar");
   const [offset, setOffset] = useState(0); // 0 = hoje, 1 = amanhã
+  const [produtoAberto, setProdutoAberto] = useState<string | null>(null);
   const [hoje, setHoje] = useState(() => isoDate(new Date()));
   const [todos, setTodos] = useState<PedidoApp[]>([]);
   const [carregando, setCarregando] = useState(true);
@@ -604,48 +605,68 @@ function Painel() {
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-2 gap-2">
-                  {producao.sabores.map((s) => (
-                    <div
-                      key={s.produto + "|" + s.sabor}
-                      className="rounded-2xl bg-white p-4"
-                      style={{ border: BORDA, borderTop: `4px solid ${corDoSabor(s.sabor)}` }}
-                    >
-                      <p
-                        className="text-[9px] font-black uppercase leading-tight tracking-wide"
-                        style={{ color: C.coral }}
+                <div className="space-y-2">
+                  {producao.produtos.map((p) => {
+                    const aberto = produtoAberto === p.nome;
+                    return (
+                      <div
+                        key={p.nome}
+                        className="rounded-2xl bg-white overflow-hidden"
+                        style={{ border: BORDA }}
                       >
-                        {s.produto}
-                      </p>
-                      <p className="text-[14px] font-black leading-tight">{s.sabor}</p>
-                      <p className="mt-1 text-[38px] font-black leading-none">{s.qtd}</p>
-                      <p className="text-[10.5px] font-bold" style={{ color: C.muted }}>
-                        unidades
-                      </p>
-                    </div>
-                  ))}
+                        <button
+                          type="button"
+                          onClick={() => setProdutoAberto(aberto ? null : p.nome)}
+                          className="w-full flex items-center justify-between gap-3 p-4 text-left"
+                        >
+                          <div className="min-w-0">
+                            <p className="text-[11px] font-black uppercase tracking-wide" style={{ color: C.muted }}>
+                              {p.nome}
+                            </p>
+                            <p className="mt-0.5 text-[34px] font-black leading-none">{p.total}</p>
+                            <p className="text-[10.5px] font-bold" style={{ color: C.muted }}>
+                              unidades
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {p.sabores.length > 0 && (
+                              <span
+                                className="text-[11px] font-black px-2 py-1 rounded-lg"
+                                style={{ background: C.ambarBg, color: C.ambar }}
+                              >
+                                {p.sabores.length} sabor{p.sabores.length > 1 ? "es" : ""}
+                              </span>
+                            )}
+                            <span className="text-[16px] font-black" style={{ color: C.muted }}>
+                              {aberto ? "▲" : "▼"}
+                            </span>
+                          </div>
+                        </button>
+                        {aberto && p.sabores.length > 0 && (
+                          <div className="px-4 pb-4 pt-1 space-y-1.5" style={{ borderTop: `1px solid ${C.ring}` }}>
+                            {p.sabores.map((s) => (
+                              <div
+                                key={s.sabor}
+                                className="flex items-center justify-between gap-2 rounded-xl px-3 py-2"
+                                style={{ background: C.soft }}
+                              >
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span
+                                    className="h-3 w-3 rounded-full shrink-0"
+                                    style={{ background: corDoSabor(s.sabor) }}
+                                  />
+                                  <span className="text-[14px] font-bold truncate">{s.sabor}</span>
+                                </div>
+                                <span className="text-[18px] font-black">{s.qtd}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
 
-                {producao.outros.length > 0 && (
-                  <div className="rounded-2xl bg-white p-4" style={{ border: BORDA }}>
-                    <p
-                      className="text-[10.5px] font-black uppercase tracking-wide"
-                      style={{ color: C.muted }}
-                    >
-                      Outros itens
-                    </p>
-                    <div className="mt-1 space-y-1">
-                      {producao.outros.map(([nome, qtd]) => (
-                        <div key={nome} className="flex items-baseline justify-between gap-2">
-                          <span className="text-[14px] font-bold">{nome}</span>
-                          <span className="text-[14px] font-black">
-                            {qtd} <span className="text-[11px] font-bold">un</span>
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </>
             )}
           </section>

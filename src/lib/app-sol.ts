@@ -123,6 +123,7 @@ export function nomeJanela(janela: string): string {
 }
 
 export type Producao = {
+  produtos: { nome: string; total: number; sabores: { sabor: string; qtd: number }[] }[];
   sabores: { produto: string; sabor: string; qtd: number }[];
   outros: [string, number][];
   total: number;
@@ -135,28 +136,54 @@ export function produtoDoItem(nome: string): string {
 }
 
 export function agregarProducao(pedidos: PedidoApp[]): Producao {
-  const sabores = new Map<string, { produto: string; sabor: string; qtd: number }>();
+  const porProduto = new Map<
+    string,
+    { nome: string; total: number; sabores: Map<string, number> }
+  >();
   const outros = new Map<string, number>();
   let total = 0;
   for (const p of pedidos) {
     for (const it of itensDoPedido(p)) {
       total += it.units;
       if (it.flavors.length) {
-        const produto = produtoDoItem(it.name);
+        const nome = produtoDoItem(it.name);
+        let prod = porProduto.get(nome);
+        if (!prod) {
+          prod = { nome, total: 0, sabores: new Map() };
+          porProduto.set(nome, prod);
+        }
+        prod.total += it.units;
         for (const f of it.flavors) {
-          const key = `${produto}\u0000${f.name}`;
-          const cur = sabores.get(key);
-          if (cur) cur.qtd += f.qty;
-          else sabores.set(key, { produto, sabor: f.name, qtd: f.qty });
+          prod.sabores.set(f.name, (prod.sabores.get(f.name) || 0) + f.qty);
         }
       } else {
         outros.set(it.name, (outros.get(it.name) || 0) + it.units);
       }
     }
   }
-  const ord = (m: Map<string, { produto: string; sabor: string; qtd: number }>) =>
-    [...m.values()].sort((a, b) => a.produto.localeCompare(b.produto, "pt-BR") || b.qtd - a.qtd);
-  return { sabores: ord(sabores), outros: [...outros.entries()].sort((a, b) => b[1] - a[1]), total, pedidos: pedidos.length };
+  // Outros itens (sem sabores) também entram como "produto" para a dona ver.
+  for (const [nome, qtd] of outros) {
+    const n = produtoDoItem(nome);
+    let prod = porProduto.get(n);
+    if (!prod) {
+      prod = { nome: n, total: 0, sabores: new Map() };
+      porProduto.set(n, prod);
+    }
+    prod.total += qtd;
+  }
+  const produtos = [...porProduto.values()]
+    .map((p) => ({
+      nome: p.nome,
+      total: p.total,
+      sabores: [...p.sabores.entries()]
+        .map(([sabor, qtd]) => ({ sabor, qtd }))
+        .sort((a, b) => b.qtd - a.qtd),
+    }))
+    .sort((a, b) => b.total - a.total);
+  const sabores = produtos.flatMap((p) =>
+    p.sabores.map((s) => ({ produto: p.nome, sabor: s.sabor, qtd: s.qtd })),
+  );
+  return { produtos, sabores, outros: [...outros.entries()].sort((a, b) => b[1] - a[1]), total, pedidos: pedidos.length };
 }
 
 // ── Telefone ────────────────────────────────────────────────────────────────
