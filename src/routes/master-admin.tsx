@@ -1388,26 +1388,34 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
           </label>
         )}
         {audioUrl ? (
-          <div className="flex items-center gap-2 rounded-xl bg-zinc-950 border border-zinc-800 px-3 py-2 w-full max-w-xs">
-            <span className="text-[11px] font-bold text-zinc-300 truncate flex-1">🎵 Áudio anexado</span>
-            <audio src={audioUrl} controls className="h-8 max-w-[140px]" />
-            <button
-              type="button"
-              onClick={async () => {
-                const oldPath = storagePathFromPublicUrl(audioUrl);
-                if (supabase && oldPath) {
-                  try { await supabase.storage.from("products-images").remove([oldPath]); } catch {}
-                }
-                setAudioUrl("");
-              }}
-              className="h-7 px-2.5 rounded-lg bg-black/70 text-white text-[11px] font-bold"
-            >
-              Remover
-            </button>
+          <div className="rounded-xl bg-zinc-950 border border-zinc-800 px-3 py-2 w-full max-w-xs space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold text-zinc-300 truncate flex-1">🎵 Áudio anexado</span>
+              <button
+                type="button"
+                onClick={async () => {
+                  const oldPath = storagePathFromPublicUrl(audioUrl);
+                  if (supabase && oldPath) {
+                    try { await supabase.storage.from("products-images").remove([oldPath]); } catch {}
+                  }
+                  setAudioUrl("");
+                }}
+                className="h-7 px-2.5 rounded-lg bg-black/70 text-white text-[11px] font-bold"
+              >
+                Remover
+              </button>
+            </div>
+            <audio controls preload="metadata" className="w-full h-10">
+              <source src={audioUrl} type="audio/mp4" />
+              <source src={audioUrl} type="audio/mpeg" />
+              <source src={audioUrl} type="audio/ogg" />
+              Seu navegador não tocou. <a href={audioUrl} target="_blank" rel="noreferrer" className="underline">Abrir áudio em nova aba</a>
+            </audio>
+            <a href={audioUrl} target="_blank" rel="noreferrer" className="block text-[10px] text-zinc-400 underline">Abrir áudio em nova aba (se não tocar aqui)</a>
           </div>
         ) : (
           <label className="cursor-pointer h-10 px-4 rounded-xl bg-zinc-950 border border-zinc-800 text-[11px] font-bold flex items-center justify-center hover:border-zinc-600">
-            {uploadingAudio ? "Enviando áudio..." : "🎵 Anexar áudio (opcional, mp3/ogg, ~8MB)"}
+            {uploadingAudio ? "Enviando áudio..." : "🎵 Anexar áudio (recomendado: mp3/ogg/wav; m4a pode não tocar em alguns navegadores)"}
             <input type="file" accept="audio/*" onChange={handleAudioUpload} disabled={uploadingAudio || !lojaId} className="hidden" />
           </label>
         )}
