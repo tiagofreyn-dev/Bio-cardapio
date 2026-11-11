@@ -647,17 +647,17 @@ function AdminPage() {
         <div className="flex gap-2 px-4 pb-3 overflow-x-auto no-scrollbar">
           {(
             [
-              ["producao", "🗓️ Produção"],
-              ["produtos", "🍔 Produtos"],
-              ["estoque", "📦 Estoque"],
-              ["faturamento", "📊 Faturamento"],
-              ["clientes", "📱 Clientes"],
               ["geral", "⚙️ Geral"],
+              ["produtos", "🍔 Produtos"],
+              ["faturamento", "📊 Faturamento"],
               ["promo", "🔥 Promoções"],
+              ["sorteios", "🏆 Sorteios"],
+              ["producao", "🗓️ Produção"],
+              ["estoque", "📦 Estoque"],
+              ["clientes", "📱 Clientes"],
               ["fidelidade", "🎁 Fidelidade"],
               ["adicionais", "➕ Adicionais"],
               ["grupos", "🍬 Sabores"],
-              ["sorteios", "🏆 Sorteios"],
             ] as [Tab, string][]
           ).map(([id, label]) => (
             <button
