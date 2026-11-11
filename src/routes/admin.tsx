@@ -301,10 +301,15 @@ function AdminPage() {
               data: { user },
             } = await supabase.auth.getUser();
             if (!user) {
-              console.warn("Sessão do Supabase expirada ou nula. Redirecionando para login.");
-              sessionStorage.clear();
-              setIsAuthenticated(false);
-              return;
+              // Tenta recuperar a sessão do storage antes de deslogar —
+              // getUser() pode falhar por rede mesmo com sessão válida.
+              const { data: sess } = await supabase.auth.getSession();
+              if (!sess?.session) {
+                console.warn("Sessão do Supabase expirada ou nula. Redirecionando para login.");
+                sessionStorage.clear();
+                setIsAuthenticated(false);
+                return;
+              }
             }
           }
           // Isola o storage por loja ANTES de qualquer leitura/escrita
@@ -479,6 +484,7 @@ function AdminPage() {
       sessionStorage.setItem("insano.admin.lojaId", (finalStore as any).id);
       sessionStorage.setItem("insano.admin.authType", "email");
       localStorage.setItem("insano.tenant.activeId", (finalStore as any).id);
+      setIsAuthenticated(true);
     } catch (err: any) {
       setError(err.message || "Erro ao realizar login.");
     } finally {
