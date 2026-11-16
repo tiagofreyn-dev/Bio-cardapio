@@ -997,7 +997,7 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
 
   // ── Variação humana: saudação, despedida e emoji variam a cada envio ──
   // (sem erros ortográficos intencionais — só alternativas naturais)
-  const SAUDACOES = ["Oi", "Olá", "Ei", "Oi oi", "Opa"];
+  const SAUDACOES = ["Oi", "Olá", "Opa"];
   const DESPEDIDAS = ["Abraço!", "Beijos!", "Até mais!", "Tchau!", "Com carinho,"];
   const EMOJIS = ["🙂", "😊", "💛", "✨", "🌸", "☕"];
   function horaSaudacao() {
@@ -1616,7 +1616,7 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
             Variar mensagem automaticamente (mais humano)
           </label>
           <p className="text-[9px] text-zinc-600 leading-snug">
-            Use os tokens: {"{saudacao}"} (Oi/Olá/Ei ou Bom dia/Boa tarde), {"{hora}"} (saudação por horário), {"{despedida}"} (Abraço/Beijos/Até mais) e {"{emoji}"} (🙂😊💛✨). A cada envio um é sorteado, para não parecer robô. Sem erros ortográficos intencionais — só variações naturais.
+            Tokens: {"{saudacao}"} (Oi/Olá/Opa ou Bom dia/Boa tarde), {"{hora}"} (saudação por horário) e {"{emoji}"} (🙂😊💛✨). A cada envio um é sorteado, para não parecer robô. Sem erros ortográficos intencionais — só variações naturais. ({"{nome}"} e {"{despedida}"} continuam disponíveis se quiser usar.)
           </p>
         </div>
         {sending && progress.done > 0 && (
