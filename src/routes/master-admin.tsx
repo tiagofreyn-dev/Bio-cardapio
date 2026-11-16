@@ -1179,11 +1179,24 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
   // Lotes anti-ban: 1000 números = 5 lotes de 200 (~15min cada). O offset
   // sobrevive na sessão — fechou a aba, continua de onde parou.
   const [lote, setLote] = useState(200);
+  // Modo seguro: limite de mensagens por hora para não derrubar o número.
+  // 20/h = 1 a cada 3 min. Quanto menor, mais seguro (número novo/frio).
+  const [msgsPorHora, setMsgsPorHora] = useState(20);
   function getOffset(key: string) {
     try { return Number(sessionStorage.getItem(key) || 0) || 0; } catch { return 0; }
   }
   function offsetKey() {
     return `insano.disparo.offset.${lojaId}.${new Date().toISOString().slice(0, 10)}`;
+  }
+  // Controle de segurança: quantas mensagens já saíram nesta hora.
+  function horaKey() {
+    return `insano.disparo.hora.${lojaId}.${new Date().toISOString().slice(0, 13)}`;
+  }
+  function getHoraCount() {
+    try { return Number(sessionStorage.getItem(horaKey()) || 0) || 0; } catch { return 0; }
+  }
+  function incHoraCount() {
+    try { sessionStorage.setItem(horaKey(), String(getHoraCount() + 1)); } catch {}
   }
 
   async function sendDisparo() {
@@ -1245,6 +1258,11 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
         let done = 0;
         for (const t of targets) {
           if (stopRef.current) break;
+          if (getHoraCount() >= msgsPorHora) {
+            alert("Limite de " + msgsPorHora + " mensagens/hora atingido. Continue em ~" + Math.max(1, 60 - new Date().getMinutes()) + " min. Progresso salvo.");
+            stopRef.current = true;
+            break;
+          }
           const text = msg.trim().slice(0, 500).replace(/\{nome\}/gi, t.nome || "cliente");
           try {
             if (audioUrl) {
@@ -1262,10 +1280,13 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
           } catch {
             failCount++;
           }
+          incHoraCount();
           done++;
           setProgress({ done, ok: okCount, fail: failCount });
-          // Anti-ban WhatsApp: 2–4s aleatórios entre envios (500 msgs ≈ 25–35min).
-          await new Promise((r) => setTimeout(r, 2000 + Math.random() * 2000));
+          // Anti-ban: espaca conforme o limite por hora (ex: 20/h = ~3min entre msgs).
+          const delayBase = Math.round(3600000 / Math.max(1, msgsPorHora));
+          const jitter = Math.round(delayBase * 0.2);
+          await new Promise((r) => setTimeout(r, delayBase + Math.floor(Math.random() * jitter)));
         }
         prefix = imageUrl ? "[EVOLUTION+FOTO] " : "[EVOLUTION] ";
         await supabase.from("broadcast_log").update({ ok_count: okCount, total: targets.length }).eq("id", (batch as any).id);
@@ -1354,6 +1375,18 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
           </select>
           <button onClick={() => { try { sessionStorage.removeItem(offsetKey()); } catch {} alert("Contador do lote zerado — próximo envio recomeça do 1º."); }} disabled={!lojaId} className="h-10 px-3 rounded-xl bg-zinc-800 text-zinc-300 text-[11px] font-bold ring-1 ring-zinc-700 disabled:opacity-40" title="Recomeçar do primeiro número">↺</button>
         </div>
+        <div className="flex items-center gap-2">
+          <label className="text-[11px] font-bold text-zinc-400 whitespace-nowrap">Mensagens por hora (segurança):</label>
+          <select value={msgsPorHora} onChange={(e) => setMsgsPorHora(Number(e.target.value))} className="h-10 flex-1 rounded-xl bg-zinc-950 border border-zinc-800 px-3 text-xs font-bold">
+            <option value={12}>12/h (~5min) — número novo/frio (mais seguro)</option>
+            <option value={20}>20/h (~3min) — recomendado</option>
+            <option value={30}>30/h (~2min) — número aquecido</option>
+            <option value={60}>60/h (~1min) — uso moderado</option>
+          </select>
+        </div>
+        <p className="text-[10px] text-zinc-500 leading-snug">
+          Quanto menor, mais seguro. Número novo (sem contatos salvos) → comece com 12/h. O envio pausa sozinho ao atingir o limite e retoma na próxima hora.
+        </p>
         <textarea value={msg} onChange={(e) => setMsg(e.target.value)} rows={4} maxLength={600} placeholder="Mensagem do disparo... use {nome} para personalizar. Ex: Oi {nome}! 🔥" className="w-full p-3 rounded-xl bg-zinc-950 border border-zinc-800 text-xs outline-none focus:border-primary/50" />
         <p className="text-[10px] text-zinc-500 text-right">{msg.length}/600 • {"{nome}"} vira o 1º nome do cliente</p>
         {sending && progress.done > 0 && (
