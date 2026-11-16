@@ -1143,6 +1143,7 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
   async function loadLoja(loja: string) {
     if (!supabase || !loja) return;
     try {
+      loadSentSet();
       const store = stores.find((s) => s.id === loja);
       const { targets, cardapio, degustacao, leadsLidos } = await fetchTargets(loja, isDocesSol(store));
       setCount(targets.length);
@@ -1182,6 +1183,11 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
   // Modo seguro: limite de mensagens por hora para não derrubar o número.
   // 20/h = 1 a cada 3 min. Quanto menor, mais seguro (número novo/frio).
   const [msgsPorHora, setMsgsPorHora] = useState(20);
+  // Disparo seguro: envio lento, humano, sem repetir numeros, com retomada.
+  const [safeRunning, setSafeRunning] = useState(false);
+  const [safeProgress, setSafeProgress] = useState({ sent: 0, total: 0, remaining: 0 });
+  const safeStopRef = useRef(false);
+  const sentSetRef = useRef(new Set());
   function getOffset(key: string) {
     try { return Number(sessionStorage.getItem(key) || 0) || 0; } catch { return 0; }
   }
@@ -1198,6 +1204,20 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
   function incHoraCount() {
     try { sessionStorage.setItem(horaKey(), String(getHoraCount() + 1)); } catch {}
   }
+
+  function sentKey() { return `insano.disparo.sent.${lojaId}`; }
+  function loadSentSet() {
+    try {
+      const raw = localStorage.getItem(sentKey());
+      if (raw) sentSetRef.current = new Set(JSON.parse(raw));
+      else sentSetRef.current = new Set();
+    } catch { sentSetRef.current = new Set(); }
+  }
+  function saveSentSet() {
+    try { localStorage.setItem(sentKey(), JSON.stringify([...sentSetRef.current])); } catch {}
+  }
+  function isSent(phone) { return sentSetRef.current.has(phone); }
+  function markSent(phone) { sentSetRef.current.add(phone); saveSentSet(); }
 
   async function sendDisparo() {
     if (!supabase || !lojaId) return alert("Escolha a loja.");
@@ -1335,6 +1355,123 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
     } catch (err: any) {
       alert("Erro no teste: " + (err?.message || err));
     }
+  }
+
+  async function sendSafe() {
+    if (!supabase || !lojaId) return alert("Escolha a loja.");
+    if (today >= 10) return alert("Limite de 10 disparos/dia atingido. Continue amanhã.");
+    const store = stores.find((s) => s.id === lojaId);
+    const instance = slugToInstance(store?.slug || "");
+    if (!instance) return alert("Slug da loja inválido para instância.");
+    let hasEvo = false;
+    try {
+      const st: any = await evoProxy("status", instance);
+      hasEvo = String(st?.instance?.state || st?.state || "").toLowerCase() === "open";
+    } catch { hasEvo = false; }
+    if (!hasEvo) return alert("WhatsApp desconectado. Vá na aba 🔌 e reconecte.");
+
+    loadSentSet();
+    const { targets: all } = await fetchTargets(lojaId, isDocesSol(store));
+    const unsent = all.filter((t) => !isSent(t.phone));
+    if (!unsent.length) {
+      alert("Todos os números já receberam mensagem. Nada a enviar. (Use 'Limpar enviados' se quiser reenviar.)");
+      return;
+    }
+    if (!confirm(`Disparo SEGURO: ${unsent.length} números ainda não receberam. Vai enviar ~${msgsPorHora}/hora (≈${Math.ceil(unsent.length / msgsPorHora)}h). Continuar?`)) return;
+
+    setSafeRunning(true);
+    safeStopRef.current = false;
+    setSafeProgress({ sent: sentSetRef.current.size, total: all.length, remaining: unsent.length });
+
+    // cria um lote (conta no limite diário)
+    const { data: batch } = await supabase.from("broadcast_log").insert({
+      loja_id: lojaId,
+      total: unsent.length,
+      ok_count: 0,
+      message: `[SEGURO] ${msg.trim().slice(0, 400)}`,
+      image_url: (audioUrl || imageUrl).slice(0, 500),
+    }).select("id").single();
+
+    let okCount = 0;
+    let failCount = 0;
+    let doneThisRun = 0;
+    // fila dinâmica: re-busca a base a cada 25 envios para incluir números novos
+    let queue = [...unsent];
+    let refreshCounter = 0;
+
+    try {
+      while (queue.length > 0 && !safeStopRef.current) {
+        // limite diário
+        const start = new Date(); start.setHours(0, 0, 0, 0);
+        const { data: bl } = await supabase.from("broadcast_log").select("id").eq("loja_id", lojaId).gte("created_at", start.toISOString()).limit(11);
+        if ((bl || []).length >= 10) {
+          alert("Limite de 10 disparos/dia atingido. Continue amanhã — progresso salvo.");
+          safeStopRef.current = true;
+          break;
+        }
+        // limite por hora
+        if (getHoraCount() >= msgsPorHora) {
+          alert(`Limite de ${msgsPorHora}/hora atingido. Pausa automática. Continue em ~${Math.max(1, 60 - new Date().getMinutes())} min.`);
+          safeStopRef.current = true;
+          break;
+        }
+        const t = queue.shift()!;
+        const text = msg.trim().slice(0, 500).replace(/\\{nome\\}/gi, t.nome || "cliente");
+        try {
+          if (audioUrl) {
+            if (text) { await evoProxy("sendText", instance, { number: t.phone, text }); await new Promise((r) => setTimeout(r, 800 + Math.random() * 700)); }
+            await evoProxy("sendMedia", instance, { number: t.phone, mediatype: "audio", media: audioUrl });
+          } else if (imageUrl) {
+            await evoProxy("sendMedia", instance, { number: t.phone, mediatype: "image", media: imageUrl, caption: text });
+          } else {
+            await evoProxy("sendText", instance, { number: t.phone, text });
+          }
+          okCount++;
+          markSent(t.phone);
+        } catch {
+          failCount++;
+        }
+        doneThisRun++;
+        incHoraCount();
+        const sentTotal = sentSetRef.current.size;
+        const { targets: fresh } = await fetchTargets(lojaId, isDocesSol(store));
+        const totalBase = fresh.length;
+        setSafeProgress({ sent: sentTotal, total: totalBase, remaining: Math.max(0, totalBase - sentTotal) });
+
+        // re-busca a base a cada 25 envios para incluir números novos
+        refreshCounter++;
+        if (refreshCounter >= 25) {
+          refreshCounter = 0;
+          const newOnes = fresh.filter((x) => !isSent(x.phone) && !queue.some((q) => q.phone === x.phone));
+          if (newOnes.length) queue.push(...newOnes);
+        }
+
+        // delay humano: msgsPorHora + jitter de ±30%
+        const delayBase = Math.round(3600000 / Math.max(1, msgsPorHora));
+        const jitter = Math.round(delayBase * 0.3);
+        await new Promise((r) => setTimeout(r, delayBase + Math.floor(Math.random() * jitter)));
+      }
+      if (batch?.id) await supabase.from("broadcast_log").update({ ok_count: okCount, total: doneThisRun }).eq("id", batch.id);
+      setToday((t) => t + 1);
+      loadLoja(lojaId);
+      alert(safeStopRef.current
+        ? `Pausado: ${okCount} ok / ${failCount} falhas. Progresso salvo — clique em "Disparo seguro" para continuar.`
+        : `Concluído: ${okCount} ok / ${failCount} falhas. Todos os números receberam! 🎉`);
+    } catch (err: any) {
+      alert("Erro: " + (err?.message || err));
+    } finally {
+      setSafeRunning(false);
+    }
+  }
+
+  function stopSafe() { safeStopRef.current = true; }
+
+  function limparEnviados() {
+    if (!confirm("Limpar a lista de 'já enviados'? Isso permite reenviar para todos. Use só se tiver certeza.")) return;
+    try { localStorage.removeItem(sentKey()); } catch {}
+    sentSetRef.current = new Set();
+    setSafeProgress({ sent: 0, total: count || 0, remaining: count || 0 });
+    alert("Lista de enviados limpa.");
   }
 
   function stopDisparo() {
@@ -1492,6 +1629,39 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
             <li>Se o WhatsApp desconectar ou pedir QR de novo, pare e reconecte — sinal de risco.</li>
           </ul>
         </details>
+        <div className="rounded-2xl bg-emerald-500/5 border border-emerald-500/30 p-3 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <h5 className="text-xs font-extrabold text-emerald-400">🛡️ Disparo seguro (automático)</h5>
+            <span className="text-[10px] text-zinc-400">{safeProgress.sent}/{safeProgress.total} enviados • {safeProgress.remaining} restantes</span>
+          </div>
+          <div className="h-2 rounded-full bg-zinc-800 overflow-hidden">
+            <div className="h-full bg-emerald-500 transition-all" style={{ width: `${safeProgress.total > 0 ? Math.round((safeProgress.sent / safeProgress.total) * 100) : 0}%` }} />
+          </div>
+          <p className="text-[10px] text-zinc-500 leading-snug">
+            Envia devagar (conforme "Mensagens por hora"), nunca repete número já enviado, inclui números novos adicionados durante o envio, e pausa sozinho nos limites. Pode levar dias — é o mais seguro.
+          </p>
+          <div className="flex gap-2">
+            {safeRunning ? (
+              <button onClick={stopSafe} className="flex-1 h-10 rounded-xl bg-red-500 text-black text-xs font-extrabold">Parar (progresso salvo)</button>
+            ) : (
+              <button
+                onClick={sendSafe}
+                disabled={!lojaId || safeRunning}
+                className="flex-1 h-10 rounded-xl bg-emerald-500 text-black text-xs font-extrabold disabled:opacity-40"
+              >
+                🛡️ Iniciar disparo seguro
+              </button>
+            )}
+            <button
+              onClick={limparEnviados}
+              disabled={!lojaId || safeRunning}
+              className="h-10 px-3 rounded-xl bg-zinc-800 text-zinc-300 text-[11px] font-bold ring-1 ring-zinc-700 disabled:opacity-40"
+              title="Limpa a lista de já enviados (permite reenviar a todos)"
+            >
+              Limpar enviados
+            </button>
+          </div>
+        </div>
       </div>
 
       {last.length > 0 && (
