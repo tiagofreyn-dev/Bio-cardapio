@@ -983,6 +983,8 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
   const [count, setCount] = useState<number | null>(null);
   const [today, setToday] = useState(0);
   const [msg, setMsg] = useState("🔥 Promoção da semana! Mostre essa msg e ganhe 10% OFF hoje!");
+  const [msg2, setMsg2] = useState("");
+  const [msg3, setMsg3] = useState("");
   const [sending, setSending] = useState(false);
   const [last, setLast] = useState<any[]>([]);
   const [imageUrl, setImageUrl] = useState("");
@@ -1221,7 +1223,8 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
 
   async function sendDisparo() {
     if (!supabase || !lojaId) return alert("Escolha a loja.");
-    if (!msg.trim() && !imageUrl) return alert("Escreva a mensagem ou anexe uma foto.");
+    const temMsg = [msg, msg2, msg3].some((m) => m.trim());
+    if (!temMsg && !imageUrl && !audioUrl) return alert("Escreva ao menos uma mensagem ou anexe uma mídia.");
     if (today >= 10) return alert("Limite de 10 disparos/dia atingido para esta loja.");
     const store = stores.find((s) => s.id === lojaId);
     const instance = slugToInstance(store?.slug || "");
@@ -1240,7 +1243,7 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
     } catch {
       hasEvo = false;
     }
-    if (!confirm(hasEvo ? `Enviar para ${count ?? "?"} clientes via ${instance}${imageUrl ? " (com foto)" : audioUrl ? " (com áudio)" : ""}?` : `Simular disparo para ${count ?? "?"} clientes? (instância ${instance} desconectada — registra só o log)`)) return;
+    if (!confirm(hasEvo ? `Enviar para ${count ?? "?"} clientes via ${instance}${audioUrl ? " (com áudio)" : imageUrl ? " (com foto)" : ""} (${[msg,msg2,msg3].filter(m=>m.trim()).length} msg)?` : `Simular disparo para ${count ?? "?"} clientes? (instância ${instance} desconectada — registra só o log)`)) return;
     setSending(true);
     stopRef.current = false;
     setProgress({ done: 0, ok: 0, fail: 0 });
@@ -1254,7 +1257,7 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
         loja_id: lojaId,
         total: count || 0,
         ok_count: 0,
-        message: `${hasEvo ? "[EVOLUTION] " : prefix}${msg.trim().slice(0, 500)}`,
+        message: `${hasEvo ? "[EVOLUTION] " : prefix}${msg.trim().slice(0, 500)}${msg2.trim() ? " | " + msg2.trim().slice(0, 120) : ""}${msg3.trim() ? " | " + msg3.trim().slice(0, 120) : ""}`,
         image_url: imageUrl.slice(0, 500),
       }).select("id").single();
       if (batchError) throw batchError;
@@ -1283,18 +1286,26 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
             stopRef.current = true;
             break;
           }
-          const text = msg.trim().slice(0, 500).replace(/\{nome\}/gi, t.nome || "cliente");
+          const msgs = [msg, msg2, msg3].map((m) => m.trim().slice(0, 500)).filter(Boolean);
+          const personalized = msgs.map((m) => m.replace(/\{nome\}/gi, t.nome || "cliente"));
           try {
             if (audioUrl) {
-              if (text) {
-                await evoProxy("sendText", instance, { number: t.phone, text });
-                await new Promise((r) => setTimeout(r, 800 + Math.random() * 700));
+              for (let i = 0; i < personalized.length; i++) {
+                await evoProxy("sendText", instance, { number: t.phone, text: personalized[i] });
+                await new Promise((r) => setTimeout(r, 4000 + Math.random() * 4000));
               }
               await evoProxy("sendMedia", instance, { number: t.phone, mediatype: "audio", media: audioUrl });
             } else if (imageUrl) {
-              await evoProxy("sendMedia", instance, { number: t.phone, mediatype: "image", media: imageUrl, caption: text });
+              await evoProxy("sendMedia", instance, { number: t.phone, mediatype: "image", media: imageUrl, caption: personalized[0] || "" });
+              for (let i = 1; i < personalized.length; i++) {
+                await new Promise((r) => setTimeout(r, 4000 + Math.random() * 4000));
+                await evoProxy("sendText", instance, { number: t.phone, text: personalized[i] });
+              }
             } else {
-              await evoProxy("sendText", instance, { number: t.phone, text });
+              for (let i = 0; i < personalized.length; i++) {
+                if (i > 0) await new Promise((r) => setTimeout(r, 4000 + Math.random() * 4000));
+                await evoProxy("sendText", instance, { number: t.phone, text: personalized[i] });
+              }
             }
             okCount++;
           } catch {
@@ -1341,15 +1352,26 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
     if (!hasEvo) return alert("WhatsApp desconectado. Va na aba e reconecte.");
     if (!confirm("Enviar TESTE para 55" + num + " (1 mensagem)?")) return;
     const phone = "55" + num;
-    const text = msg.trim().slice(0, 500).replace(/\{nome\}/gi, "cliente");
+    const msgs = [msg, msg2, msg3].map((m) => m.trim().slice(0, 500)).filter(Boolean);
+    const personalized = msgs.map((m) => m.replace(/\{nome\}/gi, "cliente"));
     try {
       if (audioUrl) {
-        if (text) { await evoProxy("sendText", instance, { number: phone, text }); await new Promise((r) => setTimeout(r, 800)); }
+        for (let i = 0; i < personalized.length; i++) {
+          await evoProxy("sendText", instance, { number: phone, text: personalized[i] });
+          await new Promise((r) => setTimeout(r, 3000 + Math.random() * 2000));
+        }
         await evoProxy("sendMedia", instance, { number: phone, mediatype: "audio", media: audioUrl });
       } else if (imageUrl) {
-        await evoProxy("sendMedia", instance, { number: phone, mediatype: "image", media: imageUrl, caption: text });
+        await evoProxy("sendMedia", instance, { number: phone, mediatype: "image", media: imageUrl, caption: personalized[0] || "" });
+        for (let i = 1; i < personalized.length; i++) {
+          await new Promise((r) => setTimeout(r, 3000 + Math.random() * 2000));
+          await evoProxy("sendText", instance, { number: phone, text: personalized[i] });
+        }
       } else {
-        await evoProxy("sendText", instance, { number: phone, text });
+        for (let i = 0; i < personalized.length; i++) {
+          if (i > 0) await new Promise((r) => setTimeout(r, 3000 + Math.random() * 2000));
+          await evoProxy("sendText", instance, { number: phone, text: personalized[i] });
+        }
       }
       alert("Teste enviado! Confira no WhatsApp se chegou certo.");
     } catch (err: any) {
@@ -1416,15 +1438,26 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
           break;
         }
         const t = queue.shift()!;
-        const text = msg.trim().slice(0, 500).replace(/\\{nome\\}/gi, t.nome || "cliente");
+        const msgs = [msg, msg2, msg3].map((m) => m.trim().slice(0, 500)).filter(Boolean);
+        const personalized = msgs.map((m) => m.replace(/\{nome\}/gi, t.nome || "cliente"));
         try {
           if (audioUrl) {
-            if (text) { await evoProxy("sendText", instance, { number: t.phone, text }); await new Promise((r) => setTimeout(r, 800 + Math.random() * 700)); }
+            for (let i = 0; i < personalized.length; i++) {
+              await evoProxy("sendText", instance, { number: t.phone, text: personalized[i] });
+              await new Promise((r) => setTimeout(r, 3000 + Math.random() * 2000));
+            }
             await evoProxy("sendMedia", instance, { number: t.phone, mediatype: "audio", media: audioUrl });
           } else if (imageUrl) {
-            await evoProxy("sendMedia", instance, { number: t.phone, mediatype: "image", media: imageUrl, caption: text });
+            await evoProxy("sendMedia", instance, { number: t.phone, mediatype: "image", media: imageUrl, caption: personalized[0] || "" });
+            for (let i = 1; i < personalized.length; i++) {
+              await new Promise((r) => setTimeout(r, 3000 + Math.random() * 2000));
+              await evoProxy("sendText", instance, { number: t.phone, text: personalized[i] });
+            }
           } else {
-            await evoProxy("sendText", instance, { number: t.phone, text });
+            for (let i = 0; i < personalized.length; i++) {
+              if (i > 0) await new Promise((r) => setTimeout(r, 3000 + Math.random() * 2000));
+              await evoProxy("sendText", instance, { number: t.phone, text: personalized[i] });
+            }
           }
           okCount++;
           markSent(t.phone);
@@ -1515,7 +1548,9 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
         <div className="flex items-center gap-2">
           <label className="text-[11px] font-bold text-zinc-400 whitespace-nowrap">Mensagens por hora (segurança):</label>
           <select value={msgsPorHora} onChange={(e) => setMsgsPorHora(Number(e.target.value))} className="h-10 flex-1 rounded-xl bg-zinc-950 border border-zinc-800 px-3 text-xs font-bold">
-            <option value={12}>12/h (~5min) — número novo/frio (mais seguro)</option>
+            <option value={6}>6/h (~10min) — ultra seguro (número novo)</option>
+            <option value={8}>8/h (~7,5min) — muito seguro</option>
+            <option value={12}>12/h (~5min) — recomendado para número frio</option>
             <option value={20}>20/h (~3min) — recomendado</option>
             <option value={30}>30/h (~2min) — número aquecido</option>
             <option value={60}>60/h (~1min) — uso moderado</option>
@@ -1524,8 +1559,26 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
         <p className="text-[10px] text-zinc-500 leading-snug">
           Quanto menor, mais seguro. Número novo (sem contatos salvos) → comece com 12/h. O envio pausa sozinho ao atingir o limite e retoma na próxima hora.
         </p>
-        <textarea value={msg} onChange={(e) => setMsg(e.target.value)} rows={4} maxLength={600} placeholder="Mensagem do disparo... use {nome} para personalizar. Ex: Oi {nome}! 🔥" className="w-full p-3 rounded-xl bg-zinc-950 border border-zinc-800 text-xs outline-none focus:border-primary/50" />
-        <p className="text-[10px] text-zinc-500 text-right">{msg.length}/600 • {"{nome}"} vira o 1º nome do cliente</p>
+        <div className="space-y-2">
+          <div>
+            <label className="text-[10px] uppercase font-bold text-zinc-500">Mensagem 1 (obrigatória)</label>
+            <textarea value={msg} onChange={(e) => setMsg(e.target.value)} rows={3} maxLength={600} placeholder="Ex: Oi {nome}! Tudo bem? 👋" className="w-full p-3 rounded-xl bg-zinc-950 border border-zinc-800 text-xs outline-none focus:border-primary/50" />
+            <p className="text-[9px] text-zinc-600 text-right">{msg.length}/600</p>
+          </div>
+          <div>
+            <label className="text-[10px] uppercase font-bold text-zinc-500">Mensagem 2 (opcional)</label>
+            <textarea value={msg2} onChange={(e) => setMsg2(e.target.value)} rows={3} maxLength={600} placeholder="Ex: Trabalho com doces artesanais da Sol. 🧁" className="w-full p-3 rounded-xl bg-zinc-950 border border-zinc-800 text-xs outline-none focus:border-primary/50" />
+            <p className="text-[9px] text-zinc-600 text-right">{msg2.length}/600</p>
+          </div>
+          <div>
+            <label className="text-[10px] uppercase font-bold text-zinc-500">Mensagem 3 (opcional)</label>
+            <textarea value={msg3} onChange={(e) => setMsg3(e.target.value)} rows={3} maxLength={600} placeholder="Ex: Entra no grupo: https://chat.whatsapp.com/..." className="w-full p-3 rounded-xl bg-zinc-950 border border-zinc-800 text-xs outline-none focus:border-primary/50" />
+            <p className="text-[9px] text-zinc-600 text-right">{msg3.length}/600</p>
+          </div>
+          <p className="text-[10px] text-zinc-500 leading-snug">
+            As mensagens são enviadas em sequência (com pausa entre elas), para parecer mais humano. {"{nome}"} vira o 1º nome do cliente.
+          </p>
+        </div>
         {sending && progress.done > 0 && (
           <div className="space-y-1">
             <div className="h-2 rounded-full bg-zinc-800 overflow-hidden">
