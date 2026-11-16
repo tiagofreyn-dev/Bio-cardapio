@@ -1616,7 +1616,7 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
             Variar mensagem automaticamente (mais humano)
           </label>
           <p className="text-[9px] text-zinc-600 leading-snug">
-            Tokens: {"{saudacao}"} (Oi/Olá/Opa ou Bom dia/Boa tarde), {"{hora}"} (saudação por horário) e {"{emoji}"} (🙂😊💛✨). A cada envio um é sorteado, para não parecer robô. Sem erros ortográficos intencionais — só variações naturais. ({"{nome}"} e {"{despedida}"} continuam disponíveis se quiser usar.)
+            Tokens: {"{saudacao}"} (Oi/Olá/Opa ou Bom dia/Boa tarde), {"{hora}"} (saudação por horário) e {"{emoji}"} (🙂😊💛✨). A cada envio um é sorteado, para não parecer robô. Sem erros ortográficos intencionais — só variações naturais.
           </p>
         </div>
         {sending && progress.done > 0 && (
