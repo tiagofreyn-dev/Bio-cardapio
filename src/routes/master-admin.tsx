@@ -985,6 +985,8 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
   const [msg, setMsg] = useState("🔥 Promoção da semana! Mostre essa msg e ganhe 10% OFF hoje!");
   const [msg2, setMsg2] = useState("");
   const [msg3, setMsg3] = useState("");
+  // Variação automática para parecer mais humano (saudação/despedida/emoji variam)
+  const [variarMsg, setVariarMsg] = useState(true);
   const [sending, setSending] = useState(false);
   const [last, setLast] = useState<any[]>([]);
   const [imageUrl, setImageUrl] = useState("");
@@ -992,6 +994,37 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
   const [audioUrl, setAudioUrl] = useState("");
   const [uploadingAudio, setUploadingAudio] = useState(false);
   const [testPhone, setTestPhone] = useState("");
+
+  // ── Variação humana: saudação, despedida e emoji variam a cada envio ──
+  // (sem erros ortográficos intencionais — só alternativas naturais)
+  const SAUDACOES = ["Oi", "Olá", "Ei", "Oi oi", "Opa"];
+  const DESPEDIDAS = ["Abraço!", "Beijos!", "Até mais!", "Tchau!", "Com carinho,"];
+  const EMOJIS = ["🙂", "😊", "💛", "✨", "🌸", "☕"];
+  function horaSaudacao() {
+    const h = new Date().getHours();
+    if (h < 12) return "Bom dia";
+    if (h < 18) return "Boa tarde";
+    return "Boa noite";
+  }
+  function humanizar(texto: string): string {
+    if (!variarMsg || !texto.trim()) return texto;
+    let t = texto;
+    // {saudacao} → saudação variada (ou por horário se o usuário escrever {hora})
+    if (/\{saudacao\}/i.test(t)) {
+      const pool = Math.random() < 0.5 ? SAUDACOES : [horaSaudacao()];
+      t = t.replace(/\{saudacao\}/gi, pool[Math.floor(Math.random() * pool.length)]);
+    }
+    if (/\{hora\}/i.test(t)) {
+      t = t.replace(/\{hora\}/gi, horaSaudacao());
+    }
+    if (/\{despedida\}/i.test(t)) {
+      t = t.replace(/\{despedida\}/gi, DESPEDIDAS[Math.floor(Math.random() * DESPEDIDAS.length)]);
+    }
+    if (/\{emoji\}/i.test(t)) {
+      t = t.replace(/\{emoji\}/gi, EMOJIS[Math.floor(Math.random() * EMOJIS.length)]);
+    }
+    return t;
+  }
 
   // Ao abrir a aba (ou quando as lojas carregam), já carrega a base da loja
   // salva na sessão — antes só carregava se você trocasse o select.
@@ -1286,7 +1319,7 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
             stopRef.current = true;
             break;
           }
-          const msgs = [msg, msg2, msg3].map((m) => m.trim().slice(0, 500)).filter(Boolean);
+          const msgs = [msg, msg2, msg3].map((m) => humanizar(m).trim().slice(0, 500)).filter(Boolean);
           const personalized = msgs.map((m) => m.replace(/\{nome\}/gi, t.nome || "cliente"));
           try {
             if (audioUrl) {
@@ -1352,7 +1385,7 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
     if (!hasEvo) return alert("WhatsApp desconectado. Va na aba e reconecte.");
     if (!confirm("Enviar TESTE para 55" + num + " (1 mensagem)?")) return;
     const phone = "55" + num;
-    const msgs = [msg, msg2, msg3].map((m) => m.trim().slice(0, 500)).filter(Boolean);
+    const msgs = [msg, msg2, msg3].map((m) => humanizar(m).trim().slice(0, 500)).filter(Boolean);
     const personalized = msgs.map((m) => m.replace(/\{nome\}/gi, "cliente"));
     try {
       if (audioUrl) {
@@ -1438,7 +1471,7 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
           break;
         }
         const t = queue.shift()!;
-        const msgs = [msg, msg2, msg3].map((m) => m.trim().slice(0, 500)).filter(Boolean);
+        const msgs = [msg, msg2, msg3].map((m) => humanizar(m).trim().slice(0, 500)).filter(Boolean);
         const personalized = msgs.map((m) => m.replace(/\{nome\}/gi, t.nome || "cliente"));
         try {
           if (audioUrl) {
@@ -1577,6 +1610,13 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
           </div>
           <p className="text-[10px] text-zinc-500 leading-snug">
             As mensagens são enviadas em sequência (com pausa entre elas), para parecer mais humano. {"{nome}"} vira o 1º nome do cliente.
+          </p>
+          <label className="flex items-center gap-2 text-[11px] font-bold text-zinc-300">
+            <input type="checkbox" checked={variarMsg} onChange={(e) => setVariarMsg(e.target.checked)} className="w-4 h-4 accent-emerald-500" />
+            Variar mensagem automaticamente (mais humano)
+          </label>
+          <p className="text-[9px] text-zinc-600 leading-snug">
+            Use os tokens: {"{saudacao}"} (Oi/Olá/Ei ou Bom dia/Boa tarde), {"{hora}"} (saudação por horário), {"{despedida}"} (Abraço/Beijos/Até mais) e {"{emoji}"} (🙂😊💛✨). A cada envio um é sorteado, para não parecer robô. Sem erros ortográficos intencionais — só variações naturais.
           </p>
         </div>
         {sending && progress.done > 0 && (
