@@ -1178,11 +1178,14 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
   async function loadLoja(loja: string) {
     if (!supabase || !loja) return;
     try {
-      loadSentSet();
+      await loadSentSet();
       const store = stores.find((s) => s.id === loja);
       const { targets, cardapio, degustacao, leadsLidos } = await fetchTargets(loja, isDocesSol(store));
       setCount(targets.length);
       setMix({ cardapio, degustacao, leadsLidos });
+      await loadSentSet();
+      const sentNow = sentSetRef.current.size;
+      setSafeProgress({ sent: sentNow, total: targets.length, remaining: Math.max(0, targets.length - sentNow) });
       // Disparos de hoje (limite 10/dia p/ não queimar o número nem o banco)
       const start = new Date();
       start.setHours(0, 0, 0, 0);
@@ -1241,18 +1244,33 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
   }
 
   function sentKey() { return `insano.disparo.sent.${lojaId}`; }
-  function loadSentSet() {
+  async function loadSentSet() {
+    sentSetRef.current = new Set();
     try {
       const raw = localStorage.getItem(sentKey());
       if (raw) sentSetRef.current = new Set(JSON.parse(raw));
-      else sentSetRef.current = new Set();
     } catch { sentSetRef.current = new Set(); }
+    if (supabase && lojaId) {
+      try {
+        const { data } = await supabase.from("disparo_enviados").select("phone").eq("loja_id", lojaId);
+        if (Array.isArray(data)) {
+          for (const r of data) if (r?.phone) sentSetRef.current.add(r.phone);
+          saveSentSet();
+        }
+      } catch { /* tabela pode não existir ainda */ }
+    }
   }
   function saveSentSet() {
     try { localStorage.setItem(sentKey(), JSON.stringify([...sentSetRef.current])); } catch {}
   }
   function isSent(phone) { return sentSetRef.current.has(phone); }
-  function markSent(phone) { sentSetRef.current.add(phone); saveSentSet(); }
+  function markSent(phone) {
+    sentSetRef.current.add(phone);
+    saveSentSet();
+    if (supabase && lojaId) {
+      supabase.from("disparo_enviados").insert({ loja_id: lojaId, phone }).then(() => {}, () => {});
+    }
+  }
 
   async function sendDisparo() {
     if (!supabase || !lojaId) return alert("Escolha a loja.");
@@ -1425,7 +1443,7 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
     } catch { hasEvo = false; }
     if (!hasEvo) return alert("WhatsApp desconectado. Vá na aba 🔌 e reconecte.");
 
-    loadSentSet();
+    await loadSentSet();
     const { targets: all } = await fetchTargets(lojaId, isDocesSol(store));
     const unsent = all.filter((t) => !isSent(t.phone));
     if (!unsent.length) {
@@ -1536,6 +1554,9 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
     if (!confirm("Limpar a lista de 'já enviados'? Isso permite reenviar para todos. Use só se tiver certeza.")) return;
     try { localStorage.removeItem(sentKey()); } catch {}
     sentSetRef.current = new Set();
+    if (supabase && lojaId) {
+      supabase.from("disparo_enviados").delete().eq("loja_id", lojaId).then(() => {}, () => {});
+    }
     setSafeProgress({ sent: 0, total: count || 0, remaining: count || 0 });
     alert("Lista de enviados limpa.");
   }
