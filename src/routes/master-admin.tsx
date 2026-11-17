@@ -1323,20 +1323,20 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
           const personalized = msgs.map((m) => m.replace(/\{nome\}/gi, t.nome || "cliente"));
           try {
             if (audioUrl) {
-              for (let i = 0; i < personalized.length; i++) {
+              for (let i = 0; i < personalized.length; i++) { if (safeStopRef.current || stopRef.current) break;
                 await evoProxy("sendText", instance, { number: t.phone, text: personalized[i] });
-                await new Promise((r) => setTimeout(r, 4000 + Math.random() * 4000));
+                await sleep(4000 + Math.random() * 4000);
               }
               await evoProxy("sendMedia", instance, { number: t.phone, mediatype: "audio", media: audioUrl });
             } else if (imageUrl) {
               await evoProxy("sendMedia", instance, { number: t.phone, mediatype: "image", media: imageUrl, caption: personalized[0] || "" });
               for (let i = 1; i < personalized.length; i++) {
-                await new Promise((r) => setTimeout(r, 4000 + Math.random() * 4000));
+                await sleep(4000 + Math.random() * 4000);
                 await evoProxy("sendText", instance, { number: t.phone, text: personalized[i] });
               }
             } else {
-              for (let i = 0; i < personalized.length; i++) {
-                if (i > 0) await new Promise((r) => setTimeout(r, 4000 + Math.random() * 4000));
+              for (let i = 0; i < personalized.length; i++) { if (safeStopRef.current || stopRef.current) break;
+                if (i > 0) await sleep(4000 + Math.random() * 4000);
                 await evoProxy("sendText", instance, { number: t.phone, text: personalized[i] });
               }
             }
@@ -1350,7 +1350,7 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
           // Anti-ban: espaca conforme o limite por hora (ex: 20/h = ~3min entre msgs).
           const delayBase = Math.round(3600000 / Math.max(1, msgsPorHora));
           const jitter = Math.round(delayBase * 0.2);
-          await new Promise((r) => setTimeout(r, delayBase + Math.floor(Math.random() * jitter)));
+          await sleep(delayBase + Math.floor(Math.random() * jitter));
         }
         prefix = imageUrl ? "[EVOLUTION+FOTO] " : "[EVOLUTION] ";
         await supabase.from("broadcast_log").update({ ok_count: okCount, total: targets.length }).eq("id", (batch as any).id);
@@ -1389,20 +1389,20 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
     const personalized = msgs.map((m) => m.replace(/\{nome\}/gi, "cliente"));
     try {
       if (audioUrl) {
-        for (let i = 0; i < personalized.length; i++) {
+        for (let i = 0; i < personalized.length; i++) { if (safeStopRef.current || stopRef.current) break;
           await evoProxy("sendText", instance, { number: phone, text: personalized[i] });
-          await new Promise((r) => setTimeout(r, 3000 + Math.random() * 2000));
+          await sleep(3000 + Math.random() * 2000);
         }
         await evoProxy("sendMedia", instance, { number: phone, mediatype: "audio", media: audioUrl });
       } else if (imageUrl) {
         await evoProxy("sendMedia", instance, { number: phone, mediatype: "image", media: imageUrl, caption: personalized[0] || "" });
         for (let i = 1; i < personalized.length; i++) {
-          await new Promise((r) => setTimeout(r, 3000 + Math.random() * 2000));
+          await sleep(3000 + Math.random() * 2000);
           await evoProxy("sendText", instance, { number: phone, text: personalized[i] });
         }
       } else {
-        for (let i = 0; i < personalized.length; i++) {
-          if (i > 0) await new Promise((r) => setTimeout(r, 3000 + Math.random() * 2000));
+        for (let i = 0; i < personalized.length; i++) { if (safeStopRef.current || stopRef.current) break;
+          if (i > 0) await sleep(3000 + Math.random() * 2000);
           await evoProxy("sendText", instance, { number: phone, text: personalized[i] });
         }
       }
@@ -1475,20 +1475,20 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
         const personalized = msgs.map((m) => m.replace(/\{nome\}/gi, t.nome || "cliente"));
         try {
           if (audioUrl) {
-            for (let i = 0; i < personalized.length; i++) {
+            for (let i = 0; i < personalized.length; i++) { if (safeStopRef.current || stopRef.current) break;
               await evoProxy("sendText", instance, { number: t.phone, text: personalized[i] });
-              await new Promise((r) => setTimeout(r, 3000 + Math.random() * 2000));
+              await sleep(3000 + Math.random() * 2000);
             }
             await evoProxy("sendMedia", instance, { number: t.phone, mediatype: "audio", media: audioUrl });
           } else if (imageUrl) {
             await evoProxy("sendMedia", instance, { number: t.phone, mediatype: "image", media: imageUrl, caption: personalized[0] || "" });
             for (let i = 1; i < personalized.length; i++) {
-              await new Promise((r) => setTimeout(r, 3000 + Math.random() * 2000));
+              await sleep(3000 + Math.random() * 2000);
               await evoProxy("sendText", instance, { number: t.phone, text: personalized[i] });
             }
           } else {
-            for (let i = 0; i < personalized.length; i++) {
-              if (i > 0) await new Promise((r) => setTimeout(r, 3000 + Math.random() * 2000));
+            for (let i = 0; i < personalized.length; i++) { if (safeStopRef.current || stopRef.current) break;
+              if (i > 0) await sleep(3000 + Math.random() * 2000);
               await evoProxy("sendText", instance, { number: t.phone, text: personalized[i] });
             }
           }
@@ -1515,7 +1515,7 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
         // delay humano: msgsPorHora + jitter de ±30%
         const delayBase = Math.round(3600000 / Math.max(1, msgsPorHora));
         const jitter = Math.round(delayBase * 0.3);
-        await new Promise((r) => setTimeout(r, delayBase + Math.floor(Math.random() * jitter)));
+        await sleep(delayBase + Math.floor(Math.random() * jitter));
       }
       if (batch?.id) await supabase.from("broadcast_log").update({ ok_count: okCount, total: doneThisRun }).eq("id", batch.id);
       setToday((t) => t + 1);
@@ -1538,6 +1538,14 @@ function DisparosTab({ stores }: { stores: Loja[] }) {
     sentSetRef.current = new Set();
     setSafeProgress({ sent: 0, total: count || 0, remaining: count || 0 });
     alert("Lista de enviados limpa.");
+  }
+
+  async function sleep(ms: number) {
+    const end = Date.now() + ms;
+    while (Date.now() < end) {
+      if (stopRef.current || safeStopRef.current) return;
+      await new Promise((r) => setTimeout(r, Math.min(500, end - Date.now())));
+    }
   }
 
   function stopDisparo() {
